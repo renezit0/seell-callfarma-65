@@ -1049,10 +1049,15 @@ export const useCallfarmaAPI = () => {
       orderBy: 'scefun.NOME asc'
     };
 
-    // REMOVIDO: Não usar filtroFiliais na API, vamos filtrar localmente
-    // if (cdfil && cdfil !== 'all') {
-    //   params.filtroFiliais = cdfil.toString();
-    // }
+    // CORREÇÃO: Filtrar por filial sempre que cdfil for fornecido e não for 'all'
+    if (cdfil && cdfil !== 'all') {
+      params.filtroFiliais = cdfil.toString();
+      console.log('APLICANDO FILTRO POR FILIAL:', cdfil);
+    } else if (cdfil === 'all') {
+      console.log('BUSCANDO TODAS AS FILIAIS (modo admin)');
+    } else {
+      console.log('WARNING: CDFIL não fornecido - pode buscar dados de todas as lojas!');
+    }
 
     // Filtrar por funcionário específico se especificado
     if (cdfun) {
@@ -1060,7 +1065,7 @@ export const useCallfarmaAPI = () => {
       console.log('APLICANDO FILTRO POR FUNCIONÁRIO:', cdfun);
     }
 
-    console.log('Params da requisição funcionários detalhadas (SEM filtro de filial):', params);
+    console.log('Params da requisição funcionários detalhadas:', params);
 
     const { data, error } = await supabase.functions.invoke('callfarma-vendas', {
       body: {
@@ -1072,27 +1077,16 @@ export const useCallfarmaAPI = () => {
     if (error) throw error;
     
     const rawData = data?.msg || [];
-    console.log('Dados funcionários recebidos (ANTES do filtro local):', rawData.length, 'registros');
+    console.log('Dados funcionários recebidos:', rawData.length, 'registros');
     
-    // FILTRO LOCAL: Aplicar filtro por filial APÓS receber os dados
-    let dadosFiltrados = rawData;
-    
-    if (cdfil && cdfil !== 'all') {
-      dadosFiltrados = rawData.filter((item: any) => item.CDFIL === cdfil);
-      console.log(`FILTRO LOCAL aplicado para CDFIL ${cdfil}:`, dadosFiltrados.length, 'registros restantes');
+    // DEBUG: Mostrar quais filiais vieram nos dados
+    if (rawData.length > 0) {
+      const filiaisRecebidas = [...new Set(rawData.map((item: any) => item.CDFIL))];
+      console.log('Filiais nos dados recebidos:', filiaisRecebidas);
+      console.log('Deveria ser apenas:', cdfil !== 'all' ? [cdfil] : 'todas');
     }
     
-    // DEBUG: Mostrar quais filiais vieram nos dados filtrados
-    if (dadosFiltrados.length > 0) {
-      const filiaisFiltradasLocalmente = [...new Set(dadosFiltrados.map((item: any) => item.CDFIL))];
-      console.log('Filiais nos dados APÓS filtro local:', filiaisFiltradasLocalmente);
-      
-      if (cdfil !== 'all' && filiaisFiltradasLocalmente.length === 1 && filiaisFiltradasLocalmente[0] === cdfil) {
-        console.log('✅ FILTRO LOCAL funcionando corretamente!');
-      }
-    }
-    
-    return dadosFiltrados;
+    return rawData;
   } catch (error) {
     console.error('Erro ao buscar vendas funcionários detalhadas:', error);
     toast({
