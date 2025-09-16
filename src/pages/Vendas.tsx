@@ -24,7 +24,7 @@ interface ChartData {
   value: number;
   transactions: number;
   geral: number;
-  goodlife: number;
+  saude: number;
   perfumaria_r_mais: number;
   conveniencia_r_mais: number;
   r_mais: number;
@@ -46,10 +46,19 @@ interface IndicadorMeta {
 
 // Mapeamento de categorias da API para nomes amigáveis
 const NOMES_CATEGORIAS = {
-  'rentaveis': 'Rentáveis R+',
-  'perfumaria_alta': 'Perfumaria R+',
-  'conveniencia_alta': 'Conveniência R+',
-  'goodlife': 'GoodLife'
+  'r_mais': 'Rentáveis R+',
+  'perfumaria_r_mais': 'Perfumaria R+',
+  'saude': 'GoodLife',
+  'conveniencia_r_mais': 'Conveniência R+'
+};
+
+// Mapeamento para cores das categorias
+const CORES_CATEGORIAS = {
+  'r_mais': 'hsl(0, 84%, 60%)',
+  'perfumaria_r_mais': 'hsl(262, 83%, 58%)',
+  'saude': 'hsl(142, 76%, 36%)',
+  'conveniencia_r_mais': 'hsl(32, 95%, 44%)',
+  'geral': 'hsl(217, 91%, 60%)'
 };
 
 export default function Vendas() {
@@ -109,38 +118,38 @@ export default function Vendas() {
       gruposComVendas,
       participacaoGrupos,
       vendasPorGrupo: vendas_consolidadas.por_grupos || {},
-      // Dados das categorias específicas
-      rentaveis: vendas_consolidadas.rentaveis || 0,
-      perfumariaAlta: vendas_consolidadas.perfumaria_alta || 0,
-      convenienciaAlta: vendas_consolidadas.conveniencia_alta || 0,
-      goodlife: vendas_consolidadas.goodlife || 0
+      // Dados das categorias consolidadas da loja (mapeamento correto)
+      rMais: vendas_consolidadas.r_mais || 0,
+      perfumariaRMais: vendas_consolidadas.perfumaria_r_mais || 0,
+      saude: vendas_consolidadas.saude || 0,
+      convenienciaRMais: vendas_consolidadas.conveniencia_r_mais || 0
     };
   }, [dadosCallfarma]);
 
-  // Calcular indicadores com base nas metas
+  // Calcular indicadores com base nas metas (usando categorias corretas)
   const indicadoresComMetas = useMemo((): IndicadorMeta[] => {
     if (!dadosCallfarmaCalculados || !metasData) return [];
 
     const indicadores = [
       {
-        categoria: 'rentaveis',
-        valor_realizado: dadosCallfarmaCalculados.rentaveis,
-        nome_categoria: NOMES_CATEGORIAS.rentaveis
+        categoria: 'r_mais',
+        valor_realizado: dadosCallfarmaCalculados.rMais,
+        nome_categoria: NOMES_CATEGORIAS.r_mais
       },
       {
-        categoria: 'perfumaria_alta',
-        valor_realizado: dadosCallfarmaCalculados.perfumariaAlta,
-        nome_categoria: NOMES_CATEGORIAS.perfumaria_alta
+        categoria: 'perfumaria_r_mais',
+        valor_realizado: dadosCallfarmaCalculados.perfumariaRMais,
+        nome_categoria: NOMES_CATEGORIAS.perfumaria_r_mais
       },
       {
-        categoria: 'conveniencia_alta', 
-        valor_realizado: dadosCallfarmaCalculados.convenienciaAlta,
-        nome_categoria: NOMES_CATEGORIAS.conveniencia_alta
+        categoria: 'saude',
+        valor_realizado: dadosCallfarmaCalculados.saude,
+        nome_categoria: NOMES_CATEGORIAS.saude
       },
       {
-        categoria: 'goodlife',
-        valor_realizado: dadosCallfarmaCalculados.goodlife,
-        nome_categoria: NOMES_CATEGORIAS.goodlife
+        categoria: 'conveniencia_r_mais', 
+        valor_realizado: dadosCallfarmaCalculados.convenienciaRMais,
+        nome_categoria: NOMES_CATEGORIAS.conveniencia_r_mais
       }
     ];
 
@@ -183,20 +192,15 @@ export default function Vendas() {
 
         const metasMap: Record<string, { meta: number; realizado: number; }> = {};
 
-        // Mapear categorias da API para categorias das metas
-        const categoriasMapping = {
-          'rentaveis': 'r_mais',
-          'perfumaria_alta': 'perfumaria_r_mais', 
-          'conveniencia_alta': 'conveniencia_r_mais',
-          'goodlife': 'goodlife'
-        };
+        // Usar as categorias corretas conforme especificado
+        const categorias = ['r_mais', 'perfumaria_r_mais', 'saude', 'conveniencia_r_mais'];
 
-        Object.entries(categoriasMapping).forEach(([categoriaAPI, categoriaMeta]) => {
+        categorias.forEach(categoria => {
           // Buscar meta da categoria nas metas_loja_categorias
-          const metaCategoria = metasLoja?.[0]?.metas_loja_categorias?.find((m: any) => m.categoria === categoriaMeta);
+          const metaCategoria = metasLoja?.[0]?.metas_loja_categorias?.find((m: any) => m.categoria === categoria);
           const metaValor = metaCategoria?.meta_valor || 0;
 
-          metasMap[categoriaAPI] = {
+          metasMap[categoria] = {
             meta: metaValor,
             realizado: 0 // Será preenchido pelos dados da API
           };
@@ -289,14 +293,14 @@ export default function Vendas() {
           value: 0,
           transactions: 0,
           geral: 0,
-          goodlife: 0,
+          saude: 0,
           perfumaria_r_mais: 0,
           conveniencia_r_mais: 0,
           r_mais: 0
         });
       });
 
-      // Processar vendas por categoria da API
+      // Processar vendas por categoria da API (usando grupos corretos)
       vendasPorDia.forEach((venda: any) => {
         const existing = chartMap.get(venda.DATA);
         if (existing) {
@@ -309,9 +313,9 @@ export default function Vendas() {
 
           const grupoId = parseInt(venda.CDGRUPO);
           
-          // Mapear grupos para categorias do gráfico
+          // Mapear grupos para categorias do gráfico (conforme especificação)
           if ([22].includes(grupoId)) {
-            existing.goodlife += valorLiquido;
+            existing.saude += valorLiquido;
           } else if ([46].includes(grupoId)) {
             existing.perfumaria_r_mais += valorLiquido;
           } else if ([36, 13].includes(grupoId)) {
@@ -422,7 +426,7 @@ export default function Vendas() {
 
       {/* Statistics Cards - Baseados na API Callfarma */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 sm:gap-4 mb-4 sm:mb-6">
-        {/* NOVO: Card Total da API Callfarma */}
+        {/* Card Total da API Callfarma */}
         <Card className="border-2 border-success/20">
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
@@ -732,7 +736,7 @@ export default function Vendas() {
                 </SelectTrigger>
                 <SelectContent className="z-50 bg-popover border border-border shadow-md">
                   <SelectItem value="geral">Total Geral</SelectItem>
-                  <SelectItem value="goodlife">GoodLife</SelectItem>
+                  <SelectItem value="saude">GoodLife</SelectItem>
                   <SelectItem value="perfumaria_r_mais">Perfumaria R+</SelectItem>
                   <SelectItem value="conveniencia_r_mais">Conveniência R+</SelectItem>
                   <SelectItem value="r_mais">Rentáveis R+</SelectItem>
@@ -778,18 +782,18 @@ export default function Vendas() {
                       <Legend formatter={(value) => NOMES_CATEGORIAS[value as keyof typeof NOMES_CATEGORIAS] || value} />
                       <Line 
                         type="monotone" 
-                        dataKey="goodlife" 
-                        stroke="hsl(142, 76%, 36%)" 
+                        dataKey="saude" 
+                        stroke={CORES_CATEGORIAS.saude} 
                         strokeWidth={2} 
                         strokeDasharray="5 5" 
                         dot={{ r: 3 }} 
                         isAnimationActive={false} 
-                        name="goodlife" 
+                        name="saude" 
                       />
                       <Line 
                         type="monotone" 
                         dataKey="perfumaria_r_mais" 
-                        stroke="hsl(262, 83%, 58%)" 
+                        stroke={CORES_CATEGORIAS.perfumaria_r_mais} 
                         strokeWidth={2} 
                         strokeDasharray="10 5" 
                         dot={{ r: 3 }} 
@@ -799,7 +803,7 @@ export default function Vendas() {
                       <Line 
                         type="monotone" 
                         dataKey="conveniencia_r_mais" 
-                        stroke="hsl(32, 95%, 44%)" 
+                        stroke={CORES_CATEGORIAS.conveniencia_r_mais} 
                         strokeWidth={2} 
                         strokeDasharray="15 5" 
                         dot={{ r: 3 }} 
@@ -809,7 +813,7 @@ export default function Vendas() {
                       <Line 
                         type="monotone" 
                         dataKey="r_mais" 
-                        stroke="hsl(0, 84%, 60%)" 
+                        stroke={CORES_CATEGORIAS.r_mais} 
                         strokeWidth={2} 
                         strokeDasharray="3 3" 
                         dot={{ r: 3 }} 
@@ -842,7 +846,7 @@ export default function Vendas() {
                       <Line 
                         type="monotone" 
                         dataKey={chartCategoriaFilter === 'geral' ? 'geral' : chartCategoriaFilter}
-                        stroke="hsl(217, 91%, 60%)" 
+                        stroke={CORES_CATEGORIAS[chartCategoriaFilter as keyof typeof CORES_CATEGORIAS] || CORES_CATEGORIAS.geral} 
                         strokeWidth={3} 
                         dot={{ r: 4 }} 
                         isAnimationActive={false} 
@@ -871,34 +875,41 @@ export default function Vendas() {
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="p-4 border rounded-lg">
-                      <h3 className="font-semibold text-success">Rentáveis R+</h3>
+                      <h3 className="font-semibold text-red-600">Rentáveis R+</h3>
                       <p className="text-2xl font-bold">
-                        R$ {dadosCallfarmaCalculados.rentaveis.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                        R$ {dadosCallfarmaCalculados.rMais.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
                       </p>
+                      <p className="text-xs text-muted-foreground">Grupos: 20, 25</p>
                     </div>
                     <div className="p-4 border rounded-lg">
                       <h3 className="font-semibold text-purple-600">Perfumaria R+</h3>
                       <p className="text-2xl font-bold">
-                        R$ {dadosCallfarmaCalculados.perfumariaAlta.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                        R$ {dadosCallfarmaCalculados.perfumariaRMais.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
                       </p>
+                      <p className="text-xs text-muted-foreground">Grupo: 46</p>
                     </div>
                     <div className="p-4 border rounded-lg">
                       <h3 className="font-semibold text-orange-600">Conveniência R+</h3>
                       <p className="text-2xl font-bold">
-                        R$ {dadosCallfarmaCalculados.convenienciaAlta.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                        R$ {dadosCallfarmaCalculados.convenienciaRMais.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
                       </p>
+                      <p className="text-xs text-muted-foreground">Grupos: 36, 13</p>
                     </div>
                     <div className="p-4 border rounded-lg">
                       <h3 className="font-semibold text-green-600">GoodLife</h3>
                       <p className="text-2xl font-bold">
-                        R$ {dadosCallfarmaCalculados.goodlife.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                        R$ {dadosCallfarmaCalculados.saude.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
                       </p>
+                      <p className="text-xs text-muted-foreground">Grupo: 22</p>
                     </div>
                   </div>
                   
                   <div className="text-center text-muted-foreground py-4">
                     <p className="text-sm">
                       💡 Dados incluem vendas de terceiros registradas na loja via API Callfarma
+                    </p>
+                    <p className="text-xs mt-1">
+                      Mapeamento conforme especificação: R+ (20,25) | Perfumaria R+ (46) | Saúde (22) | Conveniência R+ (36,13)
                     </p>
                   </div>
                 </div>
