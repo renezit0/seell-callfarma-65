@@ -378,7 +378,22 @@ export default function Vendas() {
         });
       } else {
         // Buscar dados completos
-        const cdfil = canViewAllStores && !selectedLojaId ? 'all' : lojaInfo.cdfil;
+        // CORREÇÃO: Só buscar 'all' se for admin E não tiver loja selecionada E não tiver selectedLojaId
+        let cdfil;
+        if (canViewAllStores && !selectedLojaId) {
+          // Admin sem loja específica selecionada - buscar todas as lojas
+          cdfil = 'all';
+        } else {
+          // Usuário normal OU admin com loja selecionada - sempre usar CDFIL específico
+          cdfil = lojaInfo.cdfil;
+        }
+        
+        console.log('CDFIL determinado para busca:', cdfil, {
+          canViewAllStores,
+          selectedLojaId,
+          userLojaId: user?.loja_id,
+          currentLojaId
+        });
         
         const { vendasFilial, vendasFuncionarios, funcionarios: funcAPI } = await callfarmaAPI.buscarDadosVendasCompletos(
           dataInicio,
