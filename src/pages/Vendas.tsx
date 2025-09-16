@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { useTicketMedioSelfcheckout } from '@/hooks/useTicketMedioSelfcheckout';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,278 +7,100 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, Plus, Calendar, DollarSign, TrendingUp, BarChart3, LineChart, Trophy, TrendingDown, Users } from 'lucide-react';
-import { getNomeCategoria, getIconeCategoria, getClasseCorCategoria, getClasseBgCategoria, getCorCategoria } from '@/utils/categories';
+import { Search, Plus, Calendar, DollarSign, TrendingUp, BarChart3 } from 'lucide-react';
+import { getNomeCategoria, getIconeCategoria, getClasseCorCategoria, getClasseBgCategoria } from '@/utils/categories';
 import { Navigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { format, startOfMonth, subMonths, eachDayOfInterval, getDay } from 'date-fns';
+import { format } from 'date-fns';
 import { PeriodSelector } from '@/components/PeriodSelector';
 import { StoreSelector } from '@/components/StoreSelector';
 import { usePeriodContext } from '@/contexts/PeriodContext';
-import { LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
-// Mapeamento dos grupos conforme fornecido
-const CATEGORIAS_GRUPOS = {
-  'similar': [2, 21, 20, 25, 22],
-  'generico': [47, 5, 6],
-  'perfumaria_alta': [46],
-  'goodlife': [22],
-  'rentaveis20': [20],
-  'rentaveis25': [25],
-  'dermocosmetico': [31, 16],
-  'conveniencia': [36],
-  'brinquedo': [13]
+// Mapeamento simples dos grupos
+const GRUPOS_PARA_CATEGORIAS: Record<number, string> = {
+  2: 'similar',
+  5: 'generico', 
+  6: 'generico',
+  13: 'brinquedo',
+  16: 'dermocosmetico',
+  20: 'rentaveis20',
+  21: 'similar', 
+  22: 'goodlife',
+  25: 'rentaveis25',
+  31: 'dermocosmetico',
+  36: 'conveniencia',
+  46: 'perfumaria_alta',
+  47: 'generico'
 };
 
-const MAPEAMENTO_LOJA_CATEGORIAS = {
-  'r_mais': [20, 25],
-  'perfumaria_r_mais': [46],
-  'saude': [22],
-  'conveniencia_r_mais': [36, 13]
-};
-
-// Criar mapeamento inverso para facilitar a busca
-const GRUPOS_PARA_CATEGORIAS: Record<number, string> = {};
-Object.entries(CATEGORIAS_GRUPOS).forEach(([categoria, grupos]) => {
-  grupos.forEach(grupo => {
-    GRUPOS_PARA_CATEGORIAS[grupo] = categoria;
-  });
-});
-
-interface VendaAPI {
-  CDFIL: number;
-  NOMEFIL: string;
-  CDFUN: number;
-  NOMEFUN: string;
-  DATA: string;
-  TOTAL_QTD_VE: number;
-  TOTAL_QTD_DV: number;
-  TOTAL_VLR_VE: number;
-  TOTAL_VLR_DV: number;
-  CDGRUPO?: number;
-}
-
-interface VendaProcessada {
+interface VendaSimples {
   id: string;
+  data: string;
+  funcionario: string;
   cdfun: number;
-  nome_funcionario: string;
-  data_venda: string;
   categoria: string;
+  grupo: number;
   valor_bruto: number;
   valor_liquido: number;
   quantidade: number;
-}
-
-interface ChartData {
-  date: string;
-  value: number;
-  transactions: number;
-  geral: number;
-  goodlife: number;
-  perfumaria_r_mais: number;
-  conveniencia_r_mais: number;
-  r_mais: number;
-}
-
-interface Funcionario {
-  cdfun: number;
-  nome: string;
-  matricula?: string;
 }
 
 export default function Vendas() {
   const { user, loading: authLoading } = useAuth();
   const { selectedPeriod } = usePeriodContext();
   
-  const [vendasProcessadas, setVendasProcessadas] = useState<VendaProcessada[]>([]);
-  const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
-  const [lojaInfo, setLojaInfo] = useState<{ regiao: string; numero: string; nome: string } | null>(null);
+  const [vendas, setVendas] = useState<VendaSimples[]>([]);
+  const [funcionarios, setFuncionarios] = useState<{cdfun: number, nome: string}[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoriaFilter, setCategoriaFilter] = useState<string>('all');
   const [funcionarioFilter, setFuncionarioFilter] = useState<string>('all');
-  const [chartData, setChartData] = useState<ChartData[]>([]);
-  const [chartCategoriaFilter, setChartCategoriaFilter] = useState<string>('geral');
   const [filtroAdicional, setFiltroAdicional] = useState<string>('periodo');
   const [selectedLojaId, setSelectedLojaId] = useState<number | null>(null);
-  const [numeroLoja, setNumeroLoja] = useState<string>('');
+  const [lojaInfo, setLojaInfo] = useState<{numero: string, nome: string} | null>(null);
   
   const canViewAllStores = user?.tipo && ['admin', 'supervisor', 'compras'].includes(user.tipo);
   const currentLojaId = canViewAllStores ? selectedLojaId : (user?.loja_id || null);
-  
-  const { dados: ticketMedioData } = useTicketMedioSelfcheckout(currentLojaId, 'completo');
 
-  // Função para mapear grupo para categoria
-  const mapearGrupoParaCategoria = (cdgrupo?: number): string => {
-    if (!cdgrupo) return 'geral';
-    return GRUPOS_PARA_CATEGORIAS[cdgrupo] || 'geral';
-  };
-
-  // Filtros das vendas
+  // Filtrar vendas
   const filteredVendas = useMemo(() => {
-    return vendasProcessadas.filter(venda => {
-      const matchesSearch = venda.categoria.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           venda.nome_funcionario.toLowerCase().includes(searchTerm.toLowerCase());
+    return vendas.filter(venda => {
+      const matchesSearch = venda.funcionario.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           venda.categoria.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategoria = categoriaFilter === 'all' || venda.categoria === categoriaFilter;
       const matchesFuncionario = funcionarioFilter === 'all' || venda.cdfun.toString() === funcionarioFilter;
       return matchesSearch && matchesCategoria && matchesFuncionario;
     });
-  }, [vendasProcessadas, searchTerm, categoriaFilter, funcionarioFilter]);
+  }, [vendas, searchTerm, categoriaFilter, funcionarioFilter]);
 
-  // Cálculos das vendas
+  // Cálculos simples
   const calculatedData = useMemo(() => {
-    // GERAL = TODAS as vendas (soma total)
-    const totalGeralVendas = vendasProcessadas.reduce((sum, venda) => sum + venda.valor_liquido, 0);
-    
-    // Para participação, geral é 100% do total
-    const valorTotalTodas = totalGeralVendas;
-    const participacaoGeral = 100; // Geral sempre é 100% do total
-    
-    const totalVendas = filteredVendas.reduce((sum, venda) => sum + venda.valor_liquido, 0);
-    const ticketMedio = filteredVendas.length > 0 ? totalVendas / filteredVendas.length : 0;
-
-    return {
-      totalGeralVendas,
-      valorTotalTodas,
-      participacaoGeral,
-      totalVendas,
-      ticketMedio
-    };
-  }, [vendasProcessadas, filteredVendas]);
-
-  // Vendas por categoria
-  const vendasPorCategoria = useMemo(() => {
-    const grouped = vendasProcessadas.reduce((acc, venda) => {
-      // Adicionar à categoria específica
-      let categoria = venda.categoria;
-      
-      if (!acc[categoria]) {
-        acc[categoria] = { valor: 0, transacoes: 0 };
-      }
-      acc[categoria].valor += venda.valor_liquido;
-      acc[categoria].transacoes += 1;
-
-      // Também mapear para categorias agrupadas para indicadores
-      if (venda.categoria === 'similar' || venda.categoria === 'generico') {
-        if (!acc['generico_similar']) acc['generico_similar'] = { valor: 0, transacoes: 0 };
-        acc['generico_similar'].valor += venda.valor_liquido;
-        acc['generico_similar'].transacoes += 1;
-      } else if (venda.categoria === 'conveniencia' || venda.categoria === 'brinquedo') {
-        if (!acc['conveniencia_r_mais']) acc['conveniencia_r_mais'] = { valor: 0, transacoes: 0 };
-        acc['conveniencia_r_mais'].valor += venda.valor_liquido;
-        acc['conveniencia_r_mais'].transacoes += 1;
-      } else if (venda.categoria === 'rentaveis20' || venda.categoria === 'rentaveis25') {
-        if (!acc['r_mais']) acc['r_mais'] = { valor: 0, transacoes: 0 };
-        acc['r_mais'].valor += venda.valor_liquido;
-        acc['r_mais'].transacoes += 1;
-      } else if (venda.categoria === 'goodlife') {
-        if (!acc['goodlife']) acc['goodlife'] = { valor: 0, transacoes: 0 };
-        acc['goodlife'].valor += venda.valor_liquido;
-        acc['goodlife'].transacoes += 1;
-      } else if (venda.categoria === 'perfumaria_alta') {
-        if (!acc['perfumaria_r_mais']) acc['perfumaria_r_mais'] = { valor: 0, transacoes: 0 };
-        acc['perfumaria_r_mais'].valor += venda.valor_liquido;
-        acc['perfumaria_r_mais'].transacoes += 1;
-      }
-      
-      return acc;
-    }, {} as Record<string, { valor: number; transacoes: number }>);
-
-    // Adicionar o total geral como categoria
-    const totalGeral = vendasProcessadas.reduce((sum, venda) => sum + venda.valor_liquido, 0);
-    const totalTransacoes = vendasProcessadas.length;
-    
-    grouped['geral'] = {
-      valor: totalGeral,
-      transacoes: totalTransacoes
-    };
-    
-    return grouped;
-  }, [vendasProcessadas]);
-
-  const [metasData, setMetasData] = useState<Record<string, { meta: number; realizado: number }>>({});
-
-  // Buscar metas
-  useEffect(() => {
-    if (!user || !selectedPeriod || !currentLojaId) return;
-    
-    const fetchMetas = async () => {
-      try {
-        const { data: metasLoja } = await supabase
-          .from('metas_loja')
-          .select('*, metas_loja_categorias(*)')
-          .eq('loja_id', currentLojaId)
-          .eq('periodo_meta_id', selectedPeriod.id);
-
-        const metasMap: Record<string, { meta: number; realizado: number }> = {};
-        const categorias = ['r_mais', 'perfumaria_r_mais', 'conveniencia_r_mais', 'goodlife'];
-        
-        categorias.forEach(categoria => {
-          let metaValor = 0;
-          
-          if (categoria === 'geral') {
-            metaValor = metasLoja?.[0]?.meta_valor_total || 0;
-          } else {
-            const metaCategoria = metasLoja?.[0]?.metas_loja_categorias?.find(
-              (m: any) => m.categoria === categoria
-            );
-            metaValor = metaCategoria?.meta_valor || 0;
-          }
-          
-          const categoriaDados = vendasPorCategoria[categoria];
-          const realizado = categoriaDados?.valor || 0;
-          
-          metasMap[categoria] = { meta: metaValor, realizado };
-        });
-        
-        setMetasData(metasMap);
-      } catch (error) {
-        console.error('Erro ao buscar metas:', error);
-      }
-    };
-    
-    fetchMetas();
-  }, [user, selectedPeriod, vendasPorCategoria, currentLojaId]);
-
-  // Ranking de indicadores
-  const indicadoresRanking = useMemo(() => {
-    const indicadores = Object.entries(vendasPorCategoria)
-      .filter(([categoria]) => categoria !== 'geral' && categoria !== 'generico_similar')
-      .map(([categoria, dados]) => {
-        const metaInfo = metasData[categoria];
-        const percentualMeta = metaInfo?.meta > 0 ? (dados.valor / metaInfo.meta) * 100 : 0;
-        
-        return {
-          categoria,
-          valor: dados.valor,
-          transacoes: dados.transacoes,
-          meta: metaInfo?.meta || 0,
-          percentualMeta
-        };
-      })
-      .filter(indicador => indicador.meta > 0)
-      .sort((a, b) => b.percentualMeta - a.percentualMeta);
+    const totalGeral = vendas.reduce((sum, venda) => sum + venda.valor_liquido, 0);
+    const totalFiltrado = filteredVendas.reduce((sum, venda) => sum + venda.valor_liquido, 0);
+    const ticketMedio = filteredVendas.length > 0 ? totalFiltrado / filteredVendas.length : 0;
     
     return {
-      melhor: indicadores[0] || null,
-      pior: indicadores[indicadores.length - 1] || null
+      totalGeral,
+      totalFiltrado,
+      ticketMedio,
+      totalTransacoes: vendas.length,
+      transacoesFiltradas: filteredVendas.length
     };
-  }, [vendasPorCategoria, metasData]);
+  }, [vendas, filteredVendas]);
 
-  // Buscar informações da loja e número
+  // Buscar informações da loja
   useEffect(() => {
     if (currentLojaId) {
       fetchLojaInfo();
     }
   }, [currentLojaId]);
 
-  // Buscar vendas quando mudar período ou loja
+  // Buscar vendas quando mudar
   useEffect(() => {
-    if (user && selectedPeriod && numeroLoja) {
-      fetchVendasAPI();
+    if (user && selectedPeriod && lojaInfo) {
+      fetchVendas();
     }
-  }, [user, selectedPeriod, numeroLoja, filtroAdicional]);
+  }, [user, selectedPeriod, lojaInfo, filtroAdicional]);
 
   const fetchLojaInfo = async () => {
     if (!currentLojaId) return;
@@ -287,29 +108,23 @@ export default function Vendas() {
     try {
       const { data, error } = await supabase
         .from('lojas')
-        .select('regiao, numero, nome')
+        .select('numero, nome')
         .eq('id', currentLojaId)
         .single();
 
       if (error) throw error;
       setLojaInfo(data);
-      setNumeroLoja(data.numero);
     } catch (error) {
-      console.error('Erro ao buscar informações da loja:', error);
+      console.error('Erro ao buscar loja:', error);
     }
   };
 
-  // Buscar vendas da API externa - OTIMIZADO para uma loja específica
-  const fetchVendasAPI = async () => {
-    if (!numeroLoja || !selectedPeriod) return;
+  const fetchVendas = async () => {
+    if (!lojaInfo || !selectedPeriod) return;
     
     try {
       setLoading(true);
       
-      // Converter número da loja para CDFIL (número da loja na API)
-      const cdfilLoja = parseInt(numeroLoja);
-      console.log('🔍 Buscando vendas da API para loja:', numeroLoja, 'CDFIL:', cdfilLoja);
-
       // Calcular período
       const hoje = new Date();
       let dataInicio: string;
@@ -331,16 +146,19 @@ export default function Vendas() {
         dataInicio = format(inicioMes, 'yyyy-MM-dd');
         dataFim = format(hoje, 'yyyy-MM-dd');
       } else {
-        // Período selecionado
         const dataInicioAjustada = new Date(selectedPeriod.startDate);
         dataInicioAjustada.setDate(dataInicioAjustada.getDate() + 1);
         dataInicio = format(dataInicioAjustada, 'yyyy-MM-dd');
         dataFim = format(selectedPeriod.endDate, 'yyyy-MM-dd');
       }
 
-      console.log('📅 Período:', dataInicio, 'até', dataFim);
+      console.log('Buscando vendas:', {
+        loja: lojaInfo.numero,
+        periodo: `${dataInicio} até ${dataFim}`,
+        filtro: filtroAdicional
+      });
 
-      // Fazer requisição com filtro de loja
+      // Buscar da API
       const { data, error } = await supabase.functions.invoke('callfarma-vendas', {
         body: {
           endpoint: '/financeiro/vendas-por-funcionario',
@@ -349,161 +167,84 @@ export default function Vendas() {
             dataIni: dataInicio,
             groupBy: 'scekarde.DATA,scefun.CDFUN,sceprodu.CDGRUPO',
             orderBy: 'scekarde.DATA desc',
-            filtroFiliais: numeroLoja.toString().padStart(2, '0')
+            filtroFiliais: lojaInfo.numero.padStart(2, '0')
           }
         }
       });
 
-      if (error) {
-        console.error('Erro na API:', error);
-        throw error;
+      if (error) throw error;
+
+      const dadosAPI = data?.msg || [];
+      console.log('Dados recebidos da API:', dadosAPI.length, 'registros');
+
+      // Mostrar amostra dos dados para debug
+      if (dadosAPI.length > 0) {
+        console.log('Amostra dos primeiros 3 registros:', dadosAPI.slice(0, 3));
       }
 
-      const dadosAPI: VendaAPI[] = data?.msg || [];
-      console.log('📊 Dados recebidos da API:', dadosAPI.length, 'registros');
+      // Processar de forma muito simples
+      const vendasProcessadas: VendaSimples[] = [];
+      const funcionariosSet = new Set<string>();
 
-      // FILTRO ADICIONAL LOCAL - Garantir que só apareçam dados da loja específica
-      const dadosFiltrados = dadosAPI.filter(item => {
-        const match = item.CDFIL === cdfilLoja;
-        if (!match) {
-          console.log('⚠️ Filtrando item de outra loja:', item.CDFIL, 'esperado:', cdfilLoja);
+      dadosAPI.forEach((item: any, index: number) => {
+        // Pular se não for da loja correta
+        if (item.CDFIL?.toString() !== lojaInfo.numero) {
+          console.log('Ignorando registro de outra loja:', item.CDFIL, 'esperado:', lojaInfo.numero);
+          return;
         }
-        return match;
-      });
 
-      console.log('🔍 Dados após filtro local:', dadosFiltrados.length, 'registros');
+        const valorBruto = parseFloat(item.TOTAL_VLR_VE || 0);
+        const valorDevolucao = parseFloat(item.TOTAL_VLR_DV || 0);
+        const valorLiquido = valorBruto - valorDevolucao;
+        const quantidade = (item.TOTAL_QTD_VE || 0) - (item.TOTAL_QTD_DV || 0);
 
-      // Verificar se recebemos dados da loja correta
-      if (dadosFiltrados.length > 0) {
-        const lojasUnicas = [...new Set(dadosFiltrados.map(item => item.CDFIL))];
-        console.log('🏪 Lojas nos dados filtrados:', lojasUnicas);
-      }
-
-      // Processar dados de forma mais eficiente
-      const vendasMap = new Map<string, VendaProcessada>();
-
-      dadosFiltrados.forEach((item, index) => {
-        const categoria = mapearGrupoParaCategoria(item.CDGRUPO);
-        const valorLiquido = (item.TOTAL_VLR_VE || 0) - (item.TOTAL_VLR_DV || 0);
-        
-        if (valorLiquido > 0) {
-          const key = `${item.CDFUN}-${item.DATA}-${item.CDGRUPO || 0}-${index}`;
+        if (valorLiquido > 0 && quantidade > 0) {
+          const categoria = GRUPOS_PARA_CATEGORIAS[item.CDGRUPO] || 'outros';
           
-          if (vendasMap.has(key)) {
-            // Agregar se já existe
-            const vendaExistente = vendasMap.get(key)!;
-            vendaExistente.valor_bruto += (item.TOTAL_VLR_VE || 0);
-            vendaExistente.valor_liquido += valorLiquido;
-            vendaExistente.quantidade += (item.TOTAL_QTD_VE || 0) - (item.TOTAL_QTD_DV || 0);
-          } else {
-            // Criar nova venda
-            vendasMap.set(key, {
-              id: key,
-              cdfun: item.CDFUN,
-              nome_funcionario: item.NOMEFUN,
-              data_venda: item.DATA.split('T')[0],
-              categoria,
-              valor_bruto: item.TOTAL_VLR_VE || 0,
-              valor_liquido: valorLiquido,
-              quantidade: (item.TOTAL_QTD_VE || 0) - (item.TOTAL_QTD_DV || 0)
-            });
-          }
+          vendasProcessadas.push({
+            id: `${item.CDFUN}-${item.DATA}-${item.CDGRUPO}-${index}`,
+            data: item.DATA?.split('T')[0] || '',
+            funcionario: item.NOMEFUN || 'Desconhecido',
+            cdfun: item.CDFUN || 0,
+            categoria,
+            grupo: item.CDGRUPO || 0,
+            valor_bruto: valorBruto,
+            valor_liquido: valorLiquido,
+            quantidade
+          });
+
+          funcionariosSet.add(JSON.stringify({cdfun: item.CDFUN, nome: item.NOMEFUN}));
         }
       });
 
-      const vendasProcessadasArray = Array.from(vendasMap.values());
-      
       // Extrair funcionários únicos
-      const funcionariosUnicos = Array.from(
-        new Map(
-          dadosFiltrados.map(item => [item.CDFUN, { cdfun: item.CDFUN, nome: item.NOMEFUN }])
-        ).values()
-      );
+      const funcionariosUnicos = Array.from(funcionariosSet).map(f => JSON.parse(f));
 
-      console.log('✅ Processamento concluído:', vendasProcessadasArray.length, 'vendas,', funcionariosUnicos.length, 'funcionários');
-      
-      // Verificar total de valores por categoria
-      const totalPorCategoria = vendasProcessadasArray.reduce((acc, venda) => {
-        if (!acc[venda.categoria]) acc[venda.categoria] = 0;
-        acc[venda.categoria] += venda.valor_liquido;
+      console.log('Resultado final:', {
+        vendasProcessadas: vendasProcessadas.length,
+        funcionarios: funcionariosUnicos.length,
+        totalValor: vendasProcessadas.reduce((sum, v) => sum + v.valor_liquido, 0).toFixed(2),
+        totalQuantidade: vendasProcessadas.reduce((sum, v) => sum + v.quantidade, 0)
+      });
+
+      // Log por categoria
+      const porCategoria = vendasProcessadas.reduce((acc, v) => {
+        if (!acc[v.categoria]) acc[v.categoria] = {valor: 0, qtd: 0};
+        acc[v.categoria].valor += v.valor_liquido;
+        acc[v.categoria].qtd += v.quantidade;
         return acc;
-      }, {} as Record<string, number>);
+      }, {} as Record<string, {valor: number, qtd: number}>);
       
-      console.log('💰 Total por categoria:', totalPorCategoria);
-      
-      setVendasProcessadas(vendasProcessadasArray);
+      console.log('Por categoria:', porCategoria);
+
+      setVendas(vendasProcessadas);
       setFuncionarios(funcionariosUnicos);
       
     } catch (error) {
-      console.error('Erro ao buscar vendas da API:', error);
-      toast.error('Erro ao carregar vendas da API externa');
+      console.error('Erro ao buscar vendas:', error);
+      toast.error('Erro ao carregar vendas da API');
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Gerar dados do gráfico de forma simplificada
-  useEffect(() => {
-    if (vendasProcessadas.length > 0) {
-      generateChartData();
-    }
-  }, [vendasProcessadas, chartCategoriaFilter]);
-
-  const generateChartData = () => {
-    try {
-      const chartMap = new Map<string, ChartData>();
-      
-      // Inicializar últimos 30 dias
-      const hoje = new Date();
-      const inicio = new Date(hoje);
-      inicio.setDate(hoje.getDate() - 30);
-      
-      const allDays = eachDayOfInterval({ start: inicio, end: hoje });
-      const shouldExcludeSundays = lojaInfo?.regiao === 'centro';
-
-      allDays.forEach(day => {
-        const dayOfWeek = getDay(day);
-        if (shouldExcludeSundays && dayOfWeek === 0) return;
-
-        const dateStr = format(day, 'yyyy-MM-dd');
-        chartMap.set(dateStr, {
-          date: format(day, 'dd/MM'),
-          value: 0,
-          transactions: 0,
-          geral: 0,
-          goodlife: 0,
-          perfumaria_r_mais: 0,
-          conveniencia_r_mais: 0,
-          r_mais: 0
-        });
-      });
-
-      // Processar vendas para o gráfico
-      vendasProcessadas.forEach((venda) => {
-        const existing = chartMap.get(venda.data_venda);
-        if (existing) {
-          // Todas as vendas contribuem para o valor geral
-          existing.value += venda.valor_liquido;
-          existing.geral += venda.valor_liquido;
-          existing.transactions += 1;
-
-          // Também contribuir para categorias específicas
-          if (venda.categoria === 'goodlife') {
-            existing.goodlife += venda.valor_liquido;
-          } else if (venda.categoria === 'perfumaria_alta') {
-            existing.perfumaria_r_mais += venda.valor_liquido;
-          } else if (venda.categoria === 'conveniencia' || venda.categoria === 'brinquedo') {
-            existing.conveniencia_r_mais += venda.valor_liquido;
-          } else if (venda.categoria === 'rentaveis20' || venda.categoria === 'rentaveis25') {
-            existing.r_mais += venda.valor_liquido;
-          }
-        }
-      });
-
-      const finalData = Array.from(chartMap.values());
-      setChartData(finalData);
-    } catch (error) {
-      console.error('Erro ao gerar dados do gráfico:', error);
     }
   };
 
@@ -536,8 +277,6 @@ export default function Vendas() {
     return `${getClasseBgCategoria(categoria)} ${getClasseCorCategoria(categoria)}`;
   };
 
-  const singleStrokeColor = getCorCategoria(chartCategoriaFilter && chartCategoriaFilter !== 'multi' ? chartCategoriaFilter : 'geral');
-
   return (
     <div className="page-container space-y-4 sm:space-y-6 bg-background min-h-screen">
       {/* Header */}
@@ -550,7 +289,7 @@ export default function Vendas() {
             }
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Dados da API Externa Callfarma
+            API Externa Callfarma - Debug Mode
             {selectedPeriod && (
               <span className="block text-xs text-muted-foreground/70 mt-1">
                 Período: {selectedPeriod.label}
@@ -570,18 +309,18 @@ export default function Vendas() {
         </div>
       </div>
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-4 sm:mb-6">
+      {/* Statistics Cards Simples */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
         <Card>
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Participação Geral</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Total Vendas</p>
                 <p className="text-lg sm:text-2xl font-bold text-foreground">
-                  {calculatedData.participacaoGeral.toFixed(1)}%
+                  R$ {calculatedData.totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </p>
-                <p className="text-xs text-muted-foreground hidden sm:block">
-                  R$ {calculatedData.totalGeralVendas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                <p className="text-xs text-muted-foreground">
+                  {calculatedData.totalTransacoes} transações
                 </p>
               </div>
               <DollarSign className="w-6 h-6 sm:w-8 sm:h-8 text-success" />
@@ -597,8 +336,8 @@ export default function Vendas() {
                 <p className="text-lg sm:text-2xl font-bold text-foreground">
                   R$ {calculatedData.ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </p>
-                <p className="text-xs text-muted-foreground hidden sm:block">
-                  API Externa
+                <p className="text-xs text-muted-foreground">
+                  Por transação
                 </p>
               </div>
               <BarChart3 className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
@@ -610,12 +349,12 @@ export default function Vendas() {
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Total Vendas</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Filtradas</p>
                 <p className="text-lg sm:text-2xl font-bold text-foreground">
-                  R$ {calculatedData.valorTotalTodas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  R$ {calculatedData.totalFiltrado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </p>
-                <p className="text-xs text-muted-foreground hidden sm:block">
-                  {vendasProcessadas.length} transações
+                <p className="text-xs text-muted-foreground">
+                  {calculatedData.transacoesFiltradas} transações
                 </p>
               </div>
               <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
@@ -627,92 +366,27 @@ export default function Vendas() {
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Melhor Indicador</p>
-                {indicadoresRanking.melhor ? (
-                  <>
-                    <p className="text-base sm:text-lg font-bold text-foreground">
-                      {getNomeCategoria(indicadoresRanking.melhor.categoria)}
-                    </p>
-                    <p className="text-xs text-muted-foreground hidden sm:block">
-                      {indicadoresRanking.melhor.percentualMeta.toFixed(1)}% da meta
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-lg sm:text-2xl font-bold text-muted-foreground">-</p>
-                )}
+                <p className="text-xs sm:text-sm text-muted-foreground">Funcionários</p>
+                <p className="text-lg sm:text-2xl font-bold text-foreground">
+                  {funcionarios.length}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Com vendas
+                </p>
               </div>
-              <Trophy className="w-6 h-6 sm:w-8 sm:h-8 text-success" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Pior Indicador</p>
-                {indicadoresRanking.pior ? (
-                  <>
-                    <p className="text-base sm:text-lg font-bold text-foreground">
-                      {getNomeCategoria(indicadoresRanking.pior.categoria)}
-                    </p>
-                    <p className="text-xs text-muted-foreground hidden sm:block">
-                      {indicadoresRanking.pior.percentualMeta.toFixed(1)}% da meta
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-lg sm:text-2xl font-bold text-muted-foreground">-</p>
-                )}
-              </div>
-              <TrendingDown className="w-6 h-6 sm:w-8 sm:h-8 text-destructive" />
+              <Calendar className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Indicadores por Categoria */}
-      <Card className="mb-4 sm:mb-6">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5" />
-            Indicadores por Categoria (API Externa)
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            {Object.entries(vendasPorCategoria)
-              .sort(([,a], [,b]) => b.valor - a.valor)
-              .slice(0, 6)
-              .map(([categoria, dados]) => {
-                const participacao = calculatedData.valorTotalTodas > 0 ? (dados.valor / calculatedData.valorTotalTodas * 100) : 0;
-                return (
-                  <div key={categoria} className="p-3 sm:p-4 border rounded-lg bg-card">
-                    <div className="flex items-center justify-between mb-2">
-                      <Badge className={getCategoriaColor(categoria)} variant="secondary">
-                        <i className={`${getIconeCategoria(categoria)} mr-1`}></i>
-                        <span className="text-xs">{getNomeCategoria(categoria)}</span>
-                      </Badge>
-                      <span className="text-xs sm:text-sm font-medium">{participacao.toFixed(1)}%</span>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-base sm:text-lg font-bold">
-                        R$ {dados.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Filters */}
       <Card className="mb-4 sm:mb-6">
         <CardHeader>
           <CardTitle className="text-base sm:text-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <span>Filtros</span>
-            <Badge variant="secondary" className="bg-green-100 text-green-800">
-              API Externa - Loja {numeroLoja}
+            <span>Filtros de Busca</span>
+            <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+              Debug Mode - Console aberto
             </Badge>
           </CardTitle>
         </CardHeader>
@@ -761,7 +435,6 @@ export default function Vendas() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas as Categorias</SelectItem>
-                <SelectItem value="geral">Geral</SelectItem>
                 <SelectItem value="rentaveis20">Rentáveis 20</SelectItem>
                 <SelectItem value="rentaveis25">Rentáveis 25</SelectItem>
                 <SelectItem value="perfumaria_alta">Perfumaria Alta</SelectItem>
@@ -771,12 +444,17 @@ export default function Vendas() {
                 <SelectItem value="similar">Similar</SelectItem>
                 <SelectItem value="generico">Genérico</SelectItem>
                 <SelectItem value="dermocosmetico">Dermocosmético</SelectItem>
+                <SelectItem value="outros">Outros</SelectItem>
               </SelectContent>
             </Select>
 
-            <div className="text-xs sm:text-sm text-muted-foreground flex items-center">
-              Total: {filteredVendas.length} vendas
-            </div>
+            <Button 
+              onClick={fetchVendas} 
+              disabled={loading}
+              className="w-full"
+            >
+              {loading ? 'Carregando...' : 'Atualizar'}
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -784,7 +462,9 @@ export default function Vendas() {
       {/* Tabela de Vendas */}
       <Card>
         <CardHeader>
-          <CardTitle>Lista de Vendas (API Externa)</CardTitle>
+          <CardTitle>
+            Lista de Vendas ({filteredVendas.length} de {vendas.length})
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -801,28 +481,30 @@ export default function Vendas() {
                       <TableHead>Data</TableHead>
                       <TableHead>Funcionário</TableHead>
                       <TableHead>Categoria</TableHead>
+                      <TableHead>Grupo</TableHead>
                       <TableHead>Valor Bruto</TableHead>
                       <TableHead>Valor Líquido</TableHead>
-                      <TableHead>Quantidade</TableHead>
+                      <TableHead>Qtd</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredVendas.slice(0, 100).map((venda) => (
+                    {filteredVendas.slice(0, 50).map((venda) => (
                       <TableRow key={venda.id}>
                         <TableCell>
-                          {new Date(venda.data_venda).toLocaleDateString('pt-BR')}
+                          {new Date(venda.data).toLocaleDateString('pt-BR')}
                         </TableCell>
-                        <TableCell>{venda.nome_funcionario}</TableCell>
+                        <TableCell className="font-medium">{venda.funcionario}</TableCell>
                         <TableCell>
                           <Badge className={getCategoriaColor(venda.categoria)} variant="secondary">
                             <i className={`${getIconeCategoria(venda.categoria)} mr-1`}></i>
                             {getNomeCategoria(venda.categoria)}
                           </Badge>
                         </TableCell>
+                        <TableCell>{venda.grupo}</TableCell>
                         <TableCell>
                           R$ {venda.valor_bruto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="font-semibold">
                           R$ {venda.valor_liquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </TableCell>
                         <TableCell>{venda.quantidade}</TableCell>
@@ -830,7 +512,7 @@ export default function Vendas() {
                     ))}
                     {filteredVendas.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                           Nenhuma venda encontrada
                         </TableCell>
                       </TableRow>
@@ -840,38 +522,33 @@ export default function Vendas() {
               </div>
 
               <div className="md:hidden space-y-3">
-                {filteredVendas.slice(0, 50).map((venda) => (
+                {filteredVendas.slice(0, 20).map((venda) => (
                   <div key={venda.id} className="border rounded-lg p-4 bg-card">
                     <div className="flex justify-between items-start mb-2">
                       <div className="text-sm text-muted-foreground">
-                        {new Date(venda.data_venda).toLocaleDateString('pt-BR')}
+                        {new Date(venda.data).toLocaleDateString('pt-BR')}
                       </div>
                       <div className="text-lg font-semibold">
                         R$ {venda.valor_liquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </div>
                     </div>
                     <div className="flex flex-col gap-2">
-                      <div className="text-sm font-medium">{venda.nome_funcionario}</div>
+                      <div className="font-medium">{venda.funcionario}</div>
                       <Badge className={getCategoriaColor(venda.categoria)} variant="secondary">
                         <i className={`${getIconeCategoria(venda.categoria)} mr-1`}></i>
-                        {getNomeCategoria(venda.categoria)}
+                        {getNomeCategoria(venda.categoria)} (Grupo {venda.grupo})
                       </Badge>
                       <div className="text-sm text-muted-foreground">
-                        Qtd: {venda.quantidade}
+                        Qtd: {venda.quantidade} | Bruto: R$ {venda.valor_bruto.toFixed(2)}
                       </div>
                     </div>
                   </div>
                 ))}
-                {filteredVendas.length === 0 && (
-                  <div className="text-center text-muted-foreground py-8 border rounded-lg">
-                    Nenhuma venda encontrada
-                  </div>
-                )}
               </div>
               
-              {filteredVendas.length > 100 && (
+              {filteredVendas.length > 50 && (
                 <div className="mt-4 text-center text-sm text-muted-foreground">
-                  Mostrando primeiros 100 resultados de {filteredVendas.length} vendas
+                  Mostrando primeiros 50 resultados. Abra o console (F12) para ver logs detalhados.
                 </div>
               )}
             </>
