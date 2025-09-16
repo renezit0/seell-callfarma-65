@@ -103,7 +103,7 @@ function AppContent() {
         </>}
       
       <main className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ${user ? 'lg:ml-16' : ''}`}>
-        {user && <header className="header fixed top-0 left-0 lg:left-16 right-0 z-40 flex h-16 items-center justify-between border-b bg-background px-4 lg:px-6">
+        {user && <header className="header fixed top-0 left-0 lg:left-16 right-0 z-40 flex h-16 items-center justify-between border-b px-4 lg:px-6 bg-white">
           <div className="flex items-center gap-4">
             <button onClick={() => setSidebarExpanded(!sidebarExpanded)} className="menu-toggle lg:hidden p-2 transition-colors text-base rounded-lg text-slate-200 font-thin text-left bg-stone-300 hover:bg-stone-200">
               <i className="fas fa-bars text-foreground"></i>
