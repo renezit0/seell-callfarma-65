@@ -281,7 +281,8 @@ export default function Vendas() {
         .from('usuarios')
         .select('id, nome, codigo_funcionario')
         .eq('status', 'ativo')
-        .in(\'codigo_funcionario\', funcionariosComVendas.map(String)) // Filtrar apenas funcionários com vendas, convertendo para string       .order('nome');
+      .in("id", funcionariosComVendas) // Filtrar apenas funcionários com vendas, usando o ID do usuário
+        .order("nome");
 
       // Aplicar filtro de loja
       if (selectedLojaId) {
