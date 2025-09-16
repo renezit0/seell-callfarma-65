@@ -257,7 +257,7 @@ export default function Graficos() {
           const dataVendaRaw = item.DATA;
           let dataVenda = null;
           if (dataVendaRaw) {
-            dataVenda = dataVendaRaw.includes('T') ? dataVendaRaw.split('T')[0] : dataVendaRaw;
+            dataVenda = dataVendaRaw.includes(\'T\') ? dataVendaRaw.split(\'T\')[0] : dataVendaRaw;
           }
 
           if (!dataVenda || item.VALOR_LIQUIDO <= 0) return;
