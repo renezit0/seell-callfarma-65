@@ -10,8 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, Plus, Calendar, DollarSign, TrendingUp, BarChart3, LineChart, Trophy, TrendingDown, Users, Building2, Package } from 'lucide-react';
-import { getNomeCategoria, getIconeCategoria, getClasseCorCategoria, getClasseBgCategoria, getCorCategoria } from '@/utils/categories';
+import { Search, Calendar, DollarSign, TrendingUp, BarChart3, LineChart, Trophy, TrendingDown, Users, Building2, Package } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { format, startOfMonth, subMonths, eachDayOfInterval, getDay } from 'date-fns';
@@ -19,16 +18,6 @@ import { PeriodSelector } from '@/components/PeriodSelector';
 import { StoreSelector } from '@/components/StoreSelector';
 import { usePeriodContext } from '@/contexts/PeriodContext';
 import { LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
-
-interface Venda {
-  id: number;
-  usuario_id: number;
-  data_venda: string;
-  categoria: string;
-  valor_venda: number;
-  loja_id?: number;
-  registrado_por_usuario_id?: number | null;
-}
 
 interface ChartData {
   date: string;
@@ -41,16 +30,27 @@ interface ChartData {
   r_mais: number;
 }
 
-interface Vendedor {
-  id: number;
-  nome: string;
-}
-
 interface DadosCallfarma {
   vendas_consolidadas: any;
   grupos_disponiveis: any[];
   vendas_por_dia_grupo: any[];
 }
+
+interface IndicadorMeta {
+  categoria: string;
+  valor_realizado: number;
+  meta_valor: number;
+  percentual_meta: number;
+  nome_categoria: string;
+}
+
+// Mapeamento de categorias da API para nomes amigáveis
+const NOMES_CATEGORIAS = {
+  'rentaveis': 'Rentáveis R+',
+  'perfumaria_alta': 'Perfumaria R+',
+  'conveniencia_alta': 'Conveniência R+',
+  'goodlife': 'GoodLife'
+};
 
 export default function Vendas() {
   // ALL HOOKS DECLARED FIRST - ALWAYS RUN IN SAME ORDER
@@ -62,8 +62,6 @@ export default function Vendas() {
     gerarRelatorioGrupos 
   } = useCallfarmaAPI();
 
-  const [vendas, setVendas] = useState<Venda[]>([]);
-  const [vendedores, setVendedores] = useState<Vendedor[]>([]);
   const [lojaInfo, setLojaInfo] = useState<{
     regiao: string;
     numero: string;
@@ -72,17 +70,19 @@ export default function Vendas() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoriaFilter, setCategoriaFilter] = useState<string>('geral');
-  const [vendedorFilter, setVendedorFilter] = useState<string>('all');
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [initialized, setInitialized] = useState(false);
   const [chartCategoriaFilter, setChartCategoriaFilter] = useState<string>('geral');
   const [filtroAdicional, setFiltroAdicional] = useState<string>('periodo');
   const [selectedLojaId, setSelectedLojaId] = useState<number | null>(null);
 
-  // Novos estados para dados da Callfarma
+  // Estados para dados da Callfarma
   const [dadosCallfarma, setDadosCallfarma] = useState<DadosCallfarma | null>(null);
   const [relatorioGrupos, setRelatorioGrupos] = useState<any>(null);
   const [mostrarRelatorioGrupos, setMostrarRelatorioGrupos] = useState(false);
+
+  // Estados para metas
+  const [metasData, setMetasData] = useState<Record<string, { meta: number; realizado: number; }>>({});
 
   // Check if user can view all stores
   const canViewAllStores = user?.tipo && ['admin', 'supervisor', 'compras'].includes(user.tipo);
@@ -91,70 +91,7 @@ export default function Vendas() {
   // Hook para ticket médio baseado no selfcheckout_dados
   const { dados: ticketMedioData } = useTicketMedioSelfcheckout(currentLojaId, 'completo');
 
-  // All processing happens after hooks - using useMemo for performance
-  const filteredVendas = useMemo(() => {
-    return vendas.filter(venda => {
-      const matchesSearch = venda.categoria.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategoria = categoriaFilter === 'all' || venda.categoria === categoriaFilter;
-      return matchesSearch && matchesCategoria;
-    });
-  }, [vendas, searchTerm, categoriaFilter]);
-
-  const calculatedData = useMemo(() => {
-    // REGRA IMPORTANTE: Categorias R+ NÃO SOMAM NO GERAL
-    const vendasGeral = vendas.filter(v => v.categoria === 'geral');
-    const totalGeralVendas = vendasGeral.reduce((sum, venda) => sum + venda.valor_venda, 0);
-
-    // Para participação, usar APENAS vendas gerais (não incluir R+)
-    const valorTotalTodas = vendas.reduce((sum, venda) => sum + venda.valor_venda, 0);
-    const participacaoGeral = valorTotalTodas > 0 ? totalGeralVendas / valorTotalTodas * 100 : 0;
-    const totalVendas = filteredVendas.reduce((sum, venda) => sum + venda.valor_venda, 0);
-    
-    // Usar ticket médio do selfcheckout quando disponível, senão usar cálculo tradicional
-    const ticketMedio = ticketMedioData?.ticket_medio_geral || (filteredVendas.length > 0 ? totalVendas / filteredVendas.length : 0);
-    
-    return {
-      totalGeralVendas,
-      valorTotalTodas,
-      participacaoGeral,
-      totalVendas,
-      ticketMedio
-    };
-  }, [vendas, filteredVendas, ticketMedioData]);
-
-  // Vendas por categoria para indicadores (agrupando conforme especificado)
-  const vendasPorCategoria = useMemo(() => {
-    const grouped = vendas.reduce((acc, venda) => {
-      let categoria = venda.categoria;
-
-      // Agrupamento para indicadores conforme especificado
-      if (venda.categoria === 'similar' || venda.categoria === 'generico') {
-        categoria = 'generico_similar'; // Colaboradores têm meta de genérico+similar somados
-      } else if (venda.categoria === 'conveniencia' || venda.categoria === 'brinquedo') {
-        categoria = 'conveniencia_r_mais'; // PARA LOJA: conveniencia -> conveniencia_r_mais
-      } else if (venda.categoria === 'rentaveis20' || venda.categoria === 'rentaveis25') {
-        categoria = 'r_mais'; // Rentáveis
-      } else if (venda.categoria === 'saude') {
-        categoria = 'goodlife'; // GoodLife
-      } else if (venda.categoria === 'perfumaria_r_mais') {
-        categoria = 'perfumaria_r_mais'; // Perfumaria Alta Rentabilidade
-      }
-
-      if (!acc[categoria]) {
-        acc[categoria] = {
-          valor: 0,
-          transacoes: 0
-        };
-      }
-      acc[categoria].valor += venda.valor_venda;
-      acc[categoria].transacoes += 1;
-      return acc;
-    }, {} as Record<string, { valor: number; transacoes: number; }>);
-
-    return grouped;
-  }, [vendas]);
-
-  // Novos dados calculados da API Callfarma
+  // Dados calculados da API Callfarma
   const dadosCallfarmaCalculados = useMemo(() => {
     if (!dadosCallfarma) return null;
 
@@ -171,22 +108,72 @@ export default function Vendas() {
       totalGeral,
       gruposComVendas,
       participacaoGrupos,
-      vendasPorGrupo: vendas_consolidadas.por_grupos || {}
+      vendasPorGrupo: vendas_consolidadas.por_grupos || {},
+      // Dados das categorias específicas
+      rentaveis: vendas_consolidadas.rentaveis || 0,
+      perfumariaAlta: vendas_consolidadas.perfumaria_alta || 0,
+      convenienciaAlta: vendas_consolidadas.conveniencia_alta || 0,
+      goodlife: vendas_consolidadas.goodlife || 0
     };
   }, [dadosCallfarma]);
 
-  // Estado para armazenar metas
-  const [metasData, setMetasData] = useState<Record<string, {
-    meta: number;
-    realizado: number;
-  }>>({});
+  // Calcular indicadores com base nas metas
+  const indicadoresComMetas = useMemo((): IndicadorMeta[] => {
+    if (!dadosCallfarmaCalculados || !metasData) return [];
+
+    const indicadores = [
+      {
+        categoria: 'rentaveis',
+        valor_realizado: dadosCallfarmaCalculados.rentaveis,
+        nome_categoria: NOMES_CATEGORIAS.rentaveis
+      },
+      {
+        categoria: 'perfumaria_alta',
+        valor_realizado: dadosCallfarmaCalculados.perfumariaAlta,
+        nome_categoria: NOMES_CATEGORIAS.perfumaria_alta
+      },
+      {
+        categoria: 'conveniencia_alta', 
+        valor_realizado: dadosCallfarmaCalculados.convenienciaAlta,
+        nome_categoria: NOMES_CATEGORIAS.conveniencia_alta
+      },
+      {
+        categoria: 'goodlife',
+        valor_realizado: dadosCallfarmaCalculados.goodlife,
+        nome_categoria: NOMES_CATEGORIAS.goodlife
+      }
+    ];
+
+    return indicadores.map(indicador => {
+      const metaInfo = metasData[indicador.categoria];
+      const metaValor = metaInfo?.meta || 0;
+      const percentualMeta = metaValor > 0 ? (indicador.valor_realizado / metaValor) * 100 : 0;
+
+      return {
+        ...indicador,
+        meta_valor: metaValor,
+        percentual_meta: percentualMeta
+      };
+    }).filter(indicador => indicador.meta_valor > 0) // Só incluir categorias com meta definida
+      .sort((a, b) => b.percentual_meta - a.percentual_meta);
+  }, [dadosCallfarmaCalculados, metasData]);
+
+  // Melhor e pior indicador baseado na % de meta realizada
+  const indicadoresRanking = useMemo(() => {
+    return {
+      melhor: indicadoresComMetas[0] || null,
+      pior: indicadoresComMetas[indicadoresComMetas.length - 1] || null
+    };
+  }, [indicadoresComMetas]);
 
   // Buscar metas da loja para calcular porcentagens
   useEffect(() => {
-    if (!user || !selectedPeriod) return;
+    if (!user || !selectedPeriod || !currentLojaId) return;
     
     const fetchMetas = async () => {
       try {
+        console.log('🎯 Buscando metas da loja para comparar com API...');
+        
         // Buscar metas da loja atual para o período selecionado
         const { data: metasLoja } = await supabase
           .from('metas_loja')
@@ -196,70 +183,42 @@ export default function Vendas() {
 
         const metasMap: Record<string, { meta: number; realizado: number; }> = {};
 
-        // Categorias conforme mapeamento
-        const categorias = ['r_mais', 'perfumaria_r_mais', 'conveniencia_r_mais', 'goodlife'];
-        
-        categorias.forEach(categoria => {
-          let metaValor = 0;
+        // Mapear categorias da API para categorias das metas
+        const categoriasMapping = {
+          'rentaveis': 'r_mais',
+          'perfumaria_alta': 'perfumaria_r_mais', 
+          'conveniencia_alta': 'conveniencia_r_mais',
+          'goodlife': 'goodlife'
+        };
 
-          // Para categoria geral usar meta_valor_total, para outras usar metas_loja_categorias  
-          if (categoria === 'geral') {
-            metaValor = metasLoja?.[0]?.meta_valor_total || 0;
-          } else {
-            const metaCategoria = metasLoja?.[0]?.metas_loja_categorias?.find((m: any) => m.categoria === categoria);
-            metaValor = metaCategoria?.meta_valor || 0;
-          }
+        Object.entries(categoriasMapping).forEach(([categoriaAPI, categoriaMeta]) => {
+          // Buscar meta da categoria nas metas_loja_categorias
+          const metaCategoria = metasLoja?.[0]?.metas_loja_categorias?.find((m: any) => m.categoria === categoriaMeta);
+          const metaValor = metaCategoria?.meta_valor || 0;
 
-          // Calcular realizado da categoria
-          const categoriaDados = vendasPorCategoria[categoria];
-          const realizado = categoriaDados?.valor || 0;
-          
-          metasMap[categoria] = {
+          metasMap[categoriaAPI] = {
             meta: metaValor,
-            realizado
+            realizado: 0 // Será preenchido pelos dados da API
           };
         });
         
         setMetasData(metasMap);
+        console.log('✅ Metas carregadas:', metasMap);
       } catch (error) {
-        console.error('Erro ao buscar metas para ranking:', error);
+        console.error('❌ Erro ao buscar metas:', error);
       }
     };
 
     fetchMetas();
-  }, [user, selectedPeriod, vendasPorCategoria, currentLojaId]);
-
-  // Calcular melhor e pior indicador baseado na % de meta realizada
-  const indicadoresRanking = useMemo(() => {
-    const indicadores = Object.entries(vendasPorCategoria)
-      .filter(([categoria]) => categoria !== 'geral' && categoria !== 'generico_similar') // Remover generico_similar dos indicadores de loja
-      .map(([categoria, dados]) => {
-        const metaInfo = metasData[categoria];
-        const percentualMeta = metaInfo?.meta > 0 ? dados.valor / metaInfo.meta * 100 : 0;
-        
-        return {
-          categoria,
-          valor: dados.valor,
-          transacoes: dados.transacoes,
-          meta: metaInfo?.meta || 0,
-          percentualMeta
-        };
-      })
-      .filter(indicador => indicador.meta > 0) // Só incluir categorias com meta definida
-      .sort((a, b) => b.percentualMeta - a.percentualMeta);
-
-    return {
-      melhor: indicadores[0] || null,
-      pior: indicadores[indicadores.length - 1] || null
-    };
-  }, [vendasPorCategoria, metasData]);
+  }, [user, selectedPeriod, currentLojaId]);
 
   // Função para buscar dados da API Callfarma
   const buscarDadosCallfarma = async () => {
     if (!selectedPeriod || !currentLojaId) return;
 
     try {
-      console.log('Buscando dados da API Callfarma...');
+      setLoading(true);
+      console.log('🚀 Buscando TODOS os dados da API Callfarma (incluindo terceiros)...');
       
       const dataInicio = format(new Date(selectedPeriod.startDate), 'yyyy-MM-dd');
       const dataFim = format(new Date(selectedPeriod.endDate), 'yyyy-MM-dd');
@@ -267,10 +226,12 @@ export default function Vendas() {
       const dados = await buscarVendasCompletasComGrupos(dataInicio, dataFim, currentLojaId);
       setDadosCallfarma(dados);
 
-      console.log('Dados da Callfarma carregados:', dados);
+      console.log('✅ Dados da API Callfarma carregados:', dados);
     } catch (error) {
-      console.error('Erro ao buscar dados da Callfarma:', error);
+      console.error('❌ Erro ao buscar dados da Callfarma:', error);
       toast.error('Erro ao carregar dados externos da Callfarma');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -288,240 +249,32 @@ export default function Vendas() {
 
       toast.success('Relatório de grupos gerado com sucesso!');
     } catch (error) {
-      console.error('Erro ao gerar relatório:', error);
+      console.error('❌ Erro ao gerar relatório:', error);
       toast.error('Erro ao gerar relatório de grupos');
     }
   };
 
-  // useEffect ALWAYS RUNS - no early returns before this
-  useEffect(() => {
-    if (user && !initialized) {
-      fetchLojaInfo();
-      fetchVendedores();
-      fetchVendas();
-      generateChartData();
-      setInitialized(true);
-    }
-  }, [user, initialized]);
+  // Gerar dados do gráfico baseados na API Callfarma
+  const generateChartDataFromAPI = async () => {
+    if (!dadosCallfarma) return;
 
-  // Refetch when filters change (incluindo selectedLojaId para atualizar vendedores)
-  useEffect(() => {
-    if (user && initialized) {
-      fetchVendedores(); // Atualizar lista de vendedores quando loja mudar
-      fetchVendas();
-      buscarDadosCallfarma(); // Nova busca de dados da Callfarma
-    }
-  }, [selectedPeriod, vendedorFilter, filtroAdicional, user, initialized, currentLojaId, selectedLojaId]);
-
-  // Quando selecionar um colaborador, mostrar todas as categorias por padrão
-  useEffect(() => {
-    if (vendedorFilter !== 'all') {
-      setCategoriaFilter('all');
-      setChartCategoriaFilter('multi');
-    }
-  }, [vendedorFilter]);
-
-  // Regerar dados do gráfico quando dados/filtros mudarem
-  useEffect(() => {
-    if (user && lojaInfo) {
-      generateChartData();
-    }
-  }, [vendas, lojaInfo, user, chartCategoriaFilter, vendedorFilter]);
-
-  const fetchVendedores = async () => {
     try {
-      let query = supabase
-        .from('usuarios')
-        .select('id, nome')
-        .eq('status', 'ativo')
-        .order('nome');
-
-      // Se há uma loja selecionada no StoreSelector, usar ela
-      if (selectedLojaId) {
-        query = query.eq('loja_id', selectedLojaId);
-      }
-      // Se o usuário pode ver todas as lojas mas não tem loja selecionada, mostrar de todas
-      else if (canViewAllStores) {
-        // Não adiciona filtro de loja - mostra vendedores de todas as lojas
-      }
-      // Se o usuário não pode ver todas as lojas, filtrar pela sua loja
-      else {
-        query = query.eq('loja_id', user?.loja_id);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      setVendedores(data || []);
-    } catch (error) {
-      console.error('Erro ao buscar vendedores:', error);
-    }
-  };
-
-  const fetchLojaInfo = async () => {
-    if (!currentLojaId) return;
-    try {
-      const { data, error } = await supabase
-        .from('lojas')
-        .select('regiao, numero, nome')
-        .eq('id', currentLojaId)
-        .single();
-      if (error) throw error;
-      setLojaInfo(data);
-    } catch (error) {
-      console.error('Erro ao buscar informações da loja:', error);
-    }
-  };
-
-  const fetchVendas = async () => {
-    try {
-      setLoading(true);
-
-      // Se um vendedor específico for selecionado, buscar na tabela 'vendas'
-      // Caso contrário, buscar na tabela 'vendas_loja' para dados consolidados
-      const isVendedorSelected = vendedorFilter !== 'all';
-      let query: any;
-
-      if (isVendedorSelected) {
-        // Buscar vendas individuais na tabela 'vendas' - SOMENTE: usuario_id, data_venda, categoria, valor_venda
-        query = supabase
-          .from('vendas')
-          .select('id, usuario_id, data_venda, categoria, valor_venda')
-          .eq('usuario_id', parseInt(vendedorFilter))
-          .order('data_venda', { ascending: false });
-      } else {
-        // Buscar dados consolidados na tabela 'vendas_loja'
-        // Se não há loja selecionada e o usuário pode ver todas, buscar de todas as lojas
-        if (!selectedLojaId && canViewAllStores) {
-          query = supabase
-            .from('vendas_loja')
-            .select('*')
-            .order('data_venda', { ascending: false });
-        } else {
-          query = supabase
-            .from('vendas_loja')
-            .select('*')
-            .eq('loja_id', currentLojaId!)
-            .order('data_venda', { ascending: false });
-        }
-      }
-
-      // Filtro por período selecionado ou filtros adicionais
-      const hoje = new Date();
-      if (filtroAdicional === 'hoje') {
-        const hojeStr = format(hoje, 'yyyy-MM-dd');
-        query = query.eq('data_venda', hojeStr);
-      } else if (filtroAdicional === 'ontem') {
-        const ontem = new Date(hoje);
-        ontem.setDate(hoje.getDate() - 1);
-        const ontemStr = format(ontem, 'yyyy-MM-dd');
-        query = query.eq('data_venda', ontemStr);
-      } else if (filtroAdicional === 'ultima_semana') {
-        const inicioSemana = new Date(hoje);
-        inicioSemana.setDate(hoje.getDate() - 7);
-        query = query.gte('data_venda', format(inicioSemana, 'yyyy-MM-dd'));
-      } else if (filtroAdicional === 'ultimo_mes') {
-        const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-        query = query.gte('data_venda', format(inicioMes, 'yyyy-MM-dd'));
-      } else if (filtroAdicional === 'periodo' && selectedPeriod) {
-        // Iniciar no dia seguinte à data de início (dia 21 ao invés de 20)
-        const dataInicioAjustada = new Date(selectedPeriod.startDate);
-        dataInicioAjustada.setDate(dataInicioAjustada.getDate() + 1);
-        const dataInicio = format(dataInicioAjustada, 'yyyy-MM-dd');
-        const dataFim = format(selectedPeriod.endDate, 'yyyy-MM-dd');
-        query = query.gte('data_venda', dataInicio).lte('data_venda', dataFim);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      setVendas((data || []) as Venda[]);
-    } catch (error) {
-      console.error('Erro ao buscar vendas:', error);
-      toast.error('Erro ao carregar vendas');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const generateChartData = async () => {
-    try {
-      // Buscar dados dos últimos 3 meses para o gráfico
-      const hoje = new Date();
-      const inicioMes = startOfMonth(subMonths(hoje, 2));
-      const isVendedorSelected = vendedorFilter !== 'all';
-      let query: any;
-
-      if (isVendedorSelected) {
-        // Quando colaborador está selecionado, usar a tabela 'vendas'
-        query = supabase
-          .from('vendas')
-          .select('data_venda, categoria, valor_venda')
-          .eq('usuario_id', parseInt(vendedorFilter))
-          .gte('data_venda', format(inicioMes, 'yyyy-MM-dd'))
-          .lte('data_venda', format(hoje, 'yyyy-MM-dd'));
-
-        // Filtro por categoria específico para colaborador
-        if (chartCategoriaFilter && chartCategoriaFilter !== 'all' && chartCategoriaFilter !== 'multi') {
-          if (chartCategoriaFilter === 'generico_similar') {
-            query = query.in('categoria', ['similar', 'generico']);
-          } else if (chartCategoriaFilter === 'conveniencia_r_mais') {
-            query = query.in('categoria', ['conveniencia', 'brinquedo']);
-          } else if (chartCategoriaFilter === 'r_mais') {
-            query = query.in('categoria', ['rentaveis20', 'rentaveis25']);
-          } else if (chartCategoriaFilter === 'goodlife') {
-            query = query.eq('categoria', 'saude');
-          } else if (chartCategoriaFilter === 'geral' || chartCategoriaFilter === 'perfumaria_r_mais') {
-            query = query.eq('categoria', chartCategoriaFilter);
-          } else {
-            query = query.eq('categoria', chartCategoriaFilter);
-          }
-        }
-      } else {
-        // Visão geral da loja usa tabela consolidada 'vendas_loja'
-        // Se não há loja selecionada e o usuário pode ver todas, buscar de todas as lojas
-        if (!selectedLojaId && canViewAllStores) {
-          query = supabase
-            .from('vendas_loja')
-            .select('*')
-            .gte('data_venda', format(inicioMes, 'yyyy-MM-dd'))
-            .lte('data_venda', format(hoje, 'yyyy-MM-dd'));
-        } else {
-          query = supabase
-            .from('vendas_loja')
-            .select('*')
-            .eq('loja_id', currentLojaId!)
-            .gte('data_venda', format(inicioMes, 'yyyy-MM-dd'))
-            .lte('data_venda', format(hoje, 'yyyy-MM-dd'));
-        }
-
-        if (chartCategoriaFilter && chartCategoriaFilter !== 'all' && chartCategoriaFilter !== 'multi') {
-          if (chartCategoriaFilter === 'generico_similar') {
-            query = query.in('categoria', ['similar', 'generico']);
-          } else if (chartCategoriaFilter === 'conveniencia_r_mais') {
-            query = query.in('categoria', ['conveniencia_r_mais', 'conveniencia', 'brinquedo']);
-          } else if (chartCategoriaFilter === 'r_mais') {
-            query = query.in('categoria', ['r_mais', 'rentaveis20', 'rentaveis25']);
-          } else if (chartCategoriaFilter === 'goodlife') {
-            query = query.in('categoria', ['goodlife', 'saude']);
-          } else {
-            query = query.eq('categoria', chartCategoriaFilter);
-          }
-        }
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-
+      console.log('📊 Gerando dados do gráfico baseados na API Callfarma...');
+      
+      const vendasPorDia = dadosCallfarma.vendas_por_dia_grupo || [];
+      
       // Agrupar por data
       const chartMap = new Map<string, ChartData>();
 
       // Inicializar com todos os dias do período (excluindo domingos se região centro E loja específica)
+      const hoje = new Date();
+      const inicioMes = startOfMonth(subMonths(hoje, 2));
       const allDays = eachDayOfInterval({
         start: inicioMes,
         end: hoje
       });
 
       // Só excluir domingos se estivermos vendo uma loja específica da região centro
-      // Se estamos vendo todas as lojas, não excluir domingos
       const shouldExcludeSundays = lojaInfo?.regiao === 'centro' && (selectedLojaId || !canViewAllStores);
       
       allDays.forEach(day => {
@@ -543,31 +296,77 @@ export default function Vendas() {
         });
       });
 
-      // Processar vendas por categoria
-      (data || []).forEach((venda: any) => {
-        const existing = chartMap.get(venda.data_venda);
+      // Processar vendas por categoria da API
+      vendasPorDia.forEach((venda: any) => {
+        const existing = chartMap.get(venda.DATA);
         if (existing) {
-          existing.value += venda.valor_venda;
+          const valorVenda = parseFloat(venda.TOTAL_VLR_VE || 0);
+          const valorDevolucao = parseFloat(venda.TOTAL_VLR_DV || 0);
+          const valorLiquido = valorVenda - valorDevolucao;
+          
+          existing.value += valorLiquido;
           existing.transactions += 1;
 
-          if (venda.categoria === 'geral') {
-            existing.geral += venda.valor_venda;
-          } else if (venda.categoria === 'saude' || venda.categoria === 'goodlife') {
-            existing.goodlife += venda.valor_venda;
-          } else if (venda.categoria === 'perfumaria_r_mais') {
-            existing.perfumaria_r_mais += venda.valor_venda;
-          } else if (venda.categoria === 'conveniencia_r_mais' || venda.categoria === 'conveniencia' || venda.categoria === 'brinquedo') {
-            existing.conveniencia_r_mais += venda.valor_venda;
-          } else if (venda.categoria === 'r_mais' || venda.categoria === 'rentaveis20' || venda.categoria === 'rentaveis25') {
-            existing.r_mais += venda.valor_venda;
+          const grupoId = parseInt(venda.CDGRUPO);
+          
+          // Mapear grupos para categorias do gráfico
+          if ([22].includes(grupoId)) {
+            existing.goodlife += valorLiquido;
+          } else if ([46].includes(grupoId)) {
+            existing.perfumaria_r_mais += valorLiquido;
+          } else if ([36, 13].includes(grupoId)) {
+            existing.conveniencia_r_mais += valorLiquido;
+          } else if ([20, 25].includes(grupoId)) {
+            existing.r_mais += valorLiquido;
           }
+          
+          // Geral = soma de todos
+          existing.geral += valorLiquido;
         }
       });
 
       const finalData = Array.from(chartMap.values());
       setChartData(finalData);
+      console.log('✅ Dados do gráfico gerados baseados na API');
     } catch (error) {
-      console.error('Erro ao gerar dados do gráfico:', error);
+      console.error('❌ Erro ao gerar dados do gráfico:', error);
+    }
+  };
+
+  // useEffect ALWAYS RUNS - no early returns before this
+  useEffect(() => {
+    if (user && !initialized) {
+      fetchLojaInfo();
+      setInitialized(true);
+    }
+  }, [user, initialized]);
+
+  // Refetch when filters change
+  useEffect(() => {
+    if (user && initialized) {
+      buscarDadosCallfarma(); // Buscar dados da API
+    }
+  }, [selectedPeriod, filtroAdicional, user, initialized, currentLojaId, selectedLojaId]);
+
+  // Gerar dados do gráfico quando dados da API mudarem
+  useEffect(() => {
+    if (dadosCallfarma && lojaInfo) {
+      generateChartDataFromAPI();
+    }
+  }, [dadosCallfarma, lojaInfo, chartCategoriaFilter]);
+
+  const fetchLojaInfo = async () => {
+    if (!currentLojaId) return;
+    try {
+      const { data, error } = await supabase
+        .from('lojas')
+        .select('regiao, numero, nome')
+        .eq('id', currentLojaId)
+        .single();
+      if (error) throw error;
+      setLojaInfo(data);
+    } catch (error) {
+      console.error('Erro ao buscar informações da loja:', error);
     }
   };
 
@@ -587,14 +386,6 @@ export default function Vendas() {
     return <Navigate to="/login" replace />;
   }
 
-  const getCategoriaColor = (categoria: string) => {
-    // Usar cores do design system baseadas na categoria
-    return `${getClasseBgCategoria(categoria)} ${getClasseCorCategoria(categoria)}`;
-  };
-
-  // Cor da linha do gráfico single-line baseada na categoria selecionada
-  const singleStrokeColor = getCorCategoria(chartCategoriaFilter && chartCategoriaFilter !== 'multi' ? chartCategoriaFilter : 'geral');
-
   return (
     <div className="page-container space-y-4 sm:space-y-6 bg-background min-h-screen">
       {/* Header */}
@@ -602,14 +393,14 @@ export default function Vendas() {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-foreground">
             {canViewAllStores && !selectedLojaId 
-              ? 'Vendas - Todas as Lojas' 
+              ? 'Vendas API Callfarma - Todas as Lojas' 
               : lojaInfo 
-                ? `Vendas - ${lojaInfo.numero} - ${lojaInfo.nome.toUpperCase()}` 
-                : `Vendas - Loja ${currentLojaId || user.loja_id}`
+                ? `Vendas API - ${lojaInfo.numero} - ${lojaInfo.nome.toUpperCase()}` 
+                : `Vendas API - Loja ${currentLojaId || user.loja_id}`
             }
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Acompanhe as vendas e performance da loja
+            Dados da API Callfarma - Inclui vendas de terceiros
             {selectedPeriod && (
               <span className="block text-xs text-muted-foreground/70 mt-1">
                 Período: {selectedPeriod.label}
@@ -629,19 +420,22 @@ export default function Vendas() {
         </div>
       </div>
 
-      {/* Statistics Cards - Expandidos com dados da Callfarma */}
+      {/* Statistics Cards - Baseados na API Callfarma */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 sm:gap-4 mb-4 sm:mb-6">
-        {/* Card de Participação Geral (existente) */}
-        <Card>
+        {/* NOVO: Card Total da API Callfarma */}
+        <Card className="border-2 border-success/20">
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Participação Geral</p>
-                <p className="text-lg sm:text-2xl font-bold text-foreground">
-                  {calculatedData.participacaoGeral.toFixed(1)}%
+                <p className="text-xs sm:text-sm text-muted-foreground">Total API Callfarma</p>
+                <p className="text-lg sm:text-2xl font-bold text-success">
+                  {dadosCallfarmaCalculados 
+                    ? `R$ ${dadosCallfarmaCalculados.totalGeral.toLocaleString('pt-BR', {minimumFractionDigits: 2})}` 
+                    : (loading ? 'Carregando...' : 'R$ 0,00')
+                  }
                 </p>
                 <p className="text-xs text-muted-foreground hidden sm:block">
-                  R$ {calculatedData.totalGeralVendas.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                  Inclui terceiros
                 </p>
               </div>
               <DollarSign className="w-6 h-6 sm:w-8 sm:h-8 text-success" />
@@ -649,7 +443,7 @@ export default function Vendas() {
           </CardContent>
         </Card>
 
-        {/* NOVO: Card Total Todos os Grupos (Callfarma) */}
+        {/* Card Total Todos os Grupos */}
         <Card className="border-2 border-primary/20">
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
@@ -658,7 +452,7 @@ export default function Vendas() {
                 <p className="text-lg sm:text-2xl font-bold text-primary">
                   {dadosCallfarmaCalculados 
                     ? `R$ ${dadosCallfarmaCalculados.totalTodosGrupos.toLocaleString('pt-BR', {minimumFractionDigits: 2})}` 
-                    : (callfarmaLoading ? 'Carregando...' : 'R$ 0,00')
+                    : (loading ? 'Carregando...' : 'R$ 0,00')
                   }
                 </p>
                 <p className="text-xs text-muted-foreground hidden sm:block">
@@ -670,19 +464,19 @@ export default function Vendas() {
           </CardContent>
         </Card>
 
-        {/* Card de Ticket Médio (existente) */}
+        {/* Card de Ticket Médio (selfcheckout) */}
         <Card>
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs sm:text-sm text-muted-foreground">Ticket Médio</p>
                 <p className="text-lg sm:text-2xl font-bold text-foreground">
-                  R$ {calculatedData.ticketMedio.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                  R$ {ticketMedioData?.ticket_medio_geral?.toLocaleString('pt-BR', {minimumFractionDigits: 2}) || '0,00'}
                 </p>
                 <p className="text-xs text-muted-foreground hidden sm:block">
                   {ticketMedioData 
                     ? `Vendas Geral: R$ ${ticketMedioData.total_vendas_geral_periodo.toLocaleString('pt-BR', {minimumFractionDigits: 2})}` 
-                    : 'Baseado no período selecionado'
+                    : 'Selfcheckout'
                   }
                 </p>
               </div>
@@ -691,7 +485,7 @@ export default function Vendas() {
           </CardContent>
         </Card>
 
-        {/* NOVO: Card Participação dos Grupos */}
+        {/* Card Participação dos Grupos */}
         <Card>
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
@@ -712,50 +506,75 @@ export default function Vendas() {
           </CardContent>
         </Card>
 
-        {/* Cards existentes mantidos */}
-        {ticketMedioData && (
-          <Card>
-            <CardContent className="p-3 sm:p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs sm:text-sm text-muted-foreground">Clientes Atendidos</p>
-                  <p className="text-lg sm:text-2xl font-bold text-foreground">
-                    {ticketMedioData.total_clientes_periodo.toLocaleString('pt-BR')}
-                  </p>
-                  <p className="text-xs text-muted-foreground hidden sm:block">
-                    Total no período
-                  </p>
-                </div>
-                <Users className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* NOVO: Botão para Relatório de Grupos */}
+        {/* Melhor Indicador (baseado em metas) */}
         <Card>
           <CardContent className="p-3 sm:p-4">
-            <Button 
-              onClick={handleGerarRelatorioGrupos}
-              disabled={callfarmaLoading || !selectedPeriod || !currentLojaId}
-              className="w-full h-full flex flex-col items-center justify-center gap-1"
-              variant="outline"
-            >
-              <BarChart3 className="w-4 h-4" />
-              <span className="text-xs">Relatório Grupos</span>
-            </Button>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs sm:text-sm text-muted-foreground">Melhor Indicador</p>
+                {indicadoresRanking.melhor ? (
+                  <>
+                    <p className="text-base sm:text-lg font-bold text-foreground">
+                      {indicadoresRanking.melhor.nome_categoria}
+                    </p>
+                    <p className="text-xs text-muted-foreground hidden sm:block">
+                      {indicadoresRanking.melhor.percentual_meta.toFixed(1)}% da meta
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-lg sm:text-2xl font-bold text-muted-foreground">-</p>
+                )}
+              </div>
+              <Trophy className="w-6 h-6 sm:w-8 sm:h-8 text-success" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Pior Indicador (baseado em metas) */}
+        <Card>
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs sm:text-sm text-muted-foreground">Pior Indicador</p>
+                {indicadoresRanking.pior ? (
+                  <>
+                    <p className="text-base sm:text-lg font-bold text-foreground">
+                      {indicadoresRanking.pior.nome_categoria}
+                    </p>
+                    <p className="text-xs text-muted-foreground hidden sm:block">
+                      {indicadoresRanking.pior.percentual_meta.toFixed(1)}% da meta
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-lg sm:text-2xl font-bold text-muted-foreground">-</p>
+                )}
+              </div>
+              <TrendingDown className="w-6 h-6 sm:w-8 sm:h-8 text-destructive" />
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* NOVO: Seção do Relatório de Grupos */}
+      {/* Botão para Relatório de Grupos */}
+      <div className="flex justify-end mb-4">
+        <Button 
+          onClick={handleGerarRelatorioGrupos}
+          disabled={loading || !selectedPeriod || !currentLojaId}
+          className="flex items-center gap-2"
+        >
+          <BarChart3 className="w-4 h-4" />
+          Relatório Detalhado de Grupos
+        </Button>
+      </div>
+
+      {/* Seção do Relatório de Grupos */}
       {mostrarRelatorioGrupos && relatorioGrupos && (
         <Card className="mb-4 sm:mb-6">
           <CardHeader>
             <div className="flex justify-between items-center">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Package className="w-4 h-4 sm:w-5 sm:h-5" />
-                Relatório Detalhado de Grupos
+                Relatório Detalhado de Grupos - API Callfarma
               </CardTitle>
               <Button 
                 variant="outline" 
@@ -839,122 +658,60 @@ export default function Vendas() {
         </Card>
       )}
 
-      {/* Indicadores por Categoria */}
+      {/* Indicadores por Categoria - Baseados na API e Metas */}
       <Card className="mb-4 sm:mb-6">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5" />
-            Indicadores por Categoria
+            Indicadores por Categoria - API vs Metas
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            {Object.entries(vendasPorCategoria)
-              .sort(([, a], [, b]) => b.valor - a.valor)
-              .slice(0, 6)
-              .map(([categoria, dados]) => {
-                const participacao = calculatedData.valorTotalTodas > 0 ? dados.valor / calculatedData.valorTotalTodas * 100 : 0;
-                return (
-                  <div key={categoria} className="p-3 sm:p-4 border rounded-lg bg-card">
-                    <div className="flex items-center justify-between mb-2">
-                      <Badge className={getCategoriaColor(categoria)} variant="secondary">
-                        <i className={`${getIconeCategoria(categoria)} mr-1`}></i>
-                        <span className="text-xs">{getNomeCategoria(categoria)}</span>
-                      </Badge>
-                      <span className="text-xs sm:text-sm font-medium">{participacao.toFixed(1)}%</span>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-base sm:text-lg font-bold">
-                        R$ {dados.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            {indicadoresComMetas.map((indicador) => (
+              <div key={indicador.categoria} className="p-3 sm:p-4 border rounded-lg bg-card">
+                <div className="flex items-center justify-between mb-2">
+                  <Badge 
+                    className={`${indicador.percentual_meta >= 100 ? 'bg-success/20 text-success' : 'bg-warning/20 text-warning'}`} 
+                    variant="secondary"
+                  >
+                    <span className="text-xs">{indicador.nome_categoria}</span>
+                  </Badge>
+                  <span className="text-xs sm:text-sm font-medium">
+                    {indicador.percentual_meta.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-base sm:text-lg font-bold">
+                    R$ {indicador.valor_realizado.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Meta: R$ {indicador.meta_valor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                  </p>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2 mt-2">
+                  <div 
+                    className={`h-2 rounded-full ${indicador.percentual_meta >= 100 ? 'bg-success' : 'bg-warning'}`}
+                    style={{ width: `${Math.min(indicador.percentual_meta, 100)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
 
-      {/* Filters */}
-      <Card className="mb-4 sm:mb-6">
-        <CardHeader>
-          <CardTitle className="text-base sm:text-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <span>Filtros</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-              <Input 
-                placeholder="Buscar por categoria..." 
-                value={searchTerm} 
-                onChange={(e) => setSearchTerm(e.target.value)} 
-                className="pl-10" 
-              />
-            </div>
-            
-            <Select value={filtroAdicional} onValueChange={setFiltroAdicional}>
-              <SelectTrigger>
-                <SelectValue placeholder="Período" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="periodo">Período Selecionado</SelectItem>
-                <SelectItem value="hoje">Hoje</SelectItem>
-                <SelectItem value="ontem">Ontem</SelectItem>
-                <SelectItem value="ultima_semana">Última Semana</SelectItem>
-                <SelectItem value="ultimo_mes">Último Mês</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={vendedorFilter} onValueChange={setVendedorFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Vendedor" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os Vendedores</SelectItem>
-                {vendedores.map(vendedor => (
-                  <SelectItem key={vendedor.id} value={vendedor.id.toString()}>
-                    {vendedor.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={categoriaFilter} onValueChange={setCategoriaFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Categoria" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas as Categorias</SelectItem>
-                <SelectItem value="geral">Geral</SelectItem>
-                <SelectItem value="r_mais">Rentáveis R+</SelectItem>
-                <SelectItem value="perfumaria_r_mais">Perfumaria R+</SelectItem>
-                <SelectItem value="conveniencia_r_mais">Conveniência R+</SelectItem>
-                <SelectItem value="saude">GoodLife</SelectItem>
-                <SelectItem value="similar">Similar</SelectItem>
-                <SelectItem value="generico">Genérico</SelectItem>
-                <SelectItem value="dermocosmetico">Dermocosmético</SelectItem>
-                <SelectItem value="perfumaria_alta">Perfumaria Alta</SelectItem>
-                <SelectItem value="conveniencia">Conveniência</SelectItem>
-                <SelectItem value="brinquedo">Brinquedo</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Charts and Table */}
+      {/* Charts baseados na API */}
       <Tabs defaultValue="charts" className="space-y-4">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="charts" className="flex items-center gap-2 text-sm">
             <LineChart className="w-4 h-4" />
-            <span className="hidden sm:inline">Gráficos</span>
+            <span className="hidden sm:inline">Gráficos API</span>
             <span className="sm:hidden">Gráfico</span>
           </TabsTrigger>
           <TabsTrigger value="table" className="flex items-center gap-2 text-sm">
             <Calendar className="w-4 h-4" />
-            <span className="hidden sm:inline">Tabela</span>
+            <span className="hidden sm:inline">Dados API</span>
             <span className="sm:hidden">Lista</span>
           </TabsTrigger>
         </TabsList>
@@ -965,7 +722,7 @@ export default function Vendas() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <LineChart className="w-4 h-4 sm:w-5 sm:h-5" />
-                Filtro do Gráfico
+                Gráfico de Vendas - API Callfarma
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -974,12 +731,12 @@ export default function Vendas() {
                   <SelectValue placeholder="Categoria do Gráfico" />
                 </SelectTrigger>
                 <SelectContent className="z-50 bg-popover border border-border shadow-md">
-                  <SelectItem value="geral">Venda Geral</SelectItem>
+                  <SelectItem value="geral">Total Geral</SelectItem>
                   <SelectItem value="goodlife">GoodLife</SelectItem>
-                  <SelectItem value="perfumaria_r_mais">Perfumaria Alta Rentabilidade</SelectItem>
-                  <SelectItem value="conveniencia_r_mais">Conveniência Alta Rentabilidade</SelectItem>
-                  <SelectItem value="r_mais">Rentáveis</SelectItem>
-                  <SelectItem value="multi">Gráfico Multi Linha - Indicadores</SelectItem>
+                  <SelectItem value="perfumaria_r_mais">Perfumaria R+</SelectItem>
+                  <SelectItem value="conveniencia_r_mais">Conveniência R+</SelectItem>
+                  <SelectItem value="r_mais">Rentáveis R+</SelectItem>
+                  <SelectItem value="multi">Gráfico Multi Linha - Todos</SelectItem>
                 </SelectContent>
               </Select>
             </CardContent>
@@ -989,8 +746,8 @@ export default function Vendas() {
             <CardHeader>
               <CardTitle>
                 {chartCategoriaFilter === 'multi' 
-                  ? 'Gráfico Multi Linha - Indicadores' 
-                  : `Evolução de Vendas - ${getNomeCategoria(chartCategoriaFilter)}`
+                  ? 'Evolução de Vendas - Todos os Indicadores' 
+                  : `Evolução de Vendas - ${NOMES_CATEGORIAS[chartCategoriaFilter as keyof typeof NOMES_CATEGORIAS] || 'Total Geral'}`
                 }
               </CardTitle>
             </CardHeader>
@@ -1014,12 +771,11 @@ export default function Vendas() {
                       <Tooltip 
                         formatter={(value: number, name: string) => [
                           `R$ ${value.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`, 
-                          getNomeCategoria(name)
+                          NOMES_CATEGORIAS[name as keyof typeof NOMES_CATEGORIAS] || name
                         ]} 
                         labelFormatter={(label) => `Data: ${label}`} 
                       />
-                      <Legend formatter={(value) => getNomeCategoria(value)} />
-                      {/* Remover linha geral do gráfico multi-linha conforme solicitado */}
+                      <Legend formatter={(value) => NOMES_CATEGORIAS[value as keyof typeof NOMES_CATEGORIAS] || value} />
                       <Line 
                         type="monotone" 
                         dataKey="goodlife" 
@@ -1085,8 +841,8 @@ export default function Vendas() {
                       <Legend />
                       <Line 
                         type="monotone" 
-                        dataKey="value" 
-                        stroke={singleStrokeColor} 
+                        dataKey={chartCategoriaFilter === 'geral' ? 'geral' : chartCategoriaFilter}
+                        stroke="hsl(217, 91%, 60%)" 
                         strokeWidth={3} 
                         dot={{ r: 4 }} 
                         isAnimationActive={false} 
@@ -1103,88 +859,53 @@ export default function Vendas() {
         <TabsContent value="table">
           <Card>
             <CardHeader>
-              <CardTitle>Lista de Vendas</CardTitle>
+              <CardTitle>Dados da API Callfarma</CardTitle>
             </CardHeader>
             <CardContent>
               {loading ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                  <span className="ml-2">Carregando vendas...</span>
+                  <span className="ml-2">Carregando dados da API...</span>
+                </div>
+              ) : dadosCallfarmaCalculados ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="p-4 border rounded-lg">
+                      <h3 className="font-semibold text-success">Rentáveis R+</h3>
+                      <p className="text-2xl font-bold">
+                        R$ {dadosCallfarmaCalculados.rentaveis.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                      </p>
+                    </div>
+                    <div className="p-4 border rounded-lg">
+                      <h3 className="font-semibold text-purple-600">Perfumaria R+</h3>
+                      <p className="text-2xl font-bold">
+                        R$ {dadosCallfarmaCalculados.perfumariaAlta.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                      </p>
+                    </div>
+                    <div className="p-4 border rounded-lg">
+                      <h3 className="font-semibold text-orange-600">Conveniência R+</h3>
+                      <p className="text-2xl font-bold">
+                        R$ {dadosCallfarmaCalculados.convenienciaAlta.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                      </p>
+                    </div>
+                    <div className="p-4 border rounded-lg">
+                      <h3 className="font-semibold text-green-600">GoodLife</h3>
+                      <p className="text-2xl font-bold">
+                        R$ {dadosCallfarmaCalculados.goodlife.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="text-center text-muted-foreground py-4">
+                    <p className="text-sm">
+                      💡 Dados incluem vendas de terceiros registradas na loja via API Callfarma
+                    </p>
+                  </div>
                 </div>
               ) : (
-                <>
-                  {/* Desktop Table */}
-                  <div className="hidden md:block overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Data</TableHead>
-                          <TableHead>Categoria</TableHead>
-                          <TableHead>Valor</TableHead>
-                          <TableHead>Vendedor</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredVendas.map(venda => (
-                          <TableRow key={venda.id}>
-                            <TableCell>
-                              {new Date(venda.data_venda).toLocaleDateString('pt-BR')}
-                            </TableCell>
-                            <TableCell>
-                              <Badge className={getCategoriaColor(venda.categoria)} variant="secondary">
-                                <i className={`${getIconeCategoria(venda.categoria)} mr-1`}></i>
-                                {getNomeCategoria(venda.categoria)}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              R$ {venda.valor_venda.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
-                            </TableCell>
-                            <TableCell>
-                              {vendedores.find(v => v.id === (venda.registrado_por_usuario_id || venda.usuario_id))?.nome || 'N/A'}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                        {filteredVendas.length === 0 && (
-                          <TableRow>
-                            <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                              Nenhuma venda encontrada
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-
-                  {/* Mobile Cards */}
-                  <div className="md:hidden space-y-3">
-                    {filteredVendas.map(venda => (
-                      <div key={venda.id} className="border rounded-lg p-4 bg-card">
-                        <div className="flex justify-between items-start mb-2">
-                          <div className="text-sm text-muted-foreground">
-                            {new Date(venda.data_venda).toLocaleDateString('pt-BR')}
-                          </div>
-                          <div className="text-lg font-semibold">
-                            R$ {venda.valor_venda.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
-                          </div>
-                        </div>
-                        <div className="flex flex-col gap-2">
-                          <Badge className={getCategoriaColor(venda.categoria)} variant="secondary">
-                            <i className={`${getIconeCategoria(venda.categoria)} mr-1`}></i>
-                            {getNomeCategoria(venda.categoria)}
-                          </Badge>
-                          <div className="text-sm text-muted-foreground">
-                            Vendedor: {vendedores.find(v => v.id === (venda.registrado_por_usuario_id || venda.usuario_id))?.nome || 'N/A'}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    {filteredVendas.length === 0 && (
-                      <div className="text-center text-muted-foreground py-8 border rounded-lg">
-                        Nenhuma venda encontrada
-                      </div>
-                    )}
-                  </div>
-                </>
+                <div className="text-center text-muted-foreground py-8">
+                  Selecione um período para visualizar os dados da API
+                </div>
               )}
             </CardContent>
           </Card>
