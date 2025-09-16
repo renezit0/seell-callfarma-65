@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useTicketMedioSelfcheckout } from '@/hooks/useTicketMedioSelfcheckout';
 import { useCallfarmaAPI, VendaFormatada } from '@/hooks/useCallfarmaAPI'; // Importar hook da API
@@ -229,12 +229,26 @@ export default function Vendas() {
     }
   }, [selectedPeriod, currentLojaId, selectedLojaId, user, initialized]);
 
-  // Refetch vendas quando vendedor muda (mas não vendedores)
+    // Refetch vendas quando vendedor muda (mas não vendedores) ou filtro adicional
   useEffect(() => {
     if (user && initialized && currentLojaId && selectedPeriod) {
-      fetchVendas();
+      // Apenas refetch vendas se o vendedorFilter ou filtroAdicional mudarem, e não o período/loja
+      // Isso evita chamadas duplicadas se o período/loja também mudarem, pois o useEffect acima já cuida disso.
+      const hasPeriodOrLojaChanged = prevSelectedPeriodRef.current !== selectedPeriod || prevCurrentLojaIdRef.current !== currentLojaId;
+      if (!hasPeriodOrLojaChanged) {
+        fetchVendas();
+      }
     }
-  }, [vendedorFilter, filtroAdicional]);
+  }, [vendedorFilter, filtroAdicional, user, initialized, currentLojaId, selectedPeriod]);
+
+  // Refs para armazenar valores anteriores de selectedPeriod e currentLojaId
+  const prevSelectedPeriodRef = useRef(selectedPeriod);
+  const prevCurrentLojaIdRef = useRef(currentLojaId);
+
+  useEffect(() => {
+    prevSelectedPeriodRef.current = selectedPeriod;
+    prevCurrentLojaIdRef.current = currentLojaId;
+  }, [selectedPeriod, currentLojaId]);
 
   // Quando selecionar um colaborador, mostrar todas as categorias por padrão
   useEffect(() => {
@@ -295,23 +309,27 @@ export default function Vendas() {
 
       if (error) throw error;
       
-      // Se não encontrou no banco local, criar lista com base nos dados da API
-      if (!data || data.length === 0) {
-        const funcionariosUnicos = vendasPeriodo.reduce((acc, venda) => {
-          if (!acc.find(f => f.id === venda.usuario_id)) {
-            acc.push({
-              id: venda.usuario_id,
-              nome: venda.nome_funcionario || `Funcionário ${venda.usuario_id}`,
-              codigo_funcionario: venda.usuario_id.toString()
-            });
-          }
-          return acc;
-        }, [] as Vendedor[]);
-        
-        setVendedores(funcionariosUnicos);
-      } else {
-        setVendedores(data);
-      }
+      // Se não encontrou no banco local, ou se a lista de vendedores do banco está incompleta,
+      // complementar com os dados da API para garantir que todos os vendedores com vendas apareçam.
+      let vendedoresCompletos = data || [];
+
+      vendasPeriodo.forEach(venda => {
+        // Adicionar vendedor se ele não estiver na lista atual e tiver um ID válido
+        if (venda.usuario_id && !vendedoresCompletos.some(f => f.id === venda.usuario_id)) {
+          vendedoresCompletos.push({
+            id: venda.usuario_id,
+            nome: venda.nome_funcionario || `Funcionário ${venda.usuario_id}`,
+            codigo_funcionario: venda.usuario_id.toString()
+          });
+        }
+      });
+      
+      // Remover duplicatas e ordenar por nome
+      const uniqueVendedores = Array.from(new Set(vendedoresCompletos.map(v => v.id)))
+        .map(id => vendedoresCompletos.find(v => v.id === id)!)
+        .sort((a, b) => a.nome.localeCompare(b.nome));
+
+      setVendedores(uniqueVendedores);
     } catch (error) {
       console.error('Erro ao buscar vendedores:', error);
       setVendedores([]);
@@ -409,25 +427,56 @@ export default function Vendas() {
       console.log('📈 Gerando dados do gráfico apenas para o período selecionado...');
       
       // USAR APENAS O PERÍODO SELECIONADO - NÃO 3 MESES ATRÁS!
-      const dataInicioAjustada = new Date(selectedPeriod.startDate);
-      dataInicioAjustada.setDate(dataInicioAjustada.getDate() + 1);
-      
-      const dataInicio = format(dataInicioAjustada, 'yyyy-MM-dd');
-      const dataFim = format(selectedPeriod.endDate, 'yyyy-MM-dd');
-      
-      console.log(`📅 Período do gráfico: ${dataInicio} até ${dataFim}`);
-      
-      // Buscar dados do gráfico da API - APENAS PERÍODO ATUAL
-      const funcionarioId = vendedorFilter !== 'all' ? parseInt(vendedorFilter) : undefined;
-      const dadosGrafico = await buscarDadosGraficoAPI(
-        dataInicio,
-        dataFim,
+      const dataInicioGrafico = format(new Date(selectedPeriod.startDate), 'yyyy-MM-dd');
+      const dataFimGrafico = format(selectedPeriod.endDate, 'yyyy-MM-dd');
+
+      const dadosAPI = await buscarDadosGraficoAPI(
+        dataInicioGrafico,
+        dataFimGrafico,
         currentLojaId,
-        funcionarioId
+        vendedorFilter !== 'all' ? parseInt(vendedorFilter) : undefined
       );
 
-      console.log(`📊 Dados do gráfico: ${dadosGrafico.length} pontos`);
-      setChartData(dadosGrafico);
+      // Processar dados para o gráfico
+      const processedChartData: ChartData[] = [];
+      const datesInPeriod = eachDayOfInterval({
+        start: new Date(selectedPeriod.startDate),
+        end: new Date(selectedPeriod.endDate),
+      });
+
+      datesInPeriod.forEach(date => {
+        const formattedDate = format(date, 'yyyy-MM-dd');
+        const dailyData = dadosAPI.filter(d => format(new Date(d.data), 'yyyy-MM-dd') === formattedDate);
+
+        const chartEntry: ChartData = {
+          date: format(date, 'dd/MM'),
+          value: 0,
+          transactions: 0,
+          geral: 0,
+          goodlife: 0,
+          perfumaria_r_mais: 0,
+          conveniencia_r_mais: 0,
+          r_mais: 0,
+        };
+
+        dailyData.forEach(d => {
+          chartEntry.value += d.valor_venda;
+          chartEntry.transactions += d.transacoes;
+          chartEntry.geral += d.geral;
+          chartEntry.goodlife += d.goodlife;
+          chartEntry.perfumaria_r_mais += d.perfumaria_r_mais;
+          chartEntry.conveniencia_r_mais += d.conveniencia_r_mais;
+          chartEntry.r_mais += d.r_mais;
+        });
+        processedChartData.push(chartEntry);
+      });
+
+      setChartData(processedChartData);
+    } catch (error) {
+      console.error('Erro ao gerar dados do gráfico:', error);
+      setChartData([]);
+    }
+  };
 
     } catch (error) {
       console.error('❌ Erro ao gerar dados do gráfico:', error);
