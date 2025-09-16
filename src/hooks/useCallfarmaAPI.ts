@@ -78,16 +78,29 @@ export const useCallfarmaAPI = () => {
   // Função para buscar número da loja do usuário
   const buscarNumeroLoja = async (lojaId: number): Promise<string> => {
     try {
+      console.log(`🔍 Buscando número da loja para ID: ${lojaId}`);
+      
       const { data, error } = await supabase
         .from('lojas')
-        .select('numero')
+        .select('numero, nome')
         .eq('id', lojaId)
         .single();
 
-      if (error) throw error;
-      return data.numero.toString().padStart(2, '0');
+      if (error) {
+        console.error('❌ Erro ao buscar loja:', error);
+        throw error;
+      }
+
+      if (!data) {
+        throw new Error(`Loja com ID ${lojaId} não encontrada`);
+      }
+
+      const numeroFormatado = data.numero.toString().padStart(2, '0');
+      console.log(`✅ Loja encontrada: ${data.nome} - Número: ${numeroFormatado}`);
+      
+      return numeroFormatado;
     } catch (error) {
-      console.error('Erro ao buscar número da loja:', error);
+      console.error('❌ Erro ao buscar número da loja:', error);
       throw error;
     }
   };
@@ -174,10 +187,11 @@ export const useCallfarmaAPI = () => {
     setLoading(true);
     try {
       console.log('🔍 Buscando vendas formatadas da API Callfarma');
+      console.log(`🏪 Loja ID: ${lojaId}`);
       
       // Buscar número da loja para filtro CDFIL
       const numeroLoja = await buscarNumeroLoja(lojaId);
-      console.log(`🏪 Número da loja: ${numeroLoja}`);
+      console.log(`🏪 Número da loja formatado: ${numeroLoja}`);
 
       const params: any = {
         dataFim,
@@ -186,6 +200,8 @@ export const useCallfarmaAPI = () => {
         orderBy: 'scefun.NOME asc',
         filtroFiliais: numeroLoja
       };
+
+      console.log('📋 Parâmetros da requisição:', params);
 
       // Se funcionário específico for selecionado, filtrar por ele
       if (funcionarioId) {
@@ -198,6 +214,7 @@ export const useCallfarmaAPI = () => {
         
         if (funcionarioData?.codigo_funcionario) {
           params.filtroFuncionarios = funcionarioData.codigo_funcionario;
+          console.log(`👤 Filtro por funcionário: ${funcionarioData.codigo_funcionario}`);
         }
       }
 
@@ -216,11 +233,22 @@ export const useCallfarmaAPI = () => {
 
       const rawData = data?.msg || [];
       console.log(`📊 Dados recebidos da API: ${rawData.length} registros`);
+      
+      // FILTRO ADICIONAL: Garantir que apenas dados da loja correta sejam processados
+      const dadosFiltradosLoja = rawData.filter((item: any) => {
+        const cdfilMatch = item.CDFIL && item.CDFIL.toString().padStart(2, '0') === numeroLoja;
+        if (!cdfilMatch) {
+          console.log(`⚠️ Excluindo registro de outra loja - CDFIL: ${item.CDFIL}, esperado: ${numeroLoja}`);
+        }
+        return cdfilMatch;
+      });
+      
+      console.log(`🔍 Após filtro por loja: ${dadosFiltradosLoja.length} registros`);
 
       // Processar e formatar dados para o componente
       const vendasFormatadas: VendaFormatada[] = [];
       
-      rawData.forEach((item: any, index: number) => {
+      dadosFiltradosLoja.forEach((item: any, index: number) => {
         const grupo = parseInt(item.CDGRUPO);
         const categoria = MAPEAMENTO_GRUPOS_CATEGORIAS[grupo];
         
@@ -244,12 +272,29 @@ export const useCallfarmaAPI = () => {
         }
       });
 
-      // Também buscar vendas gerais (sem filtro de grupos)
+      // Também buscar vendas gerais (sem filtro de grupos) - COM MESMO FILTRO DE LOJA
       const paramsGeral = {
-        ...params,
-        filtroGrupos: undefined, // Remover filtro de grupos para pegar vendas gerais
-        groupBy: 'scefun.CDFUN,scefilial.CDFIL,scekarde.DATA'
+        dataFim,
+        dataIni: dataInicio,
+        groupBy: 'scefun.CDFUN,scefilial.CDFIL,scekarde.DATA',
+        orderBy: 'scefun.NOME asc',
+        filtroFiliais: numeroLoja // Aplicar mesmo filtro de loja
       };
+
+      // Adicionar filtro de funcionário se selecionado
+      if (funcionarioId) {
+        const { data: funcionarioData } = await supabase
+          .from('usuarios')
+          .select('codigo_funcionario')
+          .eq('id', funcionarioId)
+          .single();
+        
+        if (funcionarioData?.codigo_funcionario) {
+          paramsGeral.filtroFuncionarios = funcionarioData.codigo_funcionario;
+        }
+      }
+
+      console.log('📋 Parâmetros vendas gerais:', paramsGeral);
 
       const { data: dataGeral, error: errorGeral } = await supabase.functions.invoke('callfarma-vendas', {
         body: {
@@ -259,7 +304,20 @@ export const useCallfarmaAPI = () => {
       });
 
       if (!errorGeral && dataGeral?.msg) {
-        dataGeral.msg.forEach((item: any, index: number) => {
+        console.log(`📊 Dados gerais recebidos: ${dataGeral.msg.length} registros`);
+        
+        // FILTRO ADICIONAL PARA VENDAS GERAIS TAMBÉM
+        const dadosGeraisFiltrados = dataGeral.msg.filter((item: any) => {
+          const cdfilMatch = item.CDFIL && item.CDFIL.toString().padStart(2, '0') === numeroLoja;
+          if (!cdfilMatch) {
+            console.log(`⚠️ Excluindo venda geral de outra loja - CDFIL: ${item.CDFIL}, esperado: ${numeroLoja}`);
+          }
+          return cdfilMatch;
+        });
+        
+        console.log(`🔍 Vendas gerais após filtro por loja: ${dadosGeraisFiltrados.length} registros`);
+
+        dadosGeraisFiltrados.forEach((item: any, index: number) => {
           const valorVenda = parseFloat(item.TOTAL_VLR_VE || 0);
           const valorDevolucao = parseFloat(item.TOTAL_VLR_DV || 0);
           const valorLiquido = valorVenda - valorDevolucao;
@@ -279,7 +337,7 @@ export const useCallfarmaAPI = () => {
         });
       }
 
-      console.log(`✅ Vendas formatadas: ${vendasFormatadas.length} registros processados`);
+      console.log(`✅ Vendas formatadas FILTRADAS por loja ${numeroLoja}: ${vendasFormatadas.length} registros processados`);
       return vendasFormatadas;
 
     } catch (error) {
