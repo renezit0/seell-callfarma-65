@@ -129,11 +129,12 @@ export default function Vendas() {
 
   // Cálculos das vendas
   const calculatedData = useMemo(() => {
-    const vendasGeral = vendasProcessadas.filter(v => v.categoria === 'geral');
-    const totalGeralVendas = vendasGeral.reduce((sum, venda) => sum + venda.valor_liquido, 0);
+    // GERAL = TODAS as vendas (soma total)
+    const totalGeralVendas = vendasProcessadas.reduce((sum, venda) => sum + venda.valor_liquido, 0);
     
-    const valorTotalTodas = vendasProcessadas.reduce((sum, venda) => sum + venda.valor_liquido, 0);
-    const participacaoGeral = valorTotalTodas > 0 ? (totalGeralVendas / valorTotalTodas * 100) : 0;
+    // Para participação, geral é 100% do total
+    const valorTotalTodas = totalGeralVendas;
+    const participacaoGeral = 100; // Geral sempre é 100% do total
     
     const totalVendas = filteredVendas.reduce((sum, venda) => sum + venda.valor_liquido, 0);
     const ticketMedio = filteredVendas.length > 0 ? totalVendas / filteredVendas.length : 0;
@@ -150,27 +151,49 @@ export default function Vendas() {
   // Vendas por categoria
   const vendasPorCategoria = useMemo(() => {
     const grouped = vendasProcessadas.reduce((acc, venda) => {
+      // Adicionar à categoria específica
       let categoria = venda.categoria;
-      
-      if (venda.categoria === 'similar' || venda.categoria === 'generico') {
-        categoria = 'generico_similar';
-      } else if (venda.categoria === 'conveniencia' || venda.categoria === 'brinquedo') {
-        categoria = 'conveniencia_r_mais';
-      } else if (venda.categoria === 'rentaveis20' || venda.categoria === 'rentaveis25') {
-        categoria = 'r_mais';
-      } else if (venda.categoria === 'goodlife') {
-        categoria = 'goodlife';
-      } else if (venda.categoria === 'perfumaria_alta') {
-        categoria = 'perfumaria_r_mais';
-      }
       
       if (!acc[categoria]) {
         acc[categoria] = { valor: 0, transacoes: 0 };
       }
       acc[categoria].valor += venda.valor_liquido;
       acc[categoria].transacoes += 1;
+
+      // Também mapear para categorias agrupadas para indicadores
+      if (venda.categoria === 'similar' || venda.categoria === 'generico') {
+        if (!acc['generico_similar']) acc['generico_similar'] = { valor: 0, transacoes: 0 };
+        acc['generico_similar'].valor += venda.valor_liquido;
+        acc['generico_similar'].transacoes += 1;
+      } else if (venda.categoria === 'conveniencia' || venda.categoria === 'brinquedo') {
+        if (!acc['conveniencia_r_mais']) acc['conveniencia_r_mais'] = { valor: 0, transacoes: 0 };
+        acc['conveniencia_r_mais'].valor += venda.valor_liquido;
+        acc['conveniencia_r_mais'].transacoes += 1;
+      } else if (venda.categoria === 'rentaveis20' || venda.categoria === 'rentaveis25') {
+        if (!acc['r_mais']) acc['r_mais'] = { valor: 0, transacoes: 0 };
+        acc['r_mais'].valor += venda.valor_liquido;
+        acc['r_mais'].transacoes += 1;
+      } else if (venda.categoria === 'goodlife') {
+        if (!acc['goodlife']) acc['goodlife'] = { valor: 0, transacoes: 0 };
+        acc['goodlife'].valor += venda.valor_liquido;
+        acc['goodlife'].transacoes += 1;
+      } else if (venda.categoria === 'perfumaria_alta') {
+        if (!acc['perfumaria_r_mais']) acc['perfumaria_r_mais'] = { valor: 0, transacoes: 0 };
+        acc['perfumaria_r_mais'].valor += venda.valor_liquido;
+        acc['perfumaria_r_mais'].transacoes += 1;
+      }
+      
       return acc;
     }, {} as Record<string, { valor: number; transacoes: number }>);
+
+    // Adicionar o total geral como categoria
+    const totalGeral = vendasProcessadas.reduce((sum, venda) => sum + venda.valor_liquido, 0);
+    const totalTransacoes = vendasProcessadas.length;
+    
+    grouped['geral'] = {
+      valor: totalGeral,
+      transacoes: totalTransacoes
+    };
     
     return grouped;
   }, [vendasProcessadas]);
@@ -459,12 +482,13 @@ export default function Vendas() {
       vendasProcessadas.forEach((venda) => {
         const existing = chartMap.get(venda.data_venda);
         if (existing) {
+          // Todas as vendas contribuem para o valor geral
           existing.value += venda.valor_liquido;
+          existing.geral += venda.valor_liquido;
           existing.transactions += 1;
 
-          if (venda.categoria === 'geral') {
-            existing.geral += venda.valor_liquido;
-          } else if (venda.categoria === 'goodlife') {
+          // Também contribuir para categorias específicas
+          if (venda.categoria === 'goodlife') {
             existing.goodlife += venda.valor_liquido;
           } else if (venda.categoria === 'perfumaria_alta') {
             existing.perfumaria_r_mais += venda.valor_liquido;
