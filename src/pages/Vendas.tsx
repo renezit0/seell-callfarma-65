@@ -14,7 +14,7 @@ import { Search, Plus, Calendar, DollarSign, TrendingUp, BarChart3, LineChart, T
 import { getNomeCategoria, getIconeCategoria, getClasseCorCategoria, getClasseBgCategoria, getCorCategoria } from '@/utils/categories';
 import { Navigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { format, eachDayOfInterval } from 'date-fns';
+import { format, startOfMonth, subMonths, eachDayOfInterval, getDay } from 'date-fns';
 import { PeriodSelector } from '@/components/PeriodSelector';
 import { StoreSelector } from '@/components/StoreSelector';
 import { usePeriodContext } from '@/contexts/PeriodContext';
@@ -296,7 +296,7 @@ export default function Vendas() {
           acc.push({
             id: venda.usuario_id,
             nome: venda.nome_funcionario || `Funcionário ${venda.usuario_id}`,
-            codigo_funcionario: venda.codigo_funcionario ? Number(venda.codigo_funcionario) : venda.usuario_id
+            codigo_funcionario: venda.usuario_id.toString()
           });
         }
         return acc;
@@ -401,7 +401,7 @@ export default function Vendas() {
 
     try {
       console.log('📈 Gerando dados do gráfico apenas para o período selecionado...');
-
+      
       // USAR APENAS O PERÍODO SELECIONADO - NÃO 3 MESES ATRÁS!
       const dataInicioGrafico = format(new Date(selectedPeriod.startDate), 'yyyy-MM-dd');
       const dataFimGrafico = format(selectedPeriod.endDate, 'yyyy-MM-dd');
@@ -449,8 +449,13 @@ export default function Vendas() {
 
       setChartData(processedChartData);
     } catch (error) {
-      console.error('❌ Erro ao gerar dados do gráfico:', error);
+      console.error('Erro ao gerar dados do gráfico:', error);
       setChartData([]);
+    }
+  };
+
+    } catch (error) {
+      console.error('❌ Erro ao gerar dados do gráfico:', error);
     }
   };
 
@@ -458,8 +463,10 @@ export default function Vendas() {
   if (authLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-        <p className="text-muted-foreground">Verificando autenticação...</p>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Verificando autenticação...</p>
+        </div>
       </div>
     );
   }
@@ -492,9 +499,9 @@ export default function Vendas() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-foreground">
-            {canViewAllStores && !selectedLojaId
-              ? 'Vendas - Todas as Lojas'
-              : lojaInfo
+            {canViewAllStores && !selectedLojaId 
+              ? 'Vendas - Todas as Lojas' 
+              : lojaInfo 
                 ? `Vendas - ${lojaInfo.numero} - ${lojaInfo.nome.toUpperCase()}`
                 : `Vendas - Loja ${currentLojaId}`
             }
@@ -577,7 +584,7 @@ export default function Vendas() {
                     Total no período
                   </p>
                 </div>
-                <Users className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
+                <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
               </div>
             </CardContent>
           </Card>
@@ -710,7 +717,7 @@ export default function Vendas() {
                 <SelectItem value="all">Todos os Vendedores</SelectItem>
                 {vendedores.map((vendedor) => (
                   <SelectItem key={vendedor.id} value={vendedor.id.toString()}>
-                    {vendedor.codigo_funcionario ? `${vendedor.codigo_funcionario} - ${vendedor.nome}` : vendedor.nome}
+                    {vendedor.nome}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -855,7 +862,7 @@ export default function Vendas() {
                       />
                     </RechartsLineChart>
                   ) : (
-                    // Gráfico de linha única para a categoria selecionada
+                    // Gráfico single-line para categoria específica
                     <RechartsLineChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis 
@@ -875,10 +882,10 @@ export default function Vendas() {
                       <Legend />
                       <Line 
                         type="monotone" 
-                        dataKey={chartCategoriaFilter === 'geral' ? 'value' : chartCategoriaFilter} 
+                        dataKey="value" 
                         stroke={singleStrokeColor} 
                         strokeWidth={3}
-                        dot={{ r: 3 }}
+                        dot={{ r: 4 }}
                         isAnimationActive={false}
                         name="Vendas"
                       />
@@ -897,14 +904,14 @@ export default function Vendas() {
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
-                  <p className="text-muted-foreground">Carregando vendas...</p>
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  <span className="ml-2">Carregando vendas da API...</span>
                 </div>
               ) : (
                 <>
-                  {/* Tabela para telas maiores */}
-                  <div className="hidden md:block">
+                  {/* Desktop Table */}
+                  <div className="hidden md:block overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -915,38 +922,64 @@ export default function Vendas() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredVendas.map((v) => (
-                          <TableRow key={v.id}>
-                            <TableCell>{new Date(v.data_venda).toLocaleDateString()}</TableCell>
+                        {filteredVendas.map((venda) => (
+                          <TableRow key={venda.id}>
                             <TableCell>
-                              <Badge className={getCategoriaColor(v.categoria)} variant="secondary">
-                                {getNomeCategoria(v.categoria)}
+                              {new Date(venda.data_venda).toLocaleDateString('pt-BR')}
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={getCategoriaColor(venda.categoria)} variant="secondary">
+                                <i className={`${getIconeCategoria(venda.categoria)} mr-1`}></i>
+                                {getNomeCategoria(venda.categoria)}
                               </Badge>
                             </TableCell>
-                            <TableCell>R$ {v.valor_venda.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
-                            <TableCell>{v.nome_funcionario || `ID: ${v.usuario_id}`}</TableCell>
+                            <TableCell>
+                              R$ {venda.valor_venda.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </TableCell>
+                            <TableCell>
+                              {venda.nome_funcionario || vendedores.find(v => v.id === venda.usuario_id)?.nome || `ID: ${venda.usuario_id}`}
+                            </TableCell>
                           </TableRow>
                         ))}
+                        {filteredVendas.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                              {loading ? 'Carregando vendas...' : 'Nenhuma venda encontrada'}
+                            </TableCell>
+                          </TableRow>
+                        )}
                       </TableBody>
                     </Table>
                   </div>
 
-                  {/* Cards para telas menores */}
+                  {/* Mobile Cards */}
                   <div className="md:hidden space-y-3">
-                    {filteredVendas.map((v) => (
-                      <div key={v.id} className="border rounded-lg p-4">
+                    {filteredVendas.map((venda) => (
+                      <div key={venda.id} className="border rounded-lg p-4 bg-card">
                         <div className="flex justify-between items-start mb-2">
-                          <div className="text-sm text-muted-foreground">{new Date(v.data_venda).toLocaleDateString()}</div>
-                          <div className="text-lg font-semibold">R$ {v.valor_venda.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {new Date(venda.data_venda).toLocaleDateString('pt-BR')}
+                          </div>
+                          <div className="text-lg font-semibold">
+                            R$ {venda.valor_venda.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </div>
                         </div>
                         <div className="flex flex-col gap-2">
-                          <Badge className={getCategoriaColor(v.categoria)} variant="secondary">
-                            {getNomeCategoria(v.categoria)}
+                          <Badge className={getCategoriaColor(venda.categoria)} variant="secondary">
+                            <i className={`${getIconeCategoria(venda.categoria)} mr-1`}></i>
+                            {getNomeCategoria(venda.categoria)}
                           </Badge>
-                          <div className="text-sm text-muted-foreground">Vendedor: {v.nome_funcionario || `ID: ${v.usuario_id}`}</div>
+                          <div className="text-sm text-muted-foreground">
+                            Vendedor: {venda.nome_funcionario || vendedores.find(v => v.id === venda.usuario_id)?.nome || `ID: ${venda.usuario_id}`}
+                          </div>
                         </div>
                       </div>
                     ))}
+                    {filteredVendas.length === 0 && (
+                      <div className="text-center text-muted-foreground py-8 border rounded-lg">
+                        {loading ? 'Carregando vendas da API...' : 'Nenhuma venda encontrada'}
+                      </div>
+                    )}
                   </div>
                 </>
               )}
