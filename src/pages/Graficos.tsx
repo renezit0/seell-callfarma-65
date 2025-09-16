@@ -66,7 +66,7 @@ export default function Graficos() {
   const [periodRange, setPeriodRange] = useState<'periodo_atual' | '1_mes' | '3_meses' | '6_meses' | '12_meses'>('periodo_atual');
 
   const canViewAllStores = user?.tipo && ['admin', 'supervisor', 'compras'].includes(user.tipo);
-  const currentLojaId = selectedLojaId || user?.loja_id || null;
+  const currentLojaId = canViewAllStores ? selectedLojaId : (user?.loja_id || null);
 
   // Mapeamento dos grupos de categorias (igual ao script Node.js)
   const CATEGORIAS_GRUPOS = {
@@ -110,14 +110,18 @@ export default function Graficos() {
   };
 
   useEffect(() => {
+    // Só buscar info da loja se for uma loja específica
     if (user && selectedPeriod && currentLojaId) {
       fetchLojaInfo();
+    } else if (canViewAllStores && !selectedLojaId) {
+      // Limpar info da loja quando for "todas as lojas"
+      setLojaInfo(null);
     }
   }, [user, selectedPeriod, currentLojaId]);
 
   useEffect(() => {
-    // Só buscar dados do gráfico depois que a informação da loja estiver carregada
-    if (user && selectedPeriod && currentLojaId && lojaInfo) {
+    // Buscar dados do gráfico sempre que as dependências mudarem
+    if (user && selectedPeriod) {
       fetchChartData();
       fetchMetasComparison();
     }
@@ -159,18 +163,20 @@ export default function Graficos() {
         endDate = hoje;
       }
 
-      console.log('🔍 Buscando dados da API externa para período:', {
-        startDate: format(startDate, 'yyyy-MM-dd'),
-        endDate: format(endDate, 'yyyy-MM-dd'),
-        loja: currentLojaId
-      });
-
       const dataInicio = format(startDate, 'yyyy-MM-dd');
       const dataFim = format(endDate, 'yyyy-MM-dd');
 
-      // 🚀 SUPER OTIMIZAÇÃO: Buscar TODOS os dados em apenas 2 requisições!
-      console.log('🚀 Buscando TODOS os dados em apenas 2 requisições - SUPER RÁPIDO!');
-      const todosDados = await buscarTodasVendasConsolidadas(dataInicio, dataFim, currentLojaId!);
+      // MODIFICAÇÃO: Só passar currentLojaId se não for "todas as lojas"
+      const lojaIdParaFiltro = (canViewAllStores && !selectedLojaId) ? undefined : currentLojaId;
+      
+      console.log('Buscando dados da API externa para período:', {
+        startDate: dataInicio,
+        endDate: dataFim,
+        loja: lojaIdParaFiltro || 'TODAS AS LOJAS'
+      });
+
+      // Buscar dados com ou sem filtro de loja
+      const todosDados = await buscarTodasVendasConsolidadas(dataInicio, dataFim, lojaIdParaFiltro);
       
       const {
         geral: dadosGeral,
@@ -180,7 +186,7 @@ export default function Graficos() {
         goodlife: dadosGoodlife
       } = todosDados;
 
-      console.log('📊 Dados recebidos da API:', {
+      console.log('Dados recebidos da API:', {
         geral: dadosGeral.length,
         rentaveis: dadosRentaveis.length,
         perfumariaAlta: dadosPerfumariaAlta.length,
@@ -188,20 +194,26 @@ export default function Graficos() {
         goodlife: dadosGoodlife.length
       });
 
-      // Verificar se deve excluir domingos
-      const shouldExcludeSundays = lojaInfo?.regiao === 'centro';
-      console.log('🔍 Informação da loja:', lojaInfo);
-      console.log('🔍 Deve excluir domingos?', shouldExcludeSundays);
+      // Verificar se deve excluir domingos - só se for uma loja específica da região centro
+      let shouldExcludeSundays = false;
+      if (lojaIdParaFiltro && lojaInfo) {
+        shouldExcludeSundays = lojaInfo.regiao === 'centro';
+      }
+      
+      console.log('Informação da loja:', lojaInfo);
+      console.log('Deve excluir domingos?', shouldExcludeSundays);
 
-      // Buscar informações da loja para filtrar por CDFIL
-      const { data: lojaData } = await supabase
-        .from('lojas')
-        .select('numero')
-        .eq('id', currentLojaId!)
-        .single();
-
-      const numeroLoja = parseInt(lojaData?.numero || '0');
-      console.log('🏪 Número da loja:', numeroLoja);
+      // Buscar informações da loja apenas se for uma loja específica
+      let numeroLoja = null;
+      if (lojaIdParaFiltro) {
+        const { data: lojaData } = await supabase
+          .from('lojas')
+          .select('numero')
+          .eq('id', lojaIdParaFiltro)
+          .single();
+        numeroLoja = parseInt(lojaData?.numero || '0');
+        console.log('Número da loja:', numeroLoja);
+      }
 
       // Inicializar com todos os dias do período
       const chartMap = new Map<string, ChartData>();
@@ -211,9 +223,9 @@ export default function Graficos() {
         const dayOfWeek = getDay(day);
         const dateStr = format(day, 'yyyy-MM-dd');
         
-        // Excluir domingo (0) se for loja da região centro
+        // Só excluir domingo se for loja específica da região centro
         if (shouldExcludeSundays && dayOfWeek === 0) {
-          console.log('🚫 Excluindo domingo:', dateStr, 'para loja da região centro');
+          console.log('Excluindo domingo:', dateStr, 'para loja da região centro');
           return;
         }
 
@@ -229,7 +241,7 @@ export default function Graficos() {
         });
       });
 
-      console.log('📊 Total de dias no gráfico:', chartMap.size);
+      console.log('Total de dias no gráfico:', chartMap.size);
 
       // Função para processar dados de uma categoria
       const processarDadosCategoria = (dados: any[], nomeCategoria: string) => {
@@ -241,7 +253,7 @@ export default function Graficos() {
             const valorLiquido = parseFloat(item.VALOR_LIQUIDO) || 0; // Usar VALOR_LIQUIDO já calculado
             const dataVendaRaw = item.DATA;
 
-            // Filtrar apenas pela loja atual
+            // MODIFICAÇÃO: Só filtrar por loja específica se não for "todas as lojas"
             if (numeroLoja && cdfil !== numeroLoja) {
               return;
             }
@@ -327,7 +339,7 @@ export default function Graficos() {
 
       setPieChartData(pieData);
       
-      console.log('✅ Dados processados com sucesso:', {
+      console.log('Dados processados com sucesso:', {
         registrosGeral: dadosGeral.length,
         diasComVendas: vendasGeral.size,
         totalGeral: categoryTotals.geral
@@ -342,6 +354,13 @@ export default function Graficos() {
 
   const fetchMetasComparison = async () => {
     if (!selectedPeriod) return;
+    
+    // MODIFICAÇÃO: Só buscar metas se for uma loja específica
+    if (canViewAllStores && !selectedLojaId) {
+      console.log('Pulando comparação de metas para "todas as lojas"');
+      setMetasData([]);
+      return;
+    }
 
     try {
       const { data: metasLoja } = await supabase
@@ -354,7 +373,7 @@ export default function Graficos() {
       const dataInicio = selectedPeriod.startDate.toISOString().split('T')[0];
       const dataFim = selectedPeriod.endDate.toISOString().split('T')[0];
       
-      // 🚀 SUPER OTIMIZAÇÃO: Buscar dados das metas em apenas 2 requisições!
+      // Buscar dados das metas usando a mesma função otimizada
       const todosDadosMetas = await buscarTodasVendasConsolidadas(dataInicio, dataFim, currentLojaId!);
       
       const {
@@ -437,7 +456,7 @@ export default function Graficos() {
 
       setMetasData(metasComparison);
       
-      console.log('✅ Metas processadas com dados da API:', {
+      console.log('Metas processadas com dados da API:', {
         registrosGeral: dadosGeralMeta.length,
         totalGeral: vendasPorCategoria.geral,
         metasEncontradas: metasComparison.length
@@ -475,7 +494,9 @@ export default function Graficos() {
               ? 'Gráficos - Todas as Lojas' 
               : lojaInfo 
                 ? `Gráficos - ${lojaInfo.numero} - ${lojaInfo.nome.toUpperCase()}`
-                : `Gráficos - Loja ${currentLojaId || user.loja_id}`
+                : currentLojaId
+                  ? `Gráficos - Loja ${currentLojaId}`
+                  : 'Gráficos'
             }
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
@@ -487,7 +508,7 @@ export default function Graficos() {
             )}
             {lojaInfo?.regiao === 'centro' && (
               <span className="block text-xs text-amber-600 mt-1 font-medium">
-                ⚠️ Lojas da região Centro não abrem aos domingos
+                Lojas da região Centro não abrem aos domingos
               </span>
             )}
           </p>
