@@ -407,6 +407,25 @@ export default function Vendas() {
           funcionarios: funcAPI.length
         });
 
+        // DEBUG: Verificar se dados vieram filtrados corretamente
+        if (vendasFuncionarios.length > 0) {
+          const filiaisNosResultados = [...new Set(vendasFuncionarios.map(v => v.CDFIL))];
+          console.log('🔍 FILIAIS NOS RESULTADOS:', filiaisNosResultados);
+          console.log('🎯 DEVERIA SER APENAS:', cdfil === 'all' ? 'TODAS' : [cdfil]);
+          
+          if (cdfil !== 'all' && filiaisNosResultados.length > 1) {
+            console.error('❌ PROBLEMA: Recebeu dados de múltiplas filiais quando deveria ser apenas uma!');
+            console.error('❌ Filiais recebidas:', filiaisNosResultados);
+            console.error('❌ CDFIL esperado:', cdfil);
+          } else if (cdfil !== 'all' && !filiaisNosResultados.includes(cdfil)) {
+            console.error('❌ PROBLEMA: Não recebeu dados da filial correta!');
+            console.error('❌ Filiais recebidas:', filiaisNosResultados);
+            console.error('❌ CDFIL esperado:', cdfil);
+          } else {
+            console.log('✅ Filtro por filial funcionando corretamente!');
+          }
+        }
+
         // Processar dados da filial
         if (vendasFilial.length > 0) {
           const dadosFilialAgregados = vendasFilial.reduce((acc, item) => ({
@@ -461,6 +480,96 @@ export default function Vendas() {
     
     console.log('Dados processados:', processados.length, 'vendas válidas');
     return processados;
+  };
+
+  const testarFiltroFilial = async () => {
+    if (!lojaInfo) {
+      console.log('Sem info da loja');
+      return;
+    }
+    
+    console.log('=== TESTE DIRETO DO FILTRO ===');
+    console.log('CDFIL da loja:', lojaInfo.cdfil);
+    console.log('Número da loja:', lojaInfo.numero);
+    
+    try {
+      // Teste 1: Sem filtro de filial
+      console.log('TESTE 1: SEM filtro de filial');
+      const semFiltro = await supabase.functions.invoke('callfarma-vendas', {
+        body: {
+          endpoint: '/financeiro/vendas-por-funcionario',
+          params: {
+            dataIni: '2025-08-21',
+            dataFim: '2025-09-20',
+            filtroGrupos: '22,25,20,36,13,46',
+            groupBy: 'scefilial.CDFIL,scefun.CDFUN,sceprodu.CDGRUPO',
+            orderBy: 'scefun.NOME asc'
+          }
+        }
+      });
+      
+      if (semFiltro.data?.msg) {
+        const filiaisSemFiltro = [...new Set(semFiltro.data.msg.map((item: any) => item.CDFIL))];
+        console.log('Filiais SEM filtro:', filiaisSemFiltro);
+        console.log('Total registros SEM filtro:', semFiltro.data.msg.length);
+      }
+      
+      // Teste 2: COM filtro de filial
+      console.log('TESTE 2: COM filtro de filial:', lojaInfo.cdfil);
+      const comFiltro = await supabase.functions.invoke('callfarma-vendas', {
+        body: {
+          endpoint: '/financeiro/vendas-por-funcionario',
+          params: {
+            dataIni: '2025-08-21',
+            dataFim: '2025-09-20',
+            filtroGrupos: '22,25,20,36,13,46',
+            filtroFiliais: lojaInfo.cdfil.toString(), // AQUI ESTÁ O FILTRO
+            groupBy: 'scefilial.CDFIL,scefun.CDFUN,sceprodu.CDGRUPO',
+            orderBy: 'scefun.NOME asc'
+          }
+        }
+      });
+      
+      if (comFiltro.data?.msg) {
+        const filiaisComFiltro = [...new Set(comFiltro.data.msg.map((item: any) => item.CDFIL))];
+        console.log('Filiais COM filtro:', filiaisComFiltro);
+        console.log('Total registros COM filtro:', comFiltro.data.msg.length);
+        
+        // Verificar se funcionou
+        if (filiaisComFiltro.length === 1 && filiaisComFiltro[0] === lojaInfo.cdfil) {
+          console.log('FILTRO FUNCIONANDO CORRETAMENTE!');
+        } else {
+          console.log('PROBLEMA NO FILTRO!');
+          console.log('Esperado:', [lojaInfo.cdfil]);
+          console.log('Recebido:', filiaisComFiltro);
+        }
+      }
+      
+      // Teste 3: Verificar se o número da loja é diferente do CDFIL
+      console.log('TESTE 3: COM filtro usando NUMERO da loja:', lojaInfo.numero);
+      const comFiltroNumero = await supabase.functions.invoke('callfarma-vendas', {
+        body: {
+          endpoint: '/financeiro/vendas-por-funcionario',
+          params: {
+            dataIni: '2025-08-21',
+            dataFim: '2025-09-20',
+            filtroGrupos: '22,25,20,36,13,46',
+            filtroFiliais: lojaInfo.numero.toString(), // Usando NUMERO ao invés de CDFIL
+            groupBy: 'scefilial.CDFIL,scefun.CDFUN,sceprodu.CDGRUPO',
+            orderBy: 'scefun.NOME asc'
+          }
+        }
+      });
+      
+      if (comFiltroNumero.data?.msg) {
+        const filiaisComFiltroNumero = [...new Set(comFiltroNumero.data.msg.map((item: any) => item.CDFIL))];
+        console.log('Filiais COM filtro NUMERO:', filiaisComFiltroNumero);
+        console.log('Total registros COM filtro NUMERO:', comFiltroNumero.data.msg.length);
+      }
+      
+    } catch (error) {
+      console.error('Erro no teste:', error);
+    }
   };
 
   const generateChartData = async () => {
@@ -819,6 +928,15 @@ export default function Vendas() {
                 <SelectItem value="goodlife">GoodLife</SelectItem>
               </SelectContent>
             </Select>
+
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={testarFiltroFilial}
+              className="w-full"
+            >
+              Testar Filtro
+            </Button>
           </div>
         </CardContent>
       </Card>
