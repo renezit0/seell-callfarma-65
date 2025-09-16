@@ -1034,58 +1034,71 @@ export const useCallfarmaAPI = () => {
 
   // FUNÇÃO PARA BUSCAR DADOS DETALHADOS DE FUNCIONÁRIOS
   const buscarVendasFuncionariosDetalhadas = async (
-    dataInicio: string,
-    dataFim: string,
-    cdfil?: number | 'all',
-    cdfun?: number
-  ): Promise<VendaFuncionarioDetalhada[]> => {
-    setLoading(true);
-    try {
-      const params: any = {
-        dataFim,
-        dataIni: dataInicio,
-        filtroGrupos: '20,25,46,36,13,22', // Todos os grupos que nos interessam
-        groupBy: 'scefilial.CDFIL,scefun.CDFUN,sceprodu.CDGRUPO,scekarde.DATA',
-        orderBy: 'scefun.NOME asc'
-      };
+  dataInicio: string,
+  dataFim: string,
+  cdfil?: number | 'all',
+  cdfun?: number
+): Promise<VendaFuncionarioDetalhada[]> => {
+  setLoading(true);
+  try {
+    const params: any = {
+      dataFim,
+      dataIni: dataInicio,
+      filtroGrupos: '20,25,46,36,13,22', // Todos os grupos que nos interessam
+      groupBy: 'scefilial.CDFIL,scefun.CDFUN,sceprodu.CDGRUPO,scekarde.DATA',
+      orderBy: 'scefun.NOME asc'
+    };
 
-      // Filtrar por filial se especificado
-      if (cdfil && cdfil !== 'all') {
-        params.filtroFiliais = cdfil.toString();
-      }
-
-      // Filtrar por funcionário específico se especificado
-      if (cdfun) {
-        params.filtroFuncionarios = cdfun.toString();
-      }
-
-      console.log('Buscando vendas funcionários detalhadas:', params);
-
-      const { data, error } = await supabase.functions.invoke('callfarma-vendas', {
-        body: {
-          endpoint: '/financeiro/vendas-por-funcionario',
-          params
-        }
-      });
-
-      if (error) throw error;
-      
-      const rawData = data?.msg || [];
-      console.log('Dados vendas funcionários detalhadas recebidos:', rawData.length, 'registros');
-      
-      return rawData;
-    } catch (error) {
-      console.error('Erro ao buscar vendas funcionários detalhadas:', error);
-      toast({
-        title: "Erro",
-        description: "Erro ao buscar vendas funcionários da API externa",
-        variant: "destructive",
-      });
-      return [];
-    } finally {
-      setLoading(false);
+    // CORREÇÃO: Filtrar por filial sempre que cdfil for fornecido e não for 'all'
+    if (cdfil && cdfil !== 'all') {
+      params.filtroFiliais = cdfil.toString();
+      console.log('APLICANDO FILTRO POR FILIAL:', cdfil);
+    } else if (cdfil === 'all') {
+      console.log('BUSCANDO TODAS AS FILIAIS (modo admin)');
+    } else {
+      console.log('WARNING: CDFIL não fornecido - pode buscar dados de todas as lojas!');
     }
-  };
+
+    // Filtrar por funcionário específico se especificado
+    if (cdfun) {
+      params.filtroFuncionarios = cdfun.toString();
+      console.log('APLICANDO FILTRO POR FUNCIONÁRIO:', cdfun);
+    }
+
+    console.log('Params da requisição funcionários detalhadas:', params);
+
+    const { data, error } = await supabase.functions.invoke('callfarma-vendas', {
+      body: {
+        endpoint: '/financeiro/vendas-por-funcionario',
+        params
+      }
+    });
+
+    if (error) throw error;
+    
+    const rawData = data?.msg || [];
+    console.log('Dados funcionários recebidos:', rawData.length, 'registros');
+    
+    // DEBUG: Mostrar quais filiais vieram nos dados
+    if (rawData.length > 0) {
+      const filiaisRecebidas = [...new Set(rawData.map((item: any) => item.CDFIL))];
+      console.log('Filiais nos dados recebidos:', filiaisRecebidas);
+      console.log('Deveria ser apenas:', cdfil !== 'all' ? [cdfil] : 'todas');
+    }
+    
+    return rawData;
+  } catch (error) {
+    console.error('Erro ao buscar vendas funcionários detalhadas:', error);
+    toast({
+      title: "Erro",
+      description: "Erro ao buscar vendas funcionários da API externa",
+      variant: "destructive",
+    });
+    return [];
+  } finally {
+    setLoading(false);
+  }
+};
 
   // FUNÇÃO OTIMIZADA PARA BUSCAR TODOS OS DADOS DA PÁGINA VENDAS
   const buscarDadosVendasCompletos = async (
