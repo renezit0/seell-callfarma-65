@@ -220,13 +220,21 @@ export default function Vendas() {
     }
   }, [user, initialized, currentLojaId]);
 
-  // ✅ Refetch when filters change (incluindo selectedLojaId para atualizar vendedores)
+  // ✅ Refetch when filters change - OTIMIZADO
   useEffect(() => {
-    if (user && initialized && currentLojaId) {
-      fetchVendedores(); // Atualizar lista de vendedores quando loja mudar
+    if (user && initialized && currentLojaId && selectedPeriod) {
+      // Só recarregar vendedores se mudou o período ou a loja
+      fetchVendedores(); 
       fetchVendas();
     }
-  }, [selectedPeriod, vendedorFilter, filtroAdicional, user, initialized, currentLojaId, selectedLojaId]);
+  }, [selectedPeriod, currentLojaId, selectedLojaId, user, initialized]);
+
+  // Refetch vendas quando vendedor muda (mas não vendedores)
+  useEffect(() => {
+    if (user && initialized && currentLojaId && selectedPeriod) {
+      fetchVendas();
+    }
+  }, [vendedorFilter, filtroAdicional]);
 
   // Quando selecionar um colaborador, mostrar todas as categorias por padrão
   useEffect(() => {
@@ -244,32 +252,69 @@ export default function Vendas() {
   }, [vendas, lojaInfo, user, chartCategoriaFilter, vendedorFilter, currentLojaId]);
 
   const fetchVendedores = async () => {
+    if (!currentLojaId || !selectedPeriod) return;
+
     try {
+      console.log('Buscando funcionários com vendas no período...');
+      
+      // Calcular datas do período selecionado
+      const dataInicioAjustada = new Date(selectedPeriod.startDate);
+      dataInicioAjustada.setDate(dataInicioAjustada.getDate() + 1);
+      const dataInicio = format(dataInicioAjustada, 'yyyy-MM-dd');
+      const dataFim = format(selectedPeriod.endDate, 'yyyy-MM-dd');
+
+      // Buscar vendas da API para obter funcionários com vendas no período
+      const vendasPeriodo = await buscarVendasFormatadas(dataInicio, dataFim, currentLojaId);
+      
+      // Extrair IDs únicos dos funcionários que tiveram vendas
+      const funcionariosComVendas = [...new Set(vendasPeriodo.map(v => v.usuario_id))];
+      
+      console.log(`Funcionários com vendas no período: ${funcionariosComVendas.length}`);
+
+      if (funcionariosComVendas.length === 0) {
+        setVendedores([]);
+        return;
+      }
+
+      // Buscar dados dos funcionários no banco local
       let query = supabase
         .from('usuarios')
         .select('id, nome, codigo_funcionario')
         .eq('status', 'ativo')
+        .in('codigo_funcionario', funcionariosComVendas) // Filtrar apenas funcionários com vendas
         .order('nome');
 
-      // Se há uma loja selecionada no StoreSelector, usar ela
+      // Aplicar filtro de loja
       if (selectedLojaId) {
         query = query.eq('loja_id', selectedLojaId);
-      }
-      // Se o usuário pode ver todas as lojas mas não tem loja selecionada, mostrar de todas
-      else if (canViewAllStores) {
-        // Não adiciona filtro de loja - mostra vendedores de todas as lojas
-      } 
-      // Se o usuário não pode ver todas as lojas, filtrar pela sua loja
-      else if (currentLojaId) {
+      } else if (!canViewAllStores && currentLojaId) {
         query = query.eq('loja_id', currentLojaId);
       }
 
       const { data, error } = await query;
 
       if (error) throw error;
-      setVendedores(data || []);
+      
+      // Se não encontrou no banco local, criar lista com base nos dados da API
+      if (!data || data.length === 0) {
+        const funcionariosUnicos = vendasPeriodo.reduce((acc, venda) => {
+          if (!acc.find(f => f.id === venda.usuario_id)) {
+            acc.push({
+              id: venda.usuario_id,
+              nome: venda.nome_funcionario || `Funcionário ${venda.usuario_id}`,
+              codigo_funcionario: venda.usuario_id
+            });
+          }
+          return acc;
+        }, [] as Vendedor[]);
+        
+        setVendedores(funcionariosUnicos);
+      } else {
+        setVendedores(data);
+      }
     } catch (error) {
       console.error('Erro ao buscar vendedores:', error);
+      setVendedores([]);
     }
   };
 
@@ -361,16 +406,18 @@ export default function Vendas() {
     if (!currentLojaId || !selectedPeriod) return;
 
     try {
-      console.log('📈 Gerando dados do gráfico da API Callfarma...');
+      console.log('📈 Gerando dados do gráfico apenas para o período selecionado...');
       
-      // Buscar dados dos últimos 3 meses para o gráfico
-      const hoje = new Date();
-      const inicioMes = startOfMonth(subMonths(hoje, 2));
+      // USAR APENAS O PERÍODO SELECIONADO - NÃO 3 MESES ATRÁS!
+      const dataInicioAjustada = new Date(selectedPeriod.startDate);
+      dataInicioAjustada.setDate(dataInicioAjustada.getDate() + 1);
       
-      const dataInicio = format(inicioMes, 'yyyy-MM-dd');
-      const dataFim = format(hoje, 'yyyy-MM-dd');
+      const dataInicio = format(dataInicioAjustada, 'yyyy-MM-dd');
+      const dataFim = format(selectedPeriod.endDate, 'yyyy-MM-dd');
       
-      // Buscar dados do gráfico da API
+      console.log(`📅 Período do gráfico: ${dataInicio} até ${dataFim}`);
+      
+      // Buscar dados do gráfico da API - APENAS PERÍODO ATUAL
       const funcionarioId = vendedorFilter !== 'all' ? parseInt(vendedorFilter) : undefined;
       const dadosGrafico = await buscarDadosGraficoAPI(
         dataInicio,
