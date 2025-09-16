@@ -19,33 +19,22 @@ import { StoreSelector } from '@/components/StoreSelector';
 import { usePeriodContext } from '@/contexts/PeriodContext';
 import { LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
-// Mapeamento dos grupos conforme fornecido
-const CATEGORIAS_GRUPOS = {
-  'similar': [2, 21, 20, 25, 22],
-  'generico': [47, 5, 6],
-  'perfumaria_alta': [46],
-  'goodlife': [22],
-  'rentaveis20': [20],
-  'rentaveis25': [25],
-  'dermocosmetico': [31, 16],
-  'conveniencia': [36],
-  'brinquedo': [13]
+// Mapeamento simples dos grupos
+const GRUPOS_PARA_CATEGORIAS: Record<number, string> = {
+  2: 'similar',
+  5: 'generico', 
+  6: 'generico',
+  13: 'brinquedo',
+  16: 'dermocosmetico',
+  20: 'rentaveis20',
+  21: 'similar', 
+  22: 'goodlife',
+  25: 'rentaveis25',
+  31: 'dermocosmetico',
+  36: 'conveniencia',
+  46: 'perfumaria_alta',
+  47: 'generico'
 };
-
-const MAPEAMENTO_LOJA_CATEGORIAS = {
-  'r_mais': [20, 25],
-  'perfumaria_r_mais': [46],
-  'saude': [22],
-  'conveniencia_r_mais': [36, 13]
-};
-
-// Criar mapeamento inverso para facilitar a busca
-const GRUPOS_PARA_CATEGORIAS: Record<number, string> = {};
-Object.entries(CATEGORIAS_GRUPOS).forEach(([categoria, grupos]) => {
-  grupos.forEach(grupo => {
-    GRUPOS_PARA_CATEGORIAS[grupo] = categoria;
-  });
-});
 
 interface VendaAPI {
   CDFIL: number;
@@ -66,6 +55,7 @@ interface VendaProcessada {
   nome_funcionario: string;
   data_venda: string;
   categoria: string;
+  grupo: number;
   valor_bruto: number;
   valor_liquido: number;
   quantidade: number;
@@ -112,8 +102,8 @@ export default function Vendas() {
 
   // Função para mapear grupo para categoria
   const mapearGrupoParaCategoria = (cdgrupo?: number): string => {
-    if (!cdgrupo) return 'geral';
-    return GRUPOS_PARA_CATEGORIAS[cdgrupo] || 'geral';
+    if (!cdgrupo) return 'outros';
+    return GRUPOS_PARA_CATEGORIAS[cdgrupo] || 'outros';
   };
 
   // Filtros das vendas
@@ -127,14 +117,13 @@ export default function Vendas() {
     });
   }, [vendasProcessadas, searchTerm, categoriaFilter, funcionarioFilter]);
 
-  // Cálculos das vendas
+  // Cálculos das vendas - CORRIGIDO
   const calculatedData = useMemo(() => {
-    // GERAL = TODAS as vendas (soma total)
+    // TOTAL GERAL = soma de TODAS as vendas processadas
     const totalGeralVendas = vendasProcessadas.reduce((sum, venda) => sum + venda.valor_liquido, 0);
     
-    // Para participação, geral é 100% do total
     const valorTotalTodas = totalGeralVendas;
-    const participacaoGeral = 100; // Geral sempre é 100% do total
+    const participacaoGeral = 100; // Geral sempre é 100%
     
     const totalVendas = filteredVendas.reduce((sum, venda) => sum + venda.valor_liquido, 0);
     const ticketMedio = filteredVendas.length > 0 ? totalVendas / filteredVendas.length : 0;
@@ -148,11 +137,11 @@ export default function Vendas() {
     };
   }, [vendasProcessadas, filteredVendas]);
 
-  // Vendas por categoria
+  // Vendas por categoria - CORRIGIDO
   const vendasPorCategoria = useMemo(() => {
     const grouped = vendasProcessadas.reduce((acc, venda) => {
-      // Adicionar à categoria específica
-      let categoria = venda.categoria;
+      // Categoria específica
+      const categoria = venda.categoria;
       
       if (!acc[categoria]) {
         acc[categoria] = { valor: 0, transacoes: 0 };
@@ -160,40 +149,53 @@ export default function Vendas() {
       acc[categoria].valor += venda.valor_liquido;
       acc[categoria].transacoes += 1;
 
-      // Também mapear para categorias agrupadas para indicadores
-      if (venda.categoria === 'similar' || venda.categoria === 'generico') {
-        if (!acc['generico_similar']) acc['generico_similar'] = { valor: 0, transacoes: 0 };
-        acc['generico_similar'].valor += venda.valor_liquido;
-        acc['generico_similar'].transacoes += 1;
-      } else if (venda.categoria === 'conveniencia' || venda.categoria === 'brinquedo') {
-        if (!acc['conveniencia_r_mais']) acc['conveniencia_r_mais'] = { valor: 0, transacoes: 0 };
-        acc['conveniencia_r_mais'].valor += venda.valor_liquido;
-        acc['conveniencia_r_mais'].transacoes += 1;
-      } else if (venda.categoria === 'rentaveis20' || venda.categoria === 'rentaveis25') {
-        if (!acc['r_mais']) acc['r_mais'] = { valor: 0, transacoes: 0 };
-        acc['r_mais'].valor += venda.valor_liquido;
-        acc['r_mais'].transacoes += 1;
-      } else if (venda.categoria === 'goodlife') {
-        if (!acc['goodlife']) acc['goodlife'] = { valor: 0, transacoes: 0 };
-        acc['goodlife'].valor += venda.valor_liquido;
-        acc['goodlife'].transacoes += 1;
-      } else if (venda.categoria === 'perfumaria_alta') {
-        if (!acc['perfumaria_r_mais']) acc['perfumaria_r_mais'] = { valor: 0, transacoes: 0 };
-        acc['perfumaria_r_mais'].valor += venda.valor_liquido;
-        acc['perfumaria_r_mais'].transacoes += 1;
-      }
-      
       return acc;
     }, {} as Record<string, { valor: number; transacoes: number }>);
 
-    // Adicionar o total geral como categoria
-    const totalGeral = vendasProcessadas.reduce((sum, venda) => sum + venda.valor_liquido, 0);
-    const totalTransacoes = vendasProcessadas.length;
-    
+    // Adicionar categoria "geral" com TODOS os valores
     grouped['geral'] = {
-      valor: totalGeral,
-      transacoes: totalTransacoes
+      valor: vendasProcessadas.reduce((sum, venda) => sum + venda.valor_liquido, 0),
+      transacoes: vendasProcessadas.length
     };
+
+    // Adicionar agrupamentos para indicadores
+    const genericoSimilar = vendasProcessadas
+      .filter(v => v.categoria === 'generico' || v.categoria === 'similar')
+      .reduce((sum, v) => sum + v.valor_liquido, 0);
+    
+    const rMais = vendasProcessadas
+      .filter(v => v.categoria === 'rentaveis20' || v.categoria === 'rentaveis25')
+      .reduce((sum, v) => sum + v.valor_liquido, 0);
+
+    const convenienciaRMais = vendasProcessadas
+      .filter(v => v.categoria === 'conveniencia' || v.categoria === 'brinquedo')
+      .reduce((sum, v) => sum + v.valor_liquido, 0);
+
+    if (genericoSimilar > 0) {
+      grouped['generico_similar'] = {
+        valor: genericoSimilar,
+        transacoes: vendasProcessadas.filter(v => v.categoria === 'generico' || v.categoria === 'similar').length
+      };
+    }
+
+    if (rMais > 0) {
+      grouped['r_mais'] = {
+        valor: rMais,
+        transacoes: vendasProcessadas.filter(v => v.categoria === 'rentaveis20' || v.categoria === 'rentaveis25').length
+      };
+    }
+
+    if (convenienciaRMais > 0) {
+      grouped['conveniencia_r_mais'] = {
+        valor: convenienciaRMais,
+        transacoes: vendasProcessadas.filter(v => v.categoria === 'conveniencia' || v.categoria === 'brinquedo').length
+      };
+    }
+
+    // Mapear perfumaria_alta para perfumaria_r_mais
+    if (grouped['perfumaria_alta']) {
+      grouped['perfumaria_r_mais'] = grouped['perfumaria_alta'];
+    }
     
     return grouped;
   }, [vendasProcessadas]);
@@ -299,14 +301,13 @@ export default function Vendas() {
     }
   };
 
-  // Buscar vendas da API externa - OTIMIZADO para uma loja específica
+  // Buscar vendas da API externa - CORRIGIDO
   const fetchVendasAPI = async () => {
     if (!numeroLoja || !selectedPeriod) return;
     
     try {
       setLoading(true);
       
-      // Converter número da loja para CDFIL (número da loja na API)
       const cdfilLoja = parseInt(numeroLoja);
       console.log('🔍 Buscando vendas da API para loja:', numeroLoja, 'CDFIL:', cdfilLoja);
 
@@ -331,7 +332,6 @@ export default function Vendas() {
         dataInicio = format(inicioMes, 'yyyy-MM-dd');
         dataFim = format(hoje, 'yyyy-MM-dd');
       } else {
-        // Período selecionado
         const dataInicioAjustada = new Date(selectedPeriod.startDate);
         dataInicioAjustada.setDate(dataInicioAjustada.getDate() + 1);
         dataInicio = format(dataInicioAjustada, 'yyyy-MM-dd');
@@ -340,7 +340,7 @@ export default function Vendas() {
 
       console.log('📅 Período:', dataInicio, 'até', dataFim);
 
-      // Fazer requisição com filtro de loja
+      // Buscar da API
       const { data, error } = await supabase.functions.invoke('callfarma-vendas', {
         body: {
           endpoint: '/financeiro/vendas-por-funcionario',
@@ -362,76 +362,92 @@ export default function Vendas() {
       const dadosAPI: VendaAPI[] = data?.msg || [];
       console.log('📊 Dados recebidos da API:', dadosAPI.length, 'registros');
 
-      // FILTRO ADICIONAL LOCAL - Garantir que só apareçam dados da loja específica
-      const dadosFiltrados = dadosAPI.filter(item => {
-        const match = item.CDFIL === cdfilLoja;
-        if (!match) {
-          console.log('⚠️ Filtrando item de outra loja:', item.CDFIL, 'esperado:', cdfilLoja);
-        }
-        return match;
+      // Filtrar apenas registros da loja correta
+      const dadosDaLoja = dadosAPI.filter((item: any) => {
+        return item.CDFIL?.toString() === numeroLoja;
       });
 
-      console.log('🔍 Dados após filtro local:', dadosFiltrados.length, 'registros');
+      console.log('🏪 Dados filtrados da loja', numeroLoja + ':', dadosDaLoja.length, 'registros');
 
-      // Verificar se recebemos dados da loja correta
-      if (dadosFiltrados.length > 0) {
-        const lojasUnicas = [...new Set(dadosFiltrados.map(item => item.CDFIL))];
-        console.log('🏪 Lojas nos dados filtrados:', lojasUnicas);
-      }
+      // TOTAL GERAL = Somar TODOS os registros da loja (sem filtro por categoria)
+      const totalGeralLoja = dadosDaLoja.reduce((sum: number, item: any) => {
+        const valorBruto = parseFloat(item.TOTAL_VLR_VE || 0);
+        const valorDevolucao = parseFloat(item.TOTAL_VLR_DV || 0);
+        const valorLiquido = valorBruto - valorDevolucao;
+        return sum + valorLiquido;
+      }, 0);
 
-      // Processar dados de forma mais eficiente
-      const vendasMap = new Map<string, VendaProcessada>();
+      console.log('💰 TOTAL GERAL DA LOJA:', totalGeralLoja.toFixed(2));
 
-      dadosFiltrados.forEach((item, index) => {
-        const categoria = mapearGrupoParaCategoria(item.CDGRUPO);
-        const valorLiquido = (item.TOTAL_VLR_VE || 0) - (item.TOTAL_VLR_DV || 0);
-        
-        if (valorLiquido > 0) {
-          const key = `${item.CDFUN}-${item.DATA}-${item.CDGRUPO || 0}-${index}`;
+      // Processar cada registro UMA VEZ SÓ (sem duplicações)
+      const vendasProcessadas: VendaProcessada[] = [];
+      const funcionariosSet = new Set<string>();
+
+      dadosDaLoja.forEach((item: any, index: number) => {
+        const valorBruto = parseFloat(item.TOTAL_VLR_VE || 0);
+        const valorDevolucao = parseFloat(item.TOTAL_VLR_DV || 0);
+        const valorLiquido = valorBruto - valorDevolucao;
+        const quantidade = (item.TOTAL_QTD_VE || 0) - (item.TOTAL_QTD_DV || 0);
+
+        if (valorLiquido > 0 && quantidade > 0) {
+          // Mapear grupo para categoria (SEM DUPLICAÇÃO)
+          const categoria = mapearGrupoParaCategoria(item.CDGRUPO);
           
-          if (vendasMap.has(key)) {
-            // Agregar se já existe
-            const vendaExistente = vendasMap.get(key)!;
-            vendaExistente.valor_bruto += (item.TOTAL_VLR_VE || 0);
-            vendaExistente.valor_liquido += valorLiquido;
-            vendaExistente.quantidade += (item.TOTAL_QTD_VE || 0) - (item.TOTAL_QTD_DV || 0);
-          } else {
-            // Criar nova venda
-            vendasMap.set(key, {
-              id: key,
-              cdfun: item.CDFUN,
-              nome_funcionario: item.NOMEFUN,
-              data_venda: item.DATA.split('T')[0],
-              categoria,
-              valor_bruto: item.TOTAL_VLR_VE || 0,
-              valor_liquido: valorLiquido,
-              quantidade: (item.TOTAL_QTD_VE || 0) - (item.TOTAL_QTD_DV || 0)
-            });
-          }
+          vendasProcessadas.push({
+            id: `${item.CDFUN}-${item.DATA}-${item.CDGRUPO}-${index}`,
+            data_venda: item.DATA?.split('T')[0] || '',
+            nome_funcionario: item.NOMEFUN || 'Desconhecido',
+            cdfun: item.CDFUN || 0,
+            categoria,
+            grupo: item.CDGRUPO || 0,
+            valor_bruto: valorBruto,
+            valor_liquido: valorLiquido,
+            quantidade
+          });
+
+          funcionariosSet.add(JSON.stringify({cdfun: item.CDFUN, nome: item.NOMEFUN}));
         }
       });
 
-      const vendasProcessadasArray = Array.from(vendasMap.values());
-      
       // Extrair funcionários únicos
-      const funcionariosUnicos = Array.from(
-        new Map(
-          dadosFiltrados.map(item => [item.CDFUN, { cdfun: item.CDFUN, nome: item.NOMEFUN }])
-        ).values()
-      );
+      const funcionariosUnicos = Array.from(funcionariosSet).map(f => JSON.parse(f));
 
-      console.log('✅ Processamento concluído:', vendasProcessadasArray.length, 'vendas,', funcionariosUnicos.length, 'funcionários');
-      
-      // Verificar total de valores por categoria
-      const totalPorCategoria = vendasProcessadasArray.reduce((acc, venda) => {
-        if (!acc[venda.categoria]) acc[venda.categoria] = 0;
-        acc[venda.categoria] += venda.valor_liquido;
+      // Calcular totais por categoria ORIGINAL (sem agrupamentos)
+      const porCategoriaOriginal = vendasProcessadas.reduce((acc, v) => {
+        if (!acc[v.categoria]) acc[v.categoria] = {valor: 0, qtd: 0, registros: 0};
+        acc[v.categoria].valor += v.valor_liquido;
+        acc[v.categoria].qtd += v.quantidade;
+        acc[v.categoria].registros += 1;
         return acc;
-      }, {} as Record<string, number>);
-      
-      console.log('💰 Total por categoria:', totalPorCategoria);
-      
-      setVendasProcessadas(vendasProcessadasArray);
+      }, {} as Record<string, {valor: number, qtd: number, registros: number}>);
+
+      // Calcular agrupamentos para indicadores
+      const gruposGenerico = [5, 6, 47]; // Genérico
+      const gruposSimilar = [2, 21]; // Similar
+      const gruposRentaveis = [20, 25]; // Rentáveis
+
+      const totalGenericoSimilar = dadosDaLoja
+        .filter((item: any) => [...gruposGenerico, ...gruposSimilar].includes(item.CDGRUPO))
+        .reduce((sum: number, item: any) => {
+          const valorLiquido = (item.TOTAL_VLR_VE || 0) - (item.TOTAL_VLR_DV || 0);
+          return sum + valorLiquido;
+        }, 0);
+
+      const totalRentaveis = dadosDaLoja
+        .filter((item: any) => gruposRentaveis.includes(item.CDGRUPO))
+        .reduce((sum: number, item: any) => {
+          const valorLiquido = (item.TOTAL_VLR_VE || 0) - (item.TOTAL_VLR_DV || 0);
+          return sum + valorLiquido;
+        }, 0);
+
+      console.log('📈 Relatório de vendas:');
+      console.log('├─ Total Geral:', totalGeralLoja.toFixed(2));
+      console.log('├─ Por categoria original:', porCategoriaOriginal);
+      console.log('├─ Genérico + Similar:', totalGenericoSimilar.toFixed(2));
+      console.log('├─ Rentáveis (20+25):', totalRentaveis.toFixed(2));
+      console.log('└─ Registros processados:', vendasProcessadas.length);
+
+      setVendasProcessadas(vendasProcessadas);
       setFuncionarios(funcionariosUnicos);
       
     } catch (error) {
@@ -442,7 +458,7 @@ export default function Vendas() {
     }
   };
 
-  // Gerar dados do gráfico de forma simplificada
+  // Gerar dados do gráfico - CORRIGIDO
   useEffect(() => {
     if (vendasProcessadas.length > 0) {
       generateChartData();
@@ -487,7 +503,7 @@ export default function Vendas() {
           existing.geral += venda.valor_liquido;
           existing.transactions += 1;
 
-          // Também contribuir para categorias específicas
+          // Contribuir para categorias específicas
           if (venda.categoria === 'goodlife') {
             existing.goodlife += venda.valor_liquido;
           } else if (venda.categoria === 'perfumaria_alta') {
@@ -550,7 +566,7 @@ export default function Vendas() {
             }
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Dados da API Externa Callfarma
+            Dados da API Externa Callfarma - Corrigido
             {selectedPeriod && (
               <span className="block text-xs text-muted-foreground/70 mt-1">
                 Período: {selectedPeriod.label}
@@ -576,12 +592,12 @@ export default function Vendas() {
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Participação Geral</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Total Geral</p>
                 <p className="text-lg sm:text-2xl font-bold text-foreground">
-                  {calculatedData.participacaoGeral.toFixed(1)}%
+                  R$ {calculatedData.totalGeralVendas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </p>
                 <p className="text-xs text-muted-foreground hidden sm:block">
-                  R$ {calculatedData.totalGeralVendas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  100% das vendas
                 </p>
               </div>
               <DollarSign className="w-6 h-6 sm:w-8 sm:h-8 text-success" />
@@ -610,12 +626,12 @@ export default function Vendas() {
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Total Vendas</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Transações</p>
                 <p className="text-lg sm:text-2xl font-bold text-foreground">
-                  R$ {calculatedData.valorTotalTodas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  {vendasProcessadas.length.toLocaleString('pt-BR')}
                 </p>
                 <p className="text-xs text-muted-foreground hidden sm:block">
-                  {vendasProcessadas.length} transações
+                  Total do período
                 </p>
               </div>
               <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
@@ -675,14 +691,15 @@ export default function Vendas() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5" />
-            Indicadores por Categoria (API Externa)
+            Indicadores por Categoria (API Externa - Corrigido)
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {Object.entries(vendasPorCategoria)
+              .filter(([categoria]) => categoria !== 'generico_similar') // Não mostrar agrupamento
               .sort(([,a], [,b]) => b.valor - a.valor)
-              .slice(0, 6)
+              .slice(0, 8)
               .map(([categoria, dados]) => {
                 const participacao = calculatedData.valorTotalTodas > 0 ? (dados.valor / calculatedData.valorTotalTodas * 100) : 0;
                 return (
@@ -698,6 +715,9 @@ export default function Vendas() {
                       <p className="text-base sm:text-lg font-bold">
                         R$ {dados.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </p>
+                      <p className="text-xs text-muted-foreground">
+                        {dados.transacoes} transações
+                      </p>
                     </div>
                   </div>
                 );
@@ -712,7 +732,7 @@ export default function Vendas() {
           <CardTitle className="text-base sm:text-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <span>Filtros</span>
             <Badge variant="secondary" className="bg-green-100 text-green-800">
-              API Externa - Loja {numeroLoja}
+              API Externa - Loja {numeroLoja} - Corrigido
             </Badge>
           </CardTitle>
         </CardHeader>
@@ -761,7 +781,6 @@ export default function Vendas() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas as Categorias</SelectItem>
-                <SelectItem value="geral">Geral</SelectItem>
                 <SelectItem value="rentaveis20">Rentáveis 20</SelectItem>
                 <SelectItem value="rentaveis25">Rentáveis 25</SelectItem>
                 <SelectItem value="perfumaria_alta">Perfumaria Alta</SelectItem>
@@ -771,6 +790,7 @@ export default function Vendas() {
                 <SelectItem value="similar">Similar</SelectItem>
                 <SelectItem value="generico">Genérico</SelectItem>
                 <SelectItem value="dermocosmetico">Dermocosmético</SelectItem>
+                <SelectItem value="outros">Outros</SelectItem>
               </SelectContent>
             </Select>
 
@@ -781,103 +801,149 @@ export default function Vendas() {
         </CardContent>
       </Card>
 
-      {/* Tabela de Vendas */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Lista de Vendas (API Externa)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-              <span className="ml-2">Carregando vendas da API...</span>
-            </div>
-          ) : (
-            <>
-              <div className="hidden md:block overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Data</TableHead>
-                      <TableHead>Funcionário</TableHead>
-                      <TableHead>Categoria</TableHead>
-                      <TableHead>Valor Bruto</TableHead>
-                      <TableHead>Valor Líquido</TableHead>
-                      <TableHead>Quantidade</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredVendas.slice(0, 100).map((venda) => (
-                      <TableRow key={venda.id}>
-                        <TableCell>
-                          {new Date(venda.data_venda).toLocaleDateString('pt-BR')}
-                        </TableCell>
-                        <TableCell>{venda.nome_funcionario}</TableCell>
-                        <TableCell>
+      {/* Charts and Table */}
+      <Tabs defaultValue="table" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="charts" className="flex items-center gap-2 text-sm">
+            <LineChart className="w-4 h-4" />
+            <span className="hidden sm:inline">Gráficos</span>
+            <span className="sm:hidden">Gráfico</span>
+          </TabsTrigger>
+          <TabsTrigger value="table" className="flex items-center gap-2 text-sm">
+            <Calendar className="w-4 h-4" />
+            <span className="hidden sm:inline">Tabela</span>
+            <span className="sm:hidden">Lista</span>
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="charts" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <LineChart className="w-4 h-4 sm:w-5 sm:h-5" />
+                Evolução das Vendas (Últimos 30 dias)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RechartsLineChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" fontSize={12} tick={{ fontSize: 10 }} />
+                    <YAxis fontSize={12} tick={{ fontSize: 10 }} tickFormatter={(value) => `R$ ${value.toLocaleString('pt-BR')}`} />
+                    <Tooltip 
+                      formatter={(value: number, name: string) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, getNomeCategoria(name)]}
+                      labelFormatter={(label) => `Data: ${label}`}
+                    />
+                    <Legend formatter={(value) => getNomeCategoria(value)} />
+                    <Line type="monotone" dataKey="geral" stroke="hsl(221, 83%, 53%)" strokeWidth={3} dot={{ r: 3 }} name="geral" />
+                    <Line type="monotone" dataKey="goodlife" stroke="hsl(142, 76%, 36%)" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3 }} name="goodlife" />
+                    <Line type="monotone" dataKey="perfumaria_r_mais" stroke="hsl(262, 83%, 58%)" strokeWidth={2} strokeDasharray="10 5" dot={{ r: 3 }} name="perfumaria_r_mais" />
+                    <Line type="monotone" dataKey="conveniencia_r_mais" stroke="hsl(32, 95%, 44%)" strokeWidth={2} strokeDasharray="15 5" dot={{ r: 3 }} name="conveniencia_r_mais" />
+                    <Line type="monotone" dataKey="r_mais" stroke="hsl(0, 84%, 60%)" strokeWidth={2} strokeDasharray="3 3" dot={{ r: 3 }} name="r_mais" />
+                  </RechartsLineChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="table">
+          <Card>
+            <CardHeader>
+              <CardTitle>Lista de Vendas (API Externa - Corrigido)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  <span className="ml-2">Carregando vendas da API...</span>
+                </div>
+              ) : (
+                <>
+                  <div className="hidden md:block overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Data</TableHead>
+                          <TableHead>Funcionário</TableHead>
+                          <TableHead>Categoria</TableHead>
+                          <TableHead>Grupo</TableHead>
+                          <TableHead>Valor Bruto</TableHead>
+                          <TableHead>Valor Líquido</TableHead>
+                          <TableHead>Qtd</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredVendas.slice(0, 100).map((venda) => (
+                          <TableRow key={venda.id}>
+                            <TableCell>
+                              {new Date(venda.data_venda).toLocaleDateString('pt-BR')}
+                            </TableCell>
+                            <TableCell className="font-medium">{venda.nome_funcionario}</TableCell>
+                            <TableCell>
+                              <Badge className={getCategoriaColor(venda.categoria)} variant="secondary">
+                                <i className={`${getIconeCategoria(venda.categoria)} mr-1`}></i>
+                                {getNomeCategoria(venda.categoria)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{venda.grupo}</TableCell>
+                            <TableCell>
+                              R$ {venda.valor_bruto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </TableCell>
+                            <TableCell className="font-semibold">
+                              R$ {venda.valor_liquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </TableCell>
+                            <TableCell>{venda.quantidade}</TableCell>
+                          </TableRow>
+                        ))}
+                        {filteredVendas.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                              Nenhuma venda encontrada
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  <div className="md:hidden space-y-3">
+                    {filteredVendas.slice(0, 50).map((venda) => (
+                      <div key={venda.id} className="border rounded-lg p-4 bg-card">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="text-sm text-muted-foreground">
+                            {new Date(venda.data_venda).toLocaleDateString('pt-BR')}
+                          </div>
+                          <div className="text-lg font-semibold">
+                            R$ {venda.valor_liquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <div className="font-medium">{venda.nome_funcionario}</div>
                           <Badge className={getCategoriaColor(venda.categoria)} variant="secondary">
                             <i className={`${getIconeCategoria(venda.categoria)} mr-1`}></i>
-                            {getNomeCategoria(venda.categoria)}
+                            {getNomeCategoria(venda.categoria)} (Grupo {venda.grupo})
                           </Badge>
-                        </TableCell>
-                        <TableCell>
-                          R$ {venda.valor_bruto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </TableCell>
-                        <TableCell>
-                          R$ {venda.valor_liquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </TableCell>
-                        <TableCell>{venda.quantidade}</TableCell>
-                      </TableRow>
+                          <div className="text-sm text-muted-foreground">
+                            Qtd: {venda.quantidade} | Bruto: R$ {venda.valor_bruto.toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
                     ))}
-                    {filteredVendas.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                          Nenhuma venda encontrada
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-
-              <div className="md:hidden space-y-3">
-                {filteredVendas.slice(0, 50).map((venda) => (
-                  <div key={venda.id} className="border rounded-lg p-4 bg-card">
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="text-sm text-muted-foreground">
-                        {new Date(venda.data_venda).toLocaleDateString('pt-BR')}
-                      </div>
-                      <div className="text-lg font-semibold">
-                        R$ {venda.valor_liquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <div className="text-sm font-medium">{venda.nome_funcionario}</div>
-                      <Badge className={getCategoriaColor(venda.categoria)} variant="secondary">
-                        <i className={`${getIconeCategoria(venda.categoria)} mr-1`}></i>
-                        {getNomeCategoria(venda.categoria)}
-                      </Badge>
-                      <div className="text-sm text-muted-foreground">
-                        Qtd: {venda.quantidade}
-                      </div>
-                    </div>
                   </div>
-                ))}
-                {filteredVendas.length === 0 && (
-                  <div className="text-center text-muted-foreground py-8 border rounded-lg">
-                    Nenhuma venda encontrada
-                  </div>
-                )}
-              </div>
-              
-              {filteredVendas.length > 100 && (
-                <div className="mt-4 text-center text-sm text-muted-foreground">
-                  Mostrando primeiros 100 resultados de {filteredVendas.length} vendas
-                </div>
+                  
+                  {filteredVendas.length > 100 && (
+                    <div className="mt-4 text-center text-sm text-muted-foreground">
+                      Mostrando primeiros 100 resultados. Abra o console (F12) para ver logs detalhados.
+                    </div>
+                  )}
+                </>
               )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
