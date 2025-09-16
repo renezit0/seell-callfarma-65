@@ -407,6 +407,25 @@ export default function Vendas() {
           funcionarios: funcAPI.length
         });
 
+        // DEBUG: Verificar se dados vieram filtrados corretamente
+        if (vendasFuncionarios.length > 0) {
+          const filiaisNosResultados = [...new Set(vendasFuncionarios.map(v => v.CDFIL))];
+          console.log('🔍 FILIAIS NOS RESULTADOS:', filiaisNosResultados);
+          console.log('🎯 DEVERIA SER APENAS:', cdfil === 'all' ? 'TODAS' : [cdfil]);
+          
+          if (cdfil !== 'all' && filiaisNosResultados.length > 1) {
+            console.error('❌ PROBLEMA: Recebeu dados de múltiplas filiais quando deveria ser apenas uma!');
+            console.error('❌ Filiais recebidas:', filiaisNosResultados);
+            console.error('❌ CDFIL esperado:', cdfil);
+          } else if (cdfil !== 'all' && !filiaisNosResultados.includes(cdfil)) {
+            console.error('❌ PROBLEMA: Não recebeu dados da filial correta!');
+            console.error('❌ Filiais recebidas:', filiaisNosResultados);
+            console.error('❌ CDFIL esperado:', cdfil);
+          } else {
+            console.log('✅ Filtro por filial funcionando corretamente!');
+          }
+        }
+
         // Processar dados da filial
         if (vendasFilial.length > 0) {
           const dadosFilialAgregados = vendasFilial.reduce((acc, item) => ({
