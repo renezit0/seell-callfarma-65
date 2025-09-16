@@ -986,51 +986,59 @@ export const useCallfarmaAPI = () => {
 
   // FUNÇÃO PARA BUSCAR VENDAS GERAIS POR FILIAL
   const buscarVendasPorFilial = async (
-    cdfil: number | 'all',
-    dataInicio: string,
-    dataFim: string
-  ): Promise<VendaFilial[]> => {
-    setLoading(true);
-    try {
-      const params: any = {
-        dataFim,
-        dataIni: dataInicio,
-        dataFimAnt: dataFim, // Para não quebrar a API
-        dataIniAnt: dataInicio, // Para não quebrar a API
-      };
+  cdfil: number | 'all',
+  dataInicio: string,
+  dataFim: string
+): Promise<VendaFilial[]> => {
+  setLoading(true);
+  try {
+    const params: any = {
+      dataFim,
+      dataIni: dataInicio,
+      dataFimAnt: dataFim, // Para não quebrar a API
+      dataIniAnt: dataInicio, // Para não quebrar a API
+    };
 
-      // Se não for 'all', filtrar por filial específica
-      if (cdfil !== 'all') {
-        params.cdfil = cdfil;
+    // REMOVIDO: Não filtrar por filial na API, vamos filtrar localmente
+    // if (cdfil !== 'all') {
+    //   params.cdfil = cdfil;
+    // }
+
+    console.log('Buscando vendas por filial (SEM filtro na API):', params);
+
+    const { data, error } = await supabase.functions.invoke('callfarma-vendas', {
+      body: {
+        endpoint: '/financeiro/vendas-por-filial',
+        params
       }
+    });
 
-      console.log('Buscando vendas por filial:', params);
-
-      const { data, error } = await supabase.functions.invoke('callfarma-vendas', {
-        body: {
-          endpoint: '/financeiro/vendas-por-filial',
-          params
-        }
-      });
-
-      if (error) throw error;
-      
-      const rawData = data?.msg || [];
-      console.log('Dados vendas por filial recebidos:', rawData.length, 'registros');
-      
-      return rawData;
-    } catch (error) {
-      console.error('Erro ao buscar vendas por filial:', error);
-      toast({
-        title: "Erro",
-        description: "Erro ao buscar vendas por filial da API externa",
-        variant: "destructive",
-      });
-      return [];
-    } finally {
-      setLoading(false);
+    if (error) throw error;
+    
+    const rawData = data?.msg || [];
+    console.log('Dados vendas por filial recebidos (ANTES do filtro local):', rawData.length, 'registros');
+    
+    // FILTRO LOCAL: Aplicar filtro por filial APÓS receber os dados
+    let dadosFiltrados = rawData;
+    
+    if (cdfil !== 'all') {
+      dadosFiltrados = rawData.filter((item: any) => item.CDFIL === cdfil);
+      console.log(`FILTRO LOCAL vendas filial para CDFIL ${cdfil}:`, dadosFiltrados.length, 'registros restantes');
     }
-  };
+    
+    return dadosFiltrados;
+  } catch (error) {
+    console.error('Erro ao buscar vendas por filial:', error);
+    toast({
+      title: "Erro",
+      description: "Erro ao buscar vendas por filial da API externa",
+      variant: "destructive",
+    });
+    return [];
+  } finally {
+    setLoading(false);
+  }
+};
 
   // FUNÇÃO PARA BUSCAR DADOS DETALHADOS DE FUNCIONÁRIOS
   const buscarVendasFuncionariosDetalhadas = async (
@@ -1049,15 +1057,10 @@ export const useCallfarmaAPI = () => {
       orderBy: 'scefun.NOME asc'
     };
 
-    // CORREÇÃO: Filtrar por filial sempre que cdfil for fornecido e não for 'all'
-    if (cdfil && cdfil !== 'all') {
-      params.filtroFiliais = cdfil.toString();
-      console.log('APLICANDO FILTRO POR FILIAL:', cdfil);
-    } else if (cdfil === 'all') {
-      console.log('BUSCANDO TODAS AS FILIAIS (modo admin)');
-    } else {
-      console.log('WARNING: CDFIL não fornecido - pode buscar dados de todas as lojas!');
-    }
+    // REMOVIDO: Não usar filtroFiliais na API, vamos filtrar localmente
+    // if (cdfil && cdfil !== 'all') {
+    //   params.filtroFiliais = cdfil.toString();
+    // }
 
     // Filtrar por funcionário específico se especificado
     if (cdfun) {
@@ -1065,7 +1068,7 @@ export const useCallfarmaAPI = () => {
       console.log('APLICANDO FILTRO POR FUNCIONÁRIO:', cdfun);
     }
 
-    console.log('Params da requisição funcionários detalhadas:', params);
+    console.log('Params da requisição funcionários detalhadas (SEM filtro de filial):', params);
 
     const { data, error } = await supabase.functions.invoke('callfarma-vendas', {
       body: {
@@ -1077,16 +1080,27 @@ export const useCallfarmaAPI = () => {
     if (error) throw error;
     
     const rawData = data?.msg || [];
-    console.log('Dados funcionários recebidos:', rawData.length, 'registros');
+    console.log('Dados funcionários recebidos (ANTES do filtro local):', rawData.length, 'registros');
     
-    // DEBUG: Mostrar quais filiais vieram nos dados
-    if (rawData.length > 0) {
-      const filiaisRecebidas = [...new Set(rawData.map((item: any) => item.CDFIL))];
-      console.log('Filiais nos dados recebidos:', filiaisRecebidas);
-      console.log('Deveria ser apenas:', cdfil !== 'all' ? [cdfil] : 'todas');
+    // FILTRO LOCAL: Aplicar filtro por filial APÓS receber os dados
+    let dadosFiltrados = rawData;
+    
+    if (cdfil && cdfil !== 'all') {
+      dadosFiltrados = rawData.filter((item: any) => item.CDFIL === cdfil);
+      console.log(`FILTRO LOCAL aplicado para CDFIL ${cdfil}:`, dadosFiltrados.length, 'registros restantes');
     }
     
-    return rawData;
+    // DEBUG: Mostrar quais filiais vieram nos dados filtrados
+    if (dadosFiltrados.length > 0) {
+      const filiaisFiltradasLocalmente = [...new Set(dadosFiltrados.map((item: any) => item.CDFIL))];
+      console.log('Filiais nos dados APÓS filtro local:', filiaisFiltradasLocalmente);
+      
+      if (cdfil !== 'all' && filiaisFiltradasLocalmente.length === 1 && filiaisFiltradasLocalmente[0] === cdfil) {
+        console.log('✅ FILTRO LOCAL funcionando corretamente!');
+      }
+    }
+    
+    return dadosFiltrados;
   } catch (error) {
     console.error('Erro ao buscar vendas funcionários detalhadas:', error);
     toast({
