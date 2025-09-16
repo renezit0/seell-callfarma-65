@@ -353,7 +353,7 @@ export const useCallfarmaAPI = () => {
     }
   };
 
-  // Função para buscar dados do gráfico da API
+  // Função para buscar dados do gráfico da API - OTIMIZADA
   const buscarDadosGraficoAPI = async (
     dataInicio: string,
     dataFim: string,
@@ -362,57 +362,160 @@ export const useCallfarmaAPI = () => {
   ): Promise<any[]> => {
     setLoading(true);
     try {
-      console.log('📈 Buscando dados do gráfico da API Callfarma');
+      console.log('📈 Buscando dados do gráfico da API Callfarma - OTIMIZADO');
+      console.log(`📅 Período: ${dataInicio} até ${dataFim}`);
       
       const numeroLoja = await buscarNumeroLoja(lojaId);
       
-      // Usar a função já existente que é muito eficiente
-      const resultados = await buscarTodasVendasConsolidadas(dataInicio, dataFim, lojaId);
+      // REQUISIÇÃO ÚNICA E OTIMIZADA para gráfico
+      const params: any = {
+        dataFim,
+        dataIni: dataInicio,
+        groupBy: 'scekarde.DATA,sceprodu.CDGRUPO',
+        orderBy: 'scekarde.DATA asc',
+        filtroFiliais: numeroLoja,
+        filtroGrupos: '20,25,46,36,13,22' // Apenas grupos necessários
+      };
 
-      // Converter para formato do gráfico
-      const dadosGrafico: any[] = [];
-      
-      // Processar dados gerais
-      resultados.geral.forEach(item => {
-        const existing = dadosGrafico.find(d => d.date === item.DATA);
-        if (existing) {
-          existing.geral += item.VALOR_LIQUIDO;
-          existing.value += item.VALOR_LIQUIDO;
-          existing.transactions += 1;
-        } else {
-          dadosGrafico.push({
-            date: new Date(item.DATA).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-            value: item.VALOR_LIQUIDO,
-            transactions: 1,
-            geral: item.VALOR_LIQUIDO,
+      // Filtro por funcionário se selecionado
+      if (funcionarioId) {
+        const { data: funcionarioData } = await supabase
+          .from('usuarios')
+          .select('codigo_funcionario')
+          .eq('id', funcionarioId)
+          .single();
+        
+        if (funcionarioData?.codigo_funcionario) {
+          params.filtroFuncionarios = funcionarioData.codigo_funcionario;
+        }
+      }
+
+      console.log('📋 Parâmetros do gráfico:', params);
+
+      const { data, error } = await supabase.functions.invoke('callfarma-vendas', {
+        body: {
+          endpoint: '/financeiro/vendas-por-funcionario',
+          params
+        }
+      });
+
+      if (error) throw error;
+
+      const rawData = data?.msg || [];
+      console.log(`📊 Dados do gráfico recebidos: ${rawData.length} registros`);
+
+      // Filtro adicional por loja
+      const dadosFiltrados = rawData.filter((item: any) => {
+        return item.CDFIL && item.CDFIL.toString().padStart(2, '0') === numeroLoja;
+      });
+
+      // Processar dados por data
+      const dadosProcessados = new Map<string, any>();
+
+      dadosFiltrados.forEach(item => {
+        const data = item.DATA;
+        const grupo = parseInt(item.CDGRUPO);
+        const valorVenda = parseFloat(item.TOTAL_VLR_VE || 0);
+        const valorDevolucao = parseFloat(item.TOTAL_VLR_DV || 0);
+        const valorLiquido = valorVenda - valorDevolucao;
+
+        if (valorLiquido <= 0) return;
+
+        if (!dadosProcessados.has(data)) {
+          dadosProcessados.set(data, {
+            date: new Date(data).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+            value: 0,
+            transactions: 0,
+            geral: 0,
             goodlife: 0,
             perfumaria_r_mais: 0,
             conveniencia_r_mais: 0,
             r_mais: 0
           });
         }
+
+        const registro = dadosProcessados.get(data);
+        registro.value += valorLiquido;
+        registro.transactions += 1;
+
+        // Categorizar por grupos
+        if ([20, 25].includes(grupo)) {
+          registro.r_mais += valorLiquido;
+        } else if ([46].includes(grupo)) {
+          registro.perfumaria_r_mais += valorLiquido;
+        } else if ([36, 13].includes(grupo)) {
+          registro.conveniencia_r_mais += valorLiquido;
+        } else if ([22].includes(grupo)) {
+          registro.goodlife += valorLiquido;
+        }
       });
 
-      // Processar outras categorias
-      ['rentaveis', 'perfumaria_alta', 'conveniencia_alta', 'goodlife'].forEach(categoria => {
-        const dados = resultados[categoria as keyof typeof resultados] as any[];
-        dados.forEach(item => {
-          const existing = dadosGrafico.find(d => d.date === new Date(item.DATA).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }));
-          if (existing) {
-            if (categoria === 'rentaveis') {
-              existing.r_mais += item.VALOR_LIQUIDO;
-            } else if (categoria === 'perfumaria_alta') {
-              existing.perfumaria_r_mais += item.VALOR_LIQUIDO;
-            } else if (categoria === 'conveniencia_alta') {
-              existing.conveniencia_r_mais += item.VALOR_LIQUIDO;
-            } else if (categoria === 'goodlife') {
-              existing.goodlife += item.VALOR_LIQUIDO;
-            }
+      // Buscar dados gerais separadamente - MAIS RÁPIDO
+      const paramsGeral = {
+        dataFim,
+        dataIni: dataInicio,
+        groupBy: 'scekarde.DATA',
+        orderBy: 'scekarde.DATA asc',
+        filtroFiliais: numeroLoja
+      };
+
+      if (funcionarioId) {
+        const { data: funcionarioData } = await supabase
+          .from('usuarios')
+          .select('codigo_funcionario')
+          .eq('id', funcionarioId)
+          .single();
+        
+        if (funcionarioData?.codigo_funcionario) {
+          paramsGeral.filtroFuncionarios = funcionarioData.codigo_funcionario;
+        }
+      }
+
+      const { data: dataGeral } = await supabase.functions.invoke('callfarma-vendas', {
+        body: {
+          endpoint: '/financeiro/vendas-por-funcionario',
+          params: paramsGeral
+        }
+      });
+
+      // Processar vendas gerais
+      if (dataGeral?.msg) {
+        const dadosGeraisFiltrados = dataGeral.msg.filter((item: any) => {
+          return item.CDFIL && item.CDFIL.toString().padStart(2, '0') === numeroLoja;
+        });
+
+        dadosGeraisFiltrados.forEach(item => {
+          const data = item.DATA;
+          const valorVenda = parseFloat(item.TOTAL_VLR_VE || 0);
+          const valorDevolucao = parseFloat(item.TOTAL_VLR_DV || 0);
+          const valorLiquido = valorVenda - valorDevolucao;
+
+          if (valorLiquido <= 0) return;
+
+          if (!dadosProcessados.has(data)) {
+            dadosProcessados.set(data, {
+              date: new Date(data).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+              value: valorLiquido,
+              transactions: 1,
+              geral: valorLiquido,
+              goodlife: 0,
+              perfumaria_r_mais: 0,
+              conveniencia_r_mais: 0,
+              r_mais: 0
+            });
+          } else {
+            const registro = dadosProcessados.get(data);
+            registro.geral += valorLiquido;
           }
         });
-      });
+      }
 
-      return dadosGrafico.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      const resultado = Array.from(dadosProcessados.values())
+        .sort((a, b) => new Date(a.date.split('/').reverse().join('-')).getTime() - 
+                      new Date(b.date.split('/').reverse().join('-')).getTime());
+
+      console.log(`✅ Gráfico processado: ${resultado.length} pontos`);
+      return resultado;
 
     } catch (error) {
       console.error('❌ Erro ao buscar dados do gráfico:', error);
