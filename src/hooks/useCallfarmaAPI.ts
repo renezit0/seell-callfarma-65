@@ -39,6 +39,50 @@ export interface FiltroCampanha {
   filtroProduto?: string;
 }
 
+// Interfaces adicionais para a página Vendas
+export interface VendaFilial {
+  DATA: string;
+  CDGRUPO: number;
+  valor: number;
+  vldesc: number;
+  pretab: number;
+  cusliq: number;
+  CDFIL: number;
+  ABREV: string;
+  cusliqAnt: number;
+  valorAnt: number;
+  crescimento: string;
+  totCliAnt: number;
+  ticketMedioAnt: number;
+  margemAnt: string;
+  margem: string;
+  totCli: number;
+  ticketMedio: number;
+}
+
+export interface VendaFuncionarioDetalhada {
+  CDFIL: number;
+  NOMEFIL: string;
+  CDFUN: number;
+  NOMEFUN: string;
+  CPFFUN: number;
+  CDPRODU: number;
+  NOMEPRODU: string;
+  CDGRUPO: number;
+  NOMEGRUPO: string;
+  CDMARCA: number;
+  NOMEMARCA: string;
+  CDFAMIL: number;
+  NOMEFAMIL: string;
+  CDFORNE: number;
+  NOMEFORNE: string;
+  DATA: string;
+  TOTAL_QTD_VE: number;
+  TOTAL_QTD_DV: number;
+  TOTAL_VLR_VE: number;
+  TOTAL_VLR_DV: number;
+}
+
 // Mapeamento dos grupos por categoria conforme API Callfarma
 const GRUPOS_POR_CATEGORIA = {
   'rentaveis': '20,25', // grupos 20 e 25
@@ -862,7 +906,7 @@ export const useCallfarmaAPI = () => {
   const buscarVendasPorProduto = async (params: {
     dataInicio: string;
     dataFim: string;
-    codigosProdutos: string; // códigos separados por vírgula
+    codigosProdutos: string;
     cdfil?: number;
   }) => {
     setLoading(true);
@@ -905,11 +949,10 @@ export const useCallfarmaAPI = () => {
       const params: any = {
         dataFim: filtros.dataFim,
         dataIni: filtros.dataInicio,
-        groupBy: 'scefun.CDFUN,scefilial.CDFIL', // Agrupar por colaborador e loja
+        groupBy: 'scefun.CDFUN,scefilial.CDFIL',
         orderBy: 'TOTAL_VLR_VE desc'
       };
 
-      // Filtros da campanha (principalmente produtos no caso Biolab)
       if (filtros.filtroProduto) params.filtroProduto = filtros.filtroProduto;
       if (filtros.filtroFornecedores) params.filtroFornecedores = filtros.filtroFornecedores;
       if (filtros.filtroMarcas) params.filtroMarcas = filtros.filtroMarcas;
@@ -939,8 +982,173 @@ export const useCallfarmaAPI = () => {
     }
   };
 
+  // ========== NOVAS FUNÇÕES PARA PÁGINA VENDAS ==========
+
+  // FUNÇÃO PARA BUSCAR VENDAS GERAIS POR FILIAL
+  const buscarVendasPorFilial = async (
+    cdfil: number | 'all',
+    dataInicio: string,
+    dataFim: string
+  ): Promise<VendaFilial[]> => {
+    setLoading(true);
+    try {
+      const params: any = {
+        dataFim,
+        dataIni: dataInicio,
+        dataFimAnt: dataFim, // Para não quebrar a API
+        dataIniAnt: dataInicio, // Para não quebrar a API
+      };
+
+      // Se não for 'all', filtrar por filial específica
+      if (cdfil !== 'all') {
+        params.cdfil = cdfil;
+      }
+
+      console.log('Buscando vendas por filial:', params);
+
+      const { data, error } = await supabase.functions.invoke('callfarma-vendas', {
+        body: {
+          endpoint: '/financeiro/vendas-por-filial',
+          params
+        }
+      });
+
+      if (error) throw error;
+      
+      const rawData = data?.msg || [];
+      console.log('Dados vendas por filial recebidos:', rawData.length, 'registros');
+      
+      return rawData;
+    } catch (error) {
+      console.error('Erro ao buscar vendas por filial:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao buscar vendas por filial da API externa",
+        variant: "destructive",
+      });
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // FUNÇÃO PARA BUSCAR DADOS DETALHADOS DE FUNCIONÁRIOS
+  const buscarVendasFuncionariosDetalhadas = async (
+    dataInicio: string,
+    dataFim: string,
+    cdfil?: number | 'all',
+    cdfun?: number
+  ): Promise<VendaFuncionarioDetalhada[]> => {
+    setLoading(true);
+    try {
+      const params: any = {
+        dataFim,
+        dataIni: dataInicio,
+        filtroGrupos: '20,25,46,36,13,22', // Todos os grupos que nos interessam
+        groupBy: 'scefilial.CDFIL,scefun.CDFUN,sceprodu.CDGRUPO,scekarde.DATA',
+        orderBy: 'scefun.NOME asc'
+      };
+
+      // Filtrar por filial se especificado
+      if (cdfil && cdfil !== 'all') {
+        params.filtroFiliais = cdfil.toString();
+      }
+
+      // Filtrar por funcionário específico se especificado
+      if (cdfun) {
+        params.filtroFuncionarios = cdfun.toString();
+      }
+
+      console.log('Buscando vendas funcionários detalhadas:', params);
+
+      const { data, error } = await supabase.functions.invoke('callfarma-vendas', {
+        body: {
+          endpoint: '/financeiro/vendas-por-funcionario',
+          params
+        }
+      });
+
+      if (error) throw error;
+      
+      const rawData = data?.msg || [];
+      console.log('Dados vendas funcionários detalhadas recebidos:', rawData.length, 'registros');
+      
+      return rawData;
+    } catch (error) {
+      console.error('Erro ao buscar vendas funcionários detalhadas:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao buscar vendas funcionários da API externa",
+        variant: "destructive",
+      });
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // FUNÇÃO OTIMIZADA PARA BUSCAR TODOS OS DADOS DA PÁGINA VENDAS
+  const buscarDadosVendasCompletos = async (
+    dataInicio: string,
+    dataFim: string,
+    cdfil?: number | 'all'
+  ): Promise<{
+    vendasFilial: VendaFilial[];
+    vendasFuncionarios: VendaFuncionarioDetalhada[];
+    funcionarios: Array<{id: number, nome: string}>;
+  }> => {
+    setLoading(true);
+    try {
+      console.log('Buscando dados completos de vendas - API Callfarma');
+      
+      // Fazer as duas requisições em paralelo
+      const [dadosFilial, dadosFuncionarios] = await Promise.all([
+        buscarVendasPorFilial(cdfil || 'all', dataInicio, dataFim),
+        buscarVendasFuncionariosDetalhadas(dataInicio, dataFim, cdfil)
+      ]);
+
+      // Extrair lista única de funcionários que tiveram vendas
+      const funcionariosMap = new Map();
+      dadosFuncionarios.forEach(item => {
+        if (item.CDFUN && item.NOMEFUN) {
+          funcionariosMap.set(item.CDFUN, {
+            id: item.CDFUN,
+            nome: item.NOMEFUN
+          });
+        }
+      });
+
+      const funcionarios = Array.from(funcionariosMap.values())
+        .sort((a, b) => a.nome.localeCompare(b.nome));
+
+      console.log(`Dados completos: ${dadosFilial.length} filiais, ${dadosFuncionarios.length} registros funcionários, ${funcionarios.length} funcionários únicos`);
+
+      return {
+        vendasFilial: dadosFilial,
+        vendasFuncionarios: dadosFuncionarios,
+        funcionarios
+      };
+
+    } catch (error) {
+      console.error('Erro ao buscar dados completos de vendas:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao buscar dados completos de vendas da API externa",
+        variant: "destructive",
+      });
+      return {
+        vendasFilial: [],
+        vendasFuncionarios: [],
+        funcionarios: []
+      };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     loading,
+    // Funções originais
     buscarVendasFuncionarios,
     buscarVendasPorCategoria,
     buscarVendasCampanha,
@@ -952,6 +1160,12 @@ export const useCallfarmaAPI = () => {
     buscarGrupos,
     buscarMarcas,
     buscarFornecedores,
-    buscarVendasPorProduto
+    buscarVendasPorProduto,
+    buscarVendasPorLojaEDia,
+    buscarTodosDadosGraficos,
+    // Novas funções para página Vendas
+    buscarVendasPorFilial,
+    buscarVendasFuncionariosDetalhadas,
+    buscarDadosVendasCompletos
   };
 };
