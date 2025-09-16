@@ -687,9 +687,7 @@ export default function Vendas() {
               </SelectContent>
             </Select>
 
-            <div className="text-xs sm:text-sm text-muted-foreground flex items-center">
-              Total: {filteredVendas.length} vendas
-            </div>
+            
           </div>
         </CardContent>
       </Card>
