@@ -1,4 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+// Buscar informações da loja
+  useEffect(() => {
+    if (currentLojaId) {
+      fetchLojaInfo();
+    }
+  }, [currentLojaId]);import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useTicketMedioSelfcheckout } from '@/hooks/useTicketMedioSelfcheckout';
 import { supabase } from '@/integrations/supabase/client';
@@ -67,6 +72,13 @@ interface TotaisLoja {
   generico_similar: number;
 }
 
+interface MetasData {
+  categoria: string;
+  meta: number;
+  realizado: number;
+  percentual: number;
+}
+
 export default function Vendas() {
   const { user, loading: authLoading } = useAuth();
   const { selectedPeriod } = usePeriodContext();
@@ -81,6 +93,7 @@ export default function Vendas() {
     conveniencia_r_mais: 0,
     generico_similar: 0
   });
+  const [metasData, setMetasData] = useState<Record<string, { meta: number; realizado: number }>>({});
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoriaFilter, setCategoriaFilter] = useState<string>('all');
@@ -119,12 +132,67 @@ export default function Vendas() {
     };
   }, [totaisLoja, filteredVendas, vendas]);
 
-  // Buscar informações da loja
+  // Buscar metas
   useEffect(() => {
-    if (currentLojaId) {
-      fetchLojaInfo();
-    }
-  }, [currentLojaId]);
+    if (!user || !selectedPeriod || !currentLojaId) return;
+    
+    const fetchMetas = async () => {
+      try {
+        const { data: metasLoja } = await supabase
+          .from('metas_loja')
+          .select('*, metas_loja_categorias(*)')
+          .eq('loja_id', currentLojaId)
+          .eq('periodo_meta_id', selectedPeriod.id);
+
+        const metasMap: Record<string, { meta: number; realizado: number }> = {};
+        const categorias = ['r_mais', 'perfumaria_r_mais', 'conveniencia_r_mais', 'goodlife'];
+        
+        categorias.forEach(categoria => {
+          let metaValor = 0;
+          
+          if (categoria === 'geral') {
+            metaValor = metasLoja?.[0]?.meta_valor_total || 0;
+          } else {
+            const metaCategoria = metasLoja?.[0]?.metas_loja_categorias?.find(
+              (m: any) => m.categoria === categoria
+            );
+            metaValor = metaCategoria?.meta_valor || 0;
+          }
+          
+          const realizado = (totaisLoja as any)[categoria] || 0;
+          metasMap[categoria] = { meta: metaValor, realizado };
+        });
+        
+        setMetasData(metasMap);
+      } catch (error) {
+        console.error('Erro ao buscar metas:', error);
+      }
+    };
+    
+    fetchMetas();
+  }, [user, selectedPeriod, currentLojaId, totaisLoja]);
+
+  // Ranking de indicadores
+  const indicadoresRanking = useMemo(() => {
+    const indicadores = Object.entries(metasData)
+      .map(([categoria, dados]) => {
+        const percentualMeta = dados.meta > 0 ? (dados.realizado / dados.meta) * 100 : 0;
+        
+        return {
+          categoria,
+          valor: dados.realizado,
+          meta: dados.meta,
+          percentualMeta
+        };
+      })
+      .filter(indicador => indicador.meta > 0)
+      .sort((a, b) => b.percentualMeta - a.percentualMeta);
+    
+    return {
+      melhor: indicadores[0] || null,
+      pior: indicadores[indicadores.length - 1] || null
+    };
+  }, [metasData]);
 
   // Buscar vendas quando mudar
   useEffect(() => {
@@ -261,7 +329,7 @@ export default function Vendas() {
 
       setTotaisLoja(totais);
 
-      // Processar vendas individuais para a tabela (SEM DUPLICAÇÃO)
+      // Processar TODAS as vendas da API para a tabela (não só funcionários cadastrados)
       const vendasProcessadas: VendaSimples[] = [];
       const funcionariosSet = new Set<string>();
 
@@ -277,7 +345,7 @@ export default function Vendas() {
           vendasProcessadas.push({
             id: `${item.CDFUN}-${item.DATA}-${item.CDGRUPO}-${index}`,
             data: item.DATA?.split('T')[0] || '',
-            funcionario: item.NOMEFUN || 'Desconhecido',
+            funcionario: item.NOMEFUN || `Funcionário ${item.CDFUN}`, // Usar todos funcionários da API
             cdfun: item.CDFUN || 0,
             categoria,
             grupo: item.CDGRUPO || 0,
@@ -286,7 +354,11 @@ export default function Vendas() {
             quantidade
           });
 
-          funcionariosSet.add(JSON.stringify({cdfun: item.CDFUN, nome: item.NOMEFUN}));
+          // Incluir TODOS os funcionários da API, mesmo os não cadastrados
+          funcionariosSet.add(JSON.stringify({
+            cdfun: item.CDFUN, 
+            nome: item.NOMEFUN || `Funcionário ${item.CDFUN}`
+          }));
         }
       });
 
@@ -371,7 +443,7 @@ export default function Vendas() {
       </div>
 
       {/* Statistics Cards - Totais da Loja */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 sm:gap-4 mb-4 sm:mb-6">
         <Card>
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
@@ -436,6 +508,52 @@ export default function Vendas() {
                 </p>
               </div>
               <Trophy className="w-6 h-6 sm:w-8 sm:h-8 text-success" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs sm:text-sm text-muted-foreground">Melhor Indicador</p>
+                {indicadoresRanking.melhor ? (
+                  <>
+                    <p className="text-base sm:text-lg font-bold text-foreground">
+                      {getNomeCategoria(indicadoresRanking.melhor.categoria)}
+                    </p>
+                    <p className="text-xs text-muted-foreground hidden sm:block">
+                      {indicadoresRanking.melhor.percentualMeta.toFixed(1)}% da meta
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-lg sm:text-2xl font-bold text-muted-foreground">-</p>
+                )}
+              </div>
+              <Trophy className="w-6 h-6 sm:w-8 sm:h-8 text-success" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs sm:text-sm text-muted-foreground">Pior Indicador</p>
+                {indicadoresRanking.pior ? (
+                  <>
+                    <p className="text-base sm:text-lg font-bold text-foreground">
+                      {getNomeCategoria(indicadoresRanking.pior.categoria)}
+                    </p>
+                    <p className="text-xs text-muted-foreground hidden sm:block">
+                      {indicadoresRanking.pior.percentualMeta.toFixed(1)}% da meta
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-lg sm:text-2xl font-bold text-muted-foreground">-</p>
+                )}
+              </div>
+              <TrendingDown className="w-6 h-6 sm:w-8 sm:h-8 text-destructive" />
             </div>
           </CardContent>
         </Card>
