@@ -281,8 +281,7 @@ export default function Vendas() {
         .from('usuarios')
         .select('id, nome, codigo_funcionario')
         .eq('status', 'ativo')
-        .in('codigo_funcionario', funcionariosComVendas) // Filtrar apenas funcionários com vendas
-        .order('nome');
+        .in(\'codigo_funcionario\', funcionariosComVendas.map(String)) // Filtrar apenas funcionários com vendas, convertendo para string       .order('nome');
 
       // Aplicar filtro de loja
       if (selectedLojaId) {
@@ -302,7 +301,7 @@ export default function Vendas() {
             acc.push({
               id: venda.usuario_id,
               nome: venda.nome_funcionario || `Funcionário ${venda.usuario_id}`,
-              codigo_funcionario: venda.usuario_id
+              codigo_funcionario: venda.usuario_id.toString()
             });
           }
           return acc;
