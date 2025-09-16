@@ -10,10 +10,12 @@ import { useMetasData } from '@/hooks/useMetasData';
 import { MetasColaboradores } from '@/components/MetasColaboradores';
 import { MetasLojas } from '@/components/MetasLojas';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-
 export default function Metas() {
   const navigate = useNavigate();
-  const { user, loading: authLoading } = useAuth();
+  const {
+    user,
+    loading: authLoading
+  } = useAuth();
   const {
     colaboradoresComMetas,
     metasLojas,
@@ -35,14 +37,12 @@ export default function Metas() {
 
   // Se ainda está carregando autenticação, mostrar loading
   if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+    return <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Carregando...</p>
         </div>
-      </div>
-    );
+      </div>;
   }
 
   // Se não há usuário, redirecionar para login
@@ -52,16 +52,10 @@ export default function Metas() {
   }
 
   // Verificar permissões de acesso
-  const canAccessMetas = user?.tipo && [
-    'admin', 'supervisor', 'rh', 'gerente', 'lider', 'sublider', 
-    'subgerente', 'auxiliar', 'farmaceutico', 'consultora'
-  ].includes(user.tipo);
-
+  const canAccessMetas = user?.tipo && ['admin', 'supervisor', 'rh', 'gerente', 'lider', 'sublider', 'subgerente', 'auxiliar', 'farmaceutico', 'consultora'].includes(user.tipo);
   console.log('🔐 Verificando permissões - Usuário:', user?.nome, 'Tipo:', user?.tipo, 'Pode acessar:', canAccessMetas);
-
   if (!canAccessMetas) {
-    return (
-      <div className="page-container min-h-screen bg-background">
+    return <div className="page-container min-h-screen bg-background">
         <Card className="max-w-2xl mx-auto mt-20">
           <CardHeader className="text-center">
             <AlertCircle className="w-16 h-16 mx-auto text-destructive mb-4" />
@@ -78,13 +72,10 @@ export default function Metas() {
             </Button>
           </CardContent>
         </Card>
-      </div>
-    );
+      </div>;
   }
-
-  return (
-    <div className="min-h-screen bg-background">
-      <div className="page-container space-y-6">
+  return <div className="min-h-screen bg-background">
+      <div className="page-container space-y-6 bg-white">
         {/* Header */}
         <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
           <div className="flex items-center gap-3">
@@ -99,19 +90,14 @@ export default function Metas() {
 
           {/* Seletor de Período */}
           <div className="w-full sm:w-64">
-            <Select
-              value={periodoSelecionado?.toString()}
-              onValueChange={(value) => setPeriodoSelecionado(parseInt(value))}
-            >
+            <Select value={periodoSelecionado?.toString()} onValueChange={value => setPeriodoSelecionado(parseInt(value))}>
               <SelectTrigger>
                 <SelectValue placeholder="Selecione o período" />
               </SelectTrigger>
               <SelectContent>
-                {periodos.map((periodo) => (
-                  <SelectItem key={periodo.id} value={periodo.id.toString()}>
+                {periodos.map(periodo => <SelectItem key={periodo.id} value={periodo.id.toString()}>
                     {periodo.descricao}
-                  </SelectItem>
-                ))}
+                  </SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -121,31 +107,21 @@ export default function Metas() {
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            {canEditAll 
-              ? 'Você tem permissão para visualizar e editar todas as metas.'
-              : canViewStoreOnly 
-                ? 'Você pode visualizar metas da sua loja e editar metas de colaboradores.'
-                : 'Você tem acesso limitado às funcionalidades de metas.'
-            }
+            {canEditAll ? 'Você tem permissão para visualizar e editar todas as metas.' : canViewStoreOnly ? 'Você pode visualizar metas da sua loja e editar metas de colaboradores.' : 'Você tem acesso limitado às funcionalidades de metas.'}
           </AlertDescription>
         </Alert>
 
-        {error && (
-          <Alert variant="destructive">
+        {error && <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+          </Alert>}
 
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
+        {loading ? <div className="flex items-center justify-center py-12">
             <div className="text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
               <p className="text-muted-foreground">Carregando metas...</p>
             </div>
-          </div>
-        ) : (
-          <Tabs defaultValue="colaboradores" className="space-y-6">
+          </div> : <Tabs defaultValue="colaboradores" className="space-y-6">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="colaboradores" className="flex items-center gap-2">
                 <Users className="w-4 h-4" />
@@ -158,27 +134,13 @@ export default function Metas() {
             </TabsList>
 
             <TabsContent value="colaboradores">
-              <MetasColaboradores
-                colaboradores={colaboradoresComMetas}
-                canEdit={canEditColaboradores}
-                canEditOthersIndices={canEditOthersIndices}
-                isRestrictedUser={isRestrictedUser}
-                getCategoriasPorTipo={getCategoriasPorTipo}
-                onUpdateMeta={updateMetaColaborador}
-                onCreateMeta={createMetaColaborador}
-              />
+              <MetasColaboradores colaboradores={colaboradoresComMetas} canEdit={canEditColaboradores} canEditOthersIndices={canEditOthersIndices} isRestrictedUser={isRestrictedUser} getCategoriasPorTipo={getCategoriasPorTipo} onUpdateMeta={updateMetaColaborador} onCreateMeta={createMetaColaborador} />
             </TabsContent>
 
             <TabsContent value="lojas">
-              <MetasLojas
-                metas={metasLojas}
-                canEdit={canEditAll}
-                onUpdateMeta={updateMetaLoja}
-              />
+              <MetasLojas metas={metasLojas} canEdit={canEditAll} onUpdateMeta={updateMetaLoja} />
             </TabsContent>
-          </Tabs>
-        )}
+          </Tabs>}
       </div>
-    </div>
-  );
+    </div>;
 }
