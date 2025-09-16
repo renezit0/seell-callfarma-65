@@ -18,7 +18,6 @@ export interface FiltrosVendas {
   filtroGrupos?: string;
   groupBy?: string;
   orderBy?: string;
-  filtroFiliais?: string; // Adicionar filtro por filiais
 }
 
 export interface CampanhaVendasLoja {
@@ -40,70 +39,18 @@ export interface FiltroCampanha {
   filtroProduto?: string;
 }
 
-// Interface para dados de vendas formatados para o componente
-export interface VendaFormatada {
-  id: string;
-  usuario_id: number;
-  data_venda: string;
-  categoria: string;
-  valor_venda: number;
-  loja_id?: number;
-  registrado_por_usuario_id?: number;
-  nome_funcionario?: string;
-}
-
 // Mapeamento dos grupos por categoria conforme API Callfarma
 const GRUPOS_POR_CATEGORIA = {
   'rentaveis': '20,25', // grupos 20 e 25
-  'perfumaria_alta': '46', // grupo 46 para perfumaria alta rentabilidade
-  'conveniencia_alta': '36,13', // grupos para conveniência alta
-  'goodlife': '22', // grupos para goodlife
+  'perfumaria_alta': '36', // grupo 36 para perfumaria alta rentabilidade
+  'conveniencia_alta': '', // grupos para conveniência alta (não especificado pelo usuário)
+  'goodlife': '', // grupos para goodlife (não especificado pelo usuário)
   'geral': '' // sem filtro de grupos
-};
-
-// Mapeamento de grupos para categorias do sistema
-const MAPEAMENTO_GRUPOS_CATEGORIAS: Record<number, string> = {
-  20: 'rentaveis20',
-  25: 'rentaveis25', 
-  46: 'perfumaria_r_mais',
-  36: 'conveniencia',
-  13: 'conveniencia',
-  22: 'saude'
 };
 
 export const useCallfarmaAPI = () => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
-
-  // Função para buscar número da loja do usuário
-  const buscarNumeroLoja = async (lojaId: number): Promise<string> => {
-    try {
-      console.log(`🔍 Buscando número da loja para ID: ${lojaId}`);
-      
-      const { data, error } = await supabase
-        .from('lojas')
-        .select('numero, nome')
-        .eq('id', lojaId)
-        .single();
-
-      if (error) {
-        console.error('❌ Erro ao buscar loja:', error);
-        throw error;
-      }
-
-      if (!data) {
-        throw new Error(`Loja com ID ${lojaId} não encontrada`);
-      }
-
-      const numeroFormatado = data.numero.toString().padStart(2, '0');
-      console.log(`✅ Loja encontrada: ${data.nome} - Número: ${numeroFormatado}`);
-      
-      return numeroFormatado;
-    } catch (error) {
-      console.error('❌ Erro ao buscar número da loja:', error);
-      throw error;
-    }
-  };
 
   const buscarVendasFuncionarios = async (filtros: FiltrosVendas): Promise<VendaFuncionario[]> => {
     setLoading(true);
@@ -121,9 +68,6 @@ export const useCallfarmaAPI = () => {
       }
       if (filtros.filtroGrupos) {
         params.filtroGrupos = filtros.filtroGrupos;
-      }
-      if (filtros.filtroFiliais) {
-        params.filtroFiliais = filtros.filtroFiliais;
       }
 
       const { data, error } = await supabase.functions.invoke('callfarma-vendas', {
@@ -171,355 +115,6 @@ export const useCallfarmaAPI = () => {
         description: "Erro ao buscar vendas de funcionários da API externa",
         variant: "destructive",
       });
-      return [];
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Nova função para buscar vendas formatadas para o componente Vendas
-  const buscarVendasFormatadas = async (
-    dataInicio: string, 
-    dataFim: string, 
-    lojaId: number,
-    funcionarioId?: number
-  ): Promise<VendaFormatada[]> => {
-    setLoading(true);
-    try {
-      console.log('🔍 Buscando vendas formatadas da API Callfarma');
-      console.log(`🏪 Loja ID: ${lojaId}`);
-      
-      // Buscar número da loja para filtro CDFIL
-      const numeroLoja = await buscarNumeroLoja(lojaId);
-      console.log(`🏪 Número da loja formatado: ${numeroLoja}`);
-
-      const params: any = {
-        dataFim,
-        dataIni: dataInicio,
-        groupBy: 'scefun.CDFUN,scefilial.CDFIL,sceprodu.CDGRUPO,scekarde.DATA',
-        orderBy: 'scefun.NOME asc',
-        filtroFiliais: numeroLoja
-      };
-
-      console.log('📋 Parâmetros da requisição:', params);
-
-      // Se funcionário específico for selecionado, filtrar por ele
-      if (funcionarioId) {
-        // Buscar CDFUN do funcionário no banco local
-        const { data: funcionarioData } = await supabase
-          .from('usuarios')
-          .select('codigo_funcionario')
-          .eq('id', funcionarioId)
-          .single();
-        
-        if (funcionarioData?.codigo_funcionario) {
-          params.filtroFuncionarios = funcionarioData.codigo_funcionario;
-          console.log(`👤 Filtro por funcionário: ${funcionarioData.codigo_funcionario}`);
-        }
-      }
-
-      // Buscar dados de todas as categorias relevantes
-      const gruposRelevantes = '20,25,46,36,13,22'; // Todos os grupos que mapeamos
-      params.filtroGrupos = gruposRelevantes;
-
-      const { data, error } = await supabase.functions.invoke('callfarma-vendas', {
-        body: {
-          endpoint: '/financeiro/vendas-por-funcionario',
-          params
-        }
-      });
-
-      if (error) throw error;
-
-      const rawData = data?.msg || [];
-      console.log(`📊 Dados recebidos da API: ${rawData.length} registros`);
-      
-      // FILTRO ADICIONAL: Garantir que apenas dados da loja correta sejam processados
-      const dadosFiltradosLoja = rawData.filter((item: any) => {
-        const cdfilMatch = item.CDFIL && item.CDFIL.toString().padStart(2, '0') === numeroLoja;
-        if (!cdfilMatch) {
-          console.log(`⚠️ Excluindo registro de outra loja - CDFIL: ${item.CDFIL}, esperado: ${numeroLoja}`);
-        }
-        return cdfilMatch;
-      });
-      
-      console.log(`🔍 Após filtro por loja: ${dadosFiltradosLoja.length} registros`);
-
-      // Processar e formatar dados para o componente
-      const vendasFormatadas: VendaFormatada[] = [];
-      
-      dadosFiltradosLoja.forEach((item: any, index: number) => {
-        const grupo = parseInt(item.CDGRUPO);
-        const categoria = MAPEAMENTO_GRUPOS_CATEGORIAS[grupo];
-        
-        if (categoria) {
-          const valorVenda = parseFloat(item.TOTAL_VLR_VE || 0);
-          const valorDevolucao = parseFloat(item.TOTAL_VLR_DV || 0);
-          const valorLiquido = valorVenda - valorDevolucao;
-
-          if (valorLiquido > 0) {
-            vendasFormatadas.push({
-              id: `api-${index}-${item.CDFUN}-${item.CDGRUPO}-${item.DATA}`,
-              usuario_id: item.CDFUN || 0,
-              data_venda: item.DATA,
-              categoria: categoria,
-              valor_venda: valorLiquido,
-              loja_id: lojaId,
-              registrado_por_usuario_id: item.CDFUN || 0,
-              nome_funcionario: item.NOMEFUN
-            });
-          }
-        }
-      });
-
-      // Também buscar vendas gerais (sem filtro de grupos) - COM MESMO FILTRO DE LOJA
-      const paramsGeral = {
-        dataFim,
-        dataIni: dataInicio,
-        groupBy: 'scefun.CDFUN,scefilial.CDFIL,scekarde.DATA',
-        orderBy: 'scefun.NOME asc',
-        filtroFiliais: numeroLoja // Aplicar mesmo filtro de loja
-      };
-
-      // Adicionar filtro de funcionário se selecionado
-      if (funcionarioId) {
-        const { data: funcionarioData } = await supabase
-          .from('usuarios')
-          .select('codigo_funcionario')
-          .eq('id', funcionarioId)
-          .single();
-        
-        if (funcionarioData?.codigo_funcionario) {
-          paramsGeral.filtroFuncionarios = funcionarioData.codigo_funcionario;
-        }
-      }
-
-      console.log('📋 Parâmetros vendas gerais:', paramsGeral);
-
-      const { data: dataGeral, error: errorGeral } = await supabase.functions.invoke('callfarma-vendas', {
-        body: {
-          endpoint: '/financeiro/vendas-por-funcionario',
-          params: paramsGeral
-        }
-      });
-
-      if (!errorGeral && dataGeral?.msg) {
-        console.log(`📊 Dados gerais recebidos: ${dataGeral.msg.length} registros`);
-        
-        // FILTRO ADICIONAL PARA VENDAS GERAIS TAMBÉM
-        const dadosGeraisFiltrados = dataGeral.msg.filter((item: any) => {
-          const cdfilMatch = item.CDFIL && item.CDFIL.toString().padStart(2, '0') === numeroLoja;
-          if (!cdfilMatch) {
-            console.log(`⚠️ Excluindo venda geral de outra loja - CDFIL: ${item.CDFIL}, esperado: ${numeroLoja}`);
-          }
-          return cdfilMatch;
-        });
-        
-        console.log(`🔍 Vendas gerais após filtro por loja: ${dadosGeraisFiltrados.length} registros`);
-
-        dadosGeraisFiltrados.forEach((item: any, index: number) => {
-          const valorVenda = parseFloat(item.TOTAL_VLR_VE || 0);
-          const valorDevolucao = parseFloat(item.TOTAL_VLR_DV || 0);
-          const valorLiquido = valorVenda - valorDevolucao;
-
-          if (valorLiquido > 0) {
-            vendasFormatadas.push({
-              id: `api-geral-${index}-${item.CDFUN}-${item.DATA}`,
-              usuario_id: item.CDFUN || 0,
-              data_venda: item.DATA,
-              categoria: 'geral',
-              valor_venda: valorLiquido,
-              loja_id: lojaId,
-              registrado_por_usuario_id: item.CDFUN || 0,
-              nome_funcionario: item.NOMEFUN
-            });
-          }
-        });
-      }
-
-      console.log(`✅ Vendas formatadas FILTRADAS por loja ${numeroLoja}: ${vendasFormatadas.length} registros processados`);
-      return vendasFormatadas;
-
-    } catch (error) {
-      console.error('❌ Erro ao buscar vendas formatadas:', error);
-      toast({
-        title: "Erro",
-        description: "Erro ao buscar vendas da API externa",
-        variant: "destructive",
-      });
-      return [];
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Função para buscar dados do gráfico da API - OTIMIZADA
-  const buscarDadosGraficoAPI = async (
-    dataInicio: string,
-    dataFim: string,
-    lojaId: number,
-    funcionarioId?: number
-  ): Promise<any[]> => {
-    setLoading(true);
-    try {
-      console.log('📈 Buscando dados do gráfico da API Callfarma - OTIMIZADO');
-      console.log(`📅 Período: ${dataInicio} até ${dataFim}`);
-      
-      const numeroLoja = await buscarNumeroLoja(lojaId);
-      
-      // REQUISIÇÃO ÚNICA E OTIMIZADA para gráfico
-      const params: any = {
-        dataFim,
-        dataIni: dataInicio,
-        groupBy: 'scekarde.DATA,sceprodu.CDGRUPO',
-        orderBy: 'scekarde.DATA asc',
-        filtroFiliais: numeroLoja,
-        filtroGrupos: '20,25,46,36,13,22' // Apenas grupos necessários
-      };
-
-      // Filtro por funcionário se selecionado
-      if (funcionarioId) {
-        const { data: funcionarioData } = await supabase
-          .from('usuarios')
-          .select('codigo_funcionario')
-          .eq('id', funcionarioId)
-          .single();
-        
-        if (funcionarioData?.codigo_funcionario) {
-          params.filtroFuncionarios = funcionarioData.codigo_funcionario;
-        }
-      }
-
-      console.log('📋 Parâmetros do gráfico:', params);
-
-      const { data, error } = await supabase.functions.invoke('callfarma-vendas', {
-        body: {
-          endpoint: '/financeiro/vendas-por-funcionario',
-          params
-        }
-      });
-
-      if (error) throw error;
-
-      const rawData = data?.msg || [];
-      console.log(`📊 Dados do gráfico recebidos: ${rawData.length} registros`);
-
-      // Filtro adicional por loja
-      const dadosFiltrados = rawData.filter((item: any) => {
-        return item.CDFIL && item.CDFIL.toString().padStart(2, '0') === numeroLoja;
-      });
-
-      // Processar dados por data
-      const dadosProcessados = new Map<string, any>();
-
-      dadosFiltrados.forEach(item => {
-        const data = item.DATA;
-        const grupo = parseInt(item.CDGRUPO);
-        const valorVenda = parseFloat(item.TOTAL_VLR_VE || 0);
-        const valorDevolucao = parseFloat(item.TOTAL_VLR_DV || 0);
-        const valorLiquido = valorVenda - valorDevolucao;
-
-        if (valorLiquido <= 0) return;
-
-        if (!dadosProcessados.has(data)) {
-          dadosProcessados.set(data, {
-            date: new Date(data).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-            value: 0,
-            transactions: 0,
-            geral: 0,
-            goodlife: 0,
-            perfumaria_r_mais: 0,
-            conveniencia_r_mais: 0,
-            r_mais: 0
-          });
-        }
-
-        const registro = dadosProcessados.get(data);
-        registro.value += valorLiquido;
-        registro.transactions += 1;
-        registro.geral += valorLiquido;
-
-        // Categorizar por grupos
-        if ([20, 25].includes(grupo)) {
-          registro.r_mais += valorLiquido;
-        } else if ([46].includes(grupo)) {
-          registro.perfumaria_r_mais += valorLiquido;
-        } else if ([36, 13].includes(grupo)) {
-          registro.conveniencia_r_mais += valorLiquido;
-        } else if ([22].includes(grupo)) {
-          registro.goodlife += valorLiquido;
-        }
-      });
-
-      // Buscar dados gerais separadamente - MAIS RÁPIDO
-      const paramsGeral = {
-        dataFim,
-        dataIni: dataInicio,
-        groupBy: 'scekarde.DATA',
-        orderBy: 'scekarde.DATA asc',
-        filtroFiliais: numeroLoja
-      };
-
-      if (funcionarioId) {
-        const { data: funcionarioData } = await supabase
-          .from('usuarios')
-          .select('codigo_funcionario')
-          .eq('id', funcionarioId)
-          .single();
-        
-        if (funcionarioData?.codigo_funcionario) {
-          paramsGeral.filtroFuncionarios = funcionarioData.codigo_funcionario;
-        }
-      }
-
-      const { data: dataGeral } = await supabase.functions.invoke('callfarma-vendas', {
-        body: {
-          endpoint: '/financeiro/vendas-por-funcionario',
-          params: paramsGeral
-        }
-      });
-
-      // Processar vendas gerais
-      if (dataGeral?.msg) {
-        const dadosGeraisFiltrados = dataGeral.msg.filter((item: any) => {
-          return item.CDFIL && item.CDFIL.toString().padStart(2, '0') === numeroLoja;
-        });
-
-        dadosGeraisFiltrados.forEach(item => {
-          const data = item.DATA;
-          const valorVenda = parseFloat(item.TOTAL_VLR_VE || 0);
-          const valorDevolucao = parseFloat(item.TOTAL_VLR_DV || 0);
-          const valorLiquido = valorVenda - valorDevolucao;
-
-          if (valorLiquido <= 0) return;
-
-          if (!dadosProcessados.has(data)) {
-            dadosProcessados.set(data, {
-              date: new Date(data).toLocaleDateString(\'pt-BR\', { day: \'2-digit\', month: \'2-digit\' }),
-              value: 0,
-              transactions: 0,
-              geral: 0,
-              goodlife: 0,
-              perfumaria_r_mais: 0,
-              conveniencia_r_mais: 0,
-              r_mais: 0
-            });
-          } else {
-            const registro = dadosProcessados.get(data);
-            registro.geral += valorLiquido;
-          }
-        });
-      }
-
-      const resultado = Array.from(dadosProcessados.values())
-        .sort((a, b) => new Date(a.date.split('/').reverse().join('-')).getTime() - 
-                      new Date(b.date.split('/').reverse().join('-')).getTime());
-
-      console.log(`✅ Gráfico processado: ${resultado.length} pontos`);
-      return resultado;
-
-    } catch (error) {
-      console.error('❌ Erro ao buscar dados do gráfico:', error);
       return [];
     } finally {
       setLoading(false);
@@ -787,7 +382,7 @@ export const useCallfarmaAPI = () => {
     }
   };
 
-  // 🚀 FUNÇÃO ULTRA OTIMIZADA - APENAS 2 REQUISIÇÕES PARA TODAS AS CATEGORIAS!
+  // FUNÇÃO ULTRA OTIMIZADA - APENAS 2 REQUISIÇÕES PARA TODAS AS CATEGORIAS!
   const buscarTodasVendasConsolidadas = async (dataInicio: string, dataFim: string, userLojaId?: number): Promise<{
     geral: any[],
     rentaveis: any[],
@@ -797,13 +392,23 @@ export const useCallfarmaAPI = () => {
   }> => {
     setLoading(true);
     try {
-      console.log('🚀 BUSCA CONSOLIDADA - Máximo 2 requisições para TODAS as categorias!');
+      console.log('BUSCA CONSOLIDADA - Máximo 2 requisições para TODAS as categorias!');
       
-      // Buscar informações da loja se fornecida
+      // MODIFICAÇÃO: Só buscar informações da loja se userLojaId for fornecido
       let filtroLoja = null;
       if (userLojaId) {
-        filtroLoja = await buscarNumeroLoja(userLojaId);
-        console.log(`🏪 Filtrando por loja: ${filtroLoja}`);
+        const { data: lojaData, error: lojaError } = await supabase
+          .from('lojas')
+          .select('numero')
+          .eq('id', userLojaId)
+          .maybeSingle();
+
+        if (!lojaError && lojaData) {
+          filtroLoja = lojaData.numero.toString().padStart(2, '0');
+          console.log(`Filtrando por loja: ${filtroLoja}`);
+        }
+      } else {
+        console.log('Buscando dados de TODAS as lojas');
       }
 
       // APENAS 2 REQUISIÇÕES EM PARALELO para todos os dados!
@@ -817,6 +422,7 @@ export const useCallfarmaAPI = () => {
               dataIni: dataInicio,
               groupBy: 'scefilial.CDFIL,scekarde.DATA',
               orderBy: 'scefun.NOME asc',
+              // MODIFICAÇÃO: Só aplicar filtro de filiais se filtroLoja existir
               ...(filtroLoja && { filtroFiliais: filtroLoja })
             }
           }
@@ -831,6 +437,7 @@ export const useCallfarmaAPI = () => {
               filtroGrupos: '36,13,25,20,46,22', // TODOS os grupos que precisamos
               groupBy: 'scekarde.DATA,scefilial.CDFIL,sceprodu.CDGRUPO',
               orderBy: 'scefun.NOME asc',
+              // MODIFICAÇÃO: Só aplicar filtro de filiais se filtroLoja existir
               ...(filtroLoja && { filtroFiliais: filtroLoja })
             }
           }
@@ -844,7 +451,8 @@ export const useCallfarmaAPI = () => {
       const rawGeral = dadosGeral.data?.msg || [];
       const rawGrupos = dadosGrupos.data?.msg || [];
       
-      console.log(`📊 Dados consolidados - Geral: ${rawGeral.length} | Grupos: ${rawGrupos.length} registros`);
+      console.log(`Dados consolidados - Geral: ${rawGeral.length} | Grupos: ${rawGrupos.length} registros`);
+      console.log(`Modo de busca: ${userLojaId ? `Loja específica (${userLojaId})` : 'TODAS as lojas'}`);
 
       // Processar dados com valor líquido
       const processarDados = (items: any[]) => {
@@ -883,13 +491,14 @@ export const useCallfarmaAPI = () => {
       // Log de resultados
       Object.entries(resultados).forEach(([categoria, dados]) => {
         const total = dados.reduce((sum, item) => sum + item.VALOR_LIQUIDO, 0);
-        console.log(`✅ ${categoria}: ${dados.length} registros, R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`);
+        const lojas = new Set(dados.map(item => item.CDFIL)).size;
+        console.log(`${categoria}: ${dados.length} registros de ${lojas} loja(s), R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`);
       });
       
       return resultados;
       
     } catch (error) {
-      console.error('❌ Erro na busca consolidada:', error);
+      console.error('Erro na busca consolidada:', error);
       toast({
         title: "Erro",
         description: "Erro ao buscar dados consolidados da API externa",
@@ -918,8 +527,8 @@ export const useCallfarmaAPI = () => {
     setLoading(true);
     try {
       const cdfilStr = cdfil.toString();
-      console.log(`🔍 Buscando vendas de hoje consolidadas para CDFIL ${cdfilStr} em ${dataHoje}`);
-      console.log(`🏪 Filtro será aplicado: filtroFiliais="${cdfilStr}"`);
+      console.log(`Buscando vendas de hoje consolidadas para CDFIL ${cdfilStr} em ${dataHoje}`);
+      console.log(`Filtro será aplicado: filtroFiliais="${cdfilStr}"`);
       
       // APENAS 2 requisições para vendas de hoje
       const [dadosGeralHoje, dadosGruposHoje] = await Promise.all([
@@ -952,39 +561,39 @@ export const useCallfarmaAPI = () => {
         })
       ]);
 
-      console.log('🔍 Resposta da API - Dados Gerais:', dadosGeralHoje.data?.msg?.length || 0, 'registros');
-      console.log('🔍 Resposta da API - Dados Grupos:', dadosGruposHoje.data?.msg?.length || 0, 'registros');
+      console.log('Resposta da API - Dados Gerais:', dadosGeralHoje.data?.msg?.length || 0, 'registros');
+      console.log('Resposta da API - Dados Grupos:', dadosGruposHoje.data?.msg?.length || 0, 'registros');
 
       // Processar vendas gerais com VALIDAÇÃO EXTRA
       const rawGeralHoje = dadosGeralHoje.data?.msg || [];
-      console.log('📊 Dados gerais recebidos:', rawGeralHoje);
+      console.log('Dados gerais recebidos:', rawGeralHoje);
       
       // FILTRO ADICIONAL: Garantir que apenas dados do CDFIL correto sejam processados
       const dadosGeralFiltrados = rawGeralHoje.filter((item: any) => {
         return item.CDFIL && item.CDFIL.toString() === cdfilStr;
       });
       
-      console.log(`🔍 Dados gerais após filtro local por CDFIL ${cdfilStr}:`, dadosGeralFiltrados.length, 'registros');
-      console.log('📊 Dados gerais filtrados:', dadosGeralFiltrados);
+      console.log(`Dados gerais após filtro local por CDFIL ${cdfilStr}:`, dadosGeralFiltrados.length, 'registros');
+      console.log('Dados gerais filtrados:', dadosGeralFiltrados);
       
       const totalGeral = dadosGeralFiltrados.reduce((sum: number, item: any) => {
         const valorVenda = parseFloat(item.TOTAL_VLR_VE || 0);
         const valorDevolucao = parseFloat(item.TOTAL_VLR_DV || 0);
         const valorLiquido = valorVenda - valorDevolucao;
-        console.log(`💰 Item geral CDFIL ${item.CDFIL}: R$ ${valorVenda} - R$ ${valorDevolucao} = R$ ${valorLiquido}`);
+        console.log(`Item geral CDFIL ${item.CDFIL}: R$ ${valorVenda} - R$ ${valorDevolucao} = R$ ${valorLiquido}`);
         return sum + valorLiquido;
       }, 0);
 
       // Processar vendas por grupos com VALIDAÇÃO EXTRA
       const rawGruposHoje = dadosGruposHoje.data?.msg || [];
-      console.log('📊 Dados grupos recebidos:', rawGruposHoje.length, 'registros');
+      console.log('Dados grupos recebidos:', rawGruposHoje.length, 'registros');
       
       // FILTRO ADICIONAL: Garantir que apenas dados do CDFIL correto sejam processados
       const dadosGruposFiltrados = rawGruposHoje.filter((item: any) => {
         return item.CDFIL && item.CDFIL.toString() === cdfilStr;
       });
       
-      console.log(`🔍 Dados grupos após filtro local por CDFIL ${cdfilStr}:`, dadosGruposFiltrados.length, 'registros');
+      console.log(`Dados grupos após filtro local por CDFIL ${cdfilStr}:`, dadosGruposFiltrados.length, 'registros');
       
       const vendasPorGrupo = dadosGruposFiltrados.reduce((acc: any, item: any) => {
         const grupo = parseInt(item.CDGRUPO);
@@ -992,7 +601,7 @@ export const useCallfarmaAPI = () => {
         const valorDevolucao = parseFloat(item.TOTAL_VLR_DV || 0);
         const valorLiquido = valorVenda - valorDevolucao;
         
-        console.log(`💼 Item grupo ${grupo} CDFIL ${item.CDFIL}: R$ ${valorVenda} - R$ ${valorDevolucao} = R$ ${valorLiquido}`);
+        console.log(`Item grupo ${grupo} CDFIL ${item.CDFIL}: R$ ${valorVenda} - R$ ${valorDevolucao} = R$ ${valorLiquido}`);
 
         if ([20, 25].includes(grupo)) {
           acc.rentaveis += valorLiquido;
@@ -1020,11 +629,11 @@ export const useCallfarmaAPI = () => {
         goodlife: vendasPorGrupo.goodlife
       };
 
-      console.log(`🎯 Vendas hoje CDFIL ${cdfil} (FILTRADAS LOCALMENTE):`, resultado);
+      console.log(`Vendas hoje CDFIL ${cdfil} (FILTRADAS LOCALMENTE):`, resultado);
       return resultado;
       
     } catch (error) {
-      console.error('❌ Erro ao buscar vendas de hoje:', error);
+      console.error('Erro ao buscar vendas de hoje:', error);
       return {
         geral: 0,
         rentaveis: 0,
@@ -1047,7 +656,7 @@ export const useCallfarmaAPI = () => {
   }> => {
     setLoading(true);
     try {
-      console.log(`🏪 Buscando vendas de hoje para CDFIL ${cdfil} na data ${dataAtual}`);
+      console.log(`Buscando vendas de hoje para CDFIL ${cdfil} na data ${dataAtual}`);
 
       // Buscar vendas geral (sem filtro de grupos)
       const vendasGeral = await buscarVendasPorLojaCategoria(cdfil, dataAtual, '');
@@ -1094,7 +703,7 @@ export const useCallfarmaAPI = () => {
       filtroFiliais: cdfil // Filtrar especificamente pelo CDFIL da loja
     };
 
-    console.log(`🎯 Buscando vendas para CDFIL ${cdfil} na data ${data} com grupos ${grupos || 'todos'}`);
+    console.log(`Buscando vendas para CDFIL ${cdfil} na data ${data} com grupos ${grupos || 'todos'}`);
 
     // Adicionar filtro de grupos se necessário
     if (grupos) {
@@ -1111,18 +720,18 @@ export const useCallfarmaAPI = () => {
     if (error) throw error;
     
     const rawData = response?.msg || [];
-    console.log(`💰 Vendas para CDFIL ${cdfil} grupos ${grupos || 'todos'}:`, rawData.length, 'registros');
+    console.log(`Vendas para CDFIL ${cdfil} grupos ${grupos || 'todos'}:`, rawData.length, 'registros');
     
     // Filtrar apenas registros do CDFIL específico para garantir que não venham dados de outras lojas
     const vendasFiltradas = rawData.filter((item: any) => item.CDFIL && item.CDFIL.toString() === cdfil.toString());
-    console.log(`🔍 Após filtro por CDFIL ${cdfil}: ${vendasFiltradas.length} registros`);
+    console.log(`Após filtro por CDFIL ${cdfil}: ${vendasFiltradas.length} registros`);
     
     // Somar o valor total de vendas da loja
     const totalVendas = vendasFiltradas.reduce((sum: number, item: any) => {
       return sum + (item.TOTAL_VLR_VE || 0);
     }, 0);
 
-    console.log(`💰 Total vendas CDFIL ${cdfil} grupos ${grupos || 'todos'}: R$ ${totalVendas.toFixed(2)}`);
+    console.log(`Total vendas CDFIL ${cdfil} grupos ${grupos || 'todos'}: R$ ${totalVendas.toFixed(2)}`);
     
     return totalVendas;
   };
@@ -1137,13 +746,21 @@ export const useCallfarmaAPI = () => {
   }> => {
     setLoading(true);
     try {
-      console.log(`🚀 Buscando TODOS os dados em apenas 2 requisições - SUPER RÁPIDO!`);
+      console.log(`Buscando TODOS os dados em apenas 2 requisições - SUPER RÁPIDO!`);
       
       // Buscar informações da loja do usuário
       let filtroLoja = null;
       if (userLojaId) {
-        filtroLoja = await buscarNumeroLoja(userLojaId);
-        console.log(`🏪 Filtrando por loja: ${filtroLoja}`);
+        const { data: lojaData, error: lojaError } = await supabase
+          .from('lojas')
+          .select('numero')
+          .eq('id', userLojaId)
+          .maybeSingle();
+
+        if (!lojaError && lojaData) {
+          filtroLoja = lojaData.numero.toString().padStart(2, '0');
+          console.log(`Filtrando por loja: ${filtroLoja}`);
+        }
       }
 
       // Fazer apenas 2 requisições em paralelo - MUITO MAIS RÁPIDO!
@@ -1185,7 +802,7 @@ export const useCallfarmaAPI = () => {
       const rawGeral = dadosGeral.data?.msg || [];
       const rawGrupos = dadosGrupos.data?.msg || [];
       
-      console.log(`📊 Dados recebidos - Geral: ${rawGeral.length} | Grupos: ${rawGrupos.length} registros`);
+      console.log(`Dados recebidos - Geral: ${rawGeral.length} | Grupos: ${rawGrupos.length} registros`);
 
       // Função para processar dados com valor líquido
       const processarDados = (items: any[]) => {
@@ -1224,13 +841,13 @@ export const useCallfarmaAPI = () => {
       // Log dos resultados
       Object.entries(resultado).forEach(([categoria, dados]) => {
         const total = dados.reduce((sum: number, item: any) => sum + item.VALOR_LIQUIDO, 0);
-        console.log(`✅ ${categoria}: ${dados.length} registros - R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`);
+        console.log(`${categoria}: ${dados.length} registros - R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`);
       });
       
       return resultado;
       
     } catch (error) {
-      console.error(`❌ Erro ao buscar todos os dados dos gráficos:`, error);
+      console.error(`Erro ao buscar todos os dados dos gráficos:`, error);
       toast({
         title: "Erro",
         description: `Erro ao buscar dados dos gráficos`,
@@ -1250,7 +867,7 @@ export const useCallfarmaAPI = () => {
   }) => {
     setLoading(true);
     try {
-      console.log('🔍 Buscando vendas por produto:', params);
+      console.log('Buscando vendas por produto:', params);
       
       const { data } = await supabase.functions.invoke('callfarma-vendas', {
         body: {
@@ -1266,11 +883,11 @@ export const useCallfarmaAPI = () => {
         }
       });
 
-      console.log('✅ Dados de vendas por produto recebidos:', data?.msg?.length || 0, 'registros');
+      console.log('Dados de vendas por produto recebidos:', data?.msg?.length || 0, 'registros');
       return data?.msg || [];
       
     } catch (error) {
-      console.error('❌ Erro ao buscar vendas por produto:', error);
+      console.error('Erro ao buscar vendas por produto:', error);
       toast({
         title: "Erro",
         description: "Erro ao buscar vendas por produto da API externa",
@@ -1335,10 +952,6 @@ export const useCallfarmaAPI = () => {
     buscarGrupos,
     buscarMarcas,
     buscarFornecedores,
-    buscarVendasPorProduto,
-    // Novas funções para o componente Vendas
-    buscarVendasFormatadas,
-    buscarDadosGraficoAPI,
-    buscarNumeroLoja
+    buscarVendasPorProduto
   };
 };

@@ -243,72 +243,71 @@ export default function Graficos() {
 
       console.log('Total de dias no gráfico:', chartMap.size);
 
-      // Função otimizada para agregar dados de vendas por data e categoria
-      const aggregateSalesData = (allSalesData: any[]) => {
-        const aggregated = new Map<string, {
-          geral: number;
-          goodlife: number;
-          perfumaria_r_mais: number;
-          conveniencia_r_mais: number;
-          r_mais: number;
-        }>();
+      // Função para processar dados de uma categoria
+      const processarDadosCategoria = (dados: any[], nomeCategoria: string) => {
+        const vendasPorData = new Map<string, number>();
+        
+        dados.forEach((item: any) => {
+          try {
+            const cdfil = parseInt(item.CDFIL) || 0;
+            const valorLiquido = parseFloat(item.VALOR_LIQUIDO) || 0; // Usar VALOR_LIQUIDO já calculado
+            const dataVendaRaw = item.DATA;
 
-        allSalesData.forEach(item => {
-          const dataVendaRaw = item.DATA;
-          let dataVenda = null;
-          if (dataVendaRaw) {
-            dataVenda = dataVendaRaw.includes(\'T\') ? dataVendaRaw.split(\'T\')[0] : dataVendaRaw;
-          }
+            // MODIFICAÇÃO: Só filtrar por loja específica se não for "todas as lojas"
+            if (numeroLoja && cdfil !== numeroLoja) {
+              return;
+            }
 
-          if (!dataVenda || item.VALOR_LIQUIDO <= 0) return;
+            // Processar data
+            let dataVenda = null;
+            if (dataVendaRaw) {
+              if (dataVendaRaw.includes('T')) {
+                dataVenda = dataVendaRaw.split('T')[0];
+              } else {
+                dataVenda = dataVendaRaw;
+              }
+            }
 
-          if (!aggregated.has(dataVenda)) {
-            aggregated.set(dataVenda, {
-              geral: 0,
-              goodlife: 0,
-              perfumaria_r_mais: 0,
-              conveniencia_r_mais: 0,
-              r_mais: 0,
-            });
-          }
+            if (!dataVenda) {
+              return;
+            }
 
-          const current = aggregated.get(dataVenda)!;
-          current.geral += item.VALOR_LIQUIDO;
+            // Usar valor líquido já calculado pela API
+            if (valorLiquido <= 0) {
+              return;
+            }
 
-          const grupo = parseInt(item.CDGRUPO);
-          if ([22].includes(grupo)) {
-            current.goodlife += item.VALOR_LIQUIDO;
-          } else if ([46].includes(grupo)) {
-            current.perfumaria_r_mais += item.VALOR_LIQUIDO;
-          } else if ([36, 13].includes(grupo)) {
-            current.conveniencia_r_mais += item.VALOR_LIQUIDO;
-          } else if ([20, 25].includes(grupo)) {
-            current.r_mais += item.VALOR_LIQUIDO;
+            // Somar ao total da data
+            const totalAnterior = vendasPorData.get(dataVenda) || 0;
+            vendasPorData.set(dataVenda, totalAnterior + valorLiquido);
+
+          } catch (error) {
+            console.warn('Erro ao processar registro da API:', error);
           }
         });
-        return aggregated;
+        
+        return vendasPorData;
       };
 
-      // Agregação única para todos os dados de grupo
-      const aggregatedGroupSales = aggregateSalesData(dadosGrupos);
-      const aggregatedGeralSales = aggregateSalesData(dadosGeral);
+      // Processar dados de cada categoria
+      const vendasGeral = processarDadosCategoria(dadosGeral, 'geral');
+      const vendasRentaveis = processarDadosCategoria(dadosRentaveis, 'rentaveis');
+      const vendasPerfumariaAlta = processarDadosCategoria(dadosPerfumariaAlta, 'perfumaria_alta');
+      const vendasConvenienciaAlta = processarDadosCategoria(dadosConvenienciaAlta, 'conveniencia_alta');
+      const vendasGoodlife = processarDadosCategoria(dadosGoodlife, 'goodlife');
 
       // Aplicar vendas aos dias do gráfico
-      for (const [dateStr, chartEntry] of chartMap.entries()) {
-        const geralData = aggregatedGeralSales.get(dateStr);
-        const groupData = aggregatedGroupSales.get(dateStr);
-
-        if (geralData) {
-          chartEntry.value = geralData.geral;
-          chartEntry.geral = geralData.geral;
+      for (const [dataVenda] of chartMap.entries()) {
+        const existing = chartMap.get(dataVenda);
+        if (existing) {
+          existing.value = vendasGeral.get(dataVenda) || 0;
+          existing.geral = vendasGeral.get(dataVenda) || 0;
+          existing.goodlife = vendasGoodlife.get(dataVenda) || 0;
+          existing.perfumaria_r_mais = vendasPerfumariaAlta.get(dataVenda) || 0;
+          existing.conveniencia_r_mais = vendasConvenienciaAlta.get(dataVenda) || 0;
+          existing.r_mais = vendasRentaveis.get(dataVenda) || 0;
+          existing.clientes = 1; // Placeholder para clientes
         }
-        if (groupData) {
-          chartEntry.goodlife = groupData.goodlife;
-          chartEntry.perfumaria_r_mais = groupData.perfumaria_r_mais;
-          chartEntry.conveniencia_r_mais = groupData.conveniencia_r_mais;
-          chartEntry.r_mais = groupData.r_mais;
-        }
-        chartEntry.clientes = 1; // Placeholder para clientes
       }
 
       const finalData = Array.from(chartMap.values());
