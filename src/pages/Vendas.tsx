@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useCallfarmaAPI } from '@/hooks/useCallfarmaAPI';
 import { supabase } from '@/integrations/supabase/client';
@@ -85,7 +85,6 @@ export default function Vendas() {
   const [filtroAdicional, setFiltroAdicional] = useState<string>('periodo');
   const [dataEspecifica, setDataEspecifica] = useState<string>('');
   const [selectedLojaId, setSelectedLojaId] = useState<number | null>(null);
-  const [initialized, setInitialized] = useState(false);
 
   // Check if user can view all stores
   const canViewAllStores = user?.tipo && ['admin', 'supervisor', 'compras'].includes(user.tipo);
@@ -177,49 +176,6 @@ export default function Vendas() {
     realizado: number;
   }>>({});
 
-  // Buscar metas da loja
-  useEffect(() => {
-    if (!user || !selectedPeriod || !currentLojaId) return;
-    
-    const fetchMetas = async () => {
-      try {
-        const { data: metasLoja } = await supabase
-          .from('metas_loja')
-          .select('*, metas_loja_categorias(*)')
-          .eq('loja_id', currentLojaId)
-          .eq('periodo_meta_id', selectedPeriod.id);
-
-        const metasMap: Record<string, { meta: number; realizado: number }> = {};
-
-        const categorias = ['geral', 'r_mais', 'perfumaria_r_mais', 'conveniencia_r_mais', 'goodlife'];
-        categorias.forEach(categoria => {
-          let metaValor = 0;
-
-          if (categoria === 'geral') {
-            metaValor = metasLoja?.[0]?.meta_valor_total || 0;
-          } else {
-            const metaCategoria = metasLoja?.[0]?.metas_loja_categorias?.find((m: any) => m.categoria === categoria);
-            metaValor = metaCategoria?.meta_valor || 0;
-          }
-
-          const categoriaDados = vendasPorCategoria[categoria];
-          const realizado = categoriaDados?.valor || 0;
-          
-          metasMap[categoria] = {
-            meta: metaValor,
-            realizado
-          };
-        });
-        
-        setMetasData(metasMap);
-      } catch (error) {
-        console.error('Erro ao buscar metas para ranking:', error);
-      }
-    };
-    
-    fetchMetas();
-  }, [user, selectedPeriod, vendasPorCategoria, currentLojaId]);
-
   // Calcular melhor e pior indicador
   const indicadoresRanking = useMemo(() => {
     const indicadores = Object.entries(vendasPorCategoria)
@@ -244,41 +200,11 @@ export default function Vendas() {
     };
   }, [vendasPorCategoria, metasData]);
 
-  // ✅ useEffect principal
-  useEffect(() => {
-    if (user && !initialized) {
-      fetchLojaInfo();
-      setInitialized(true);
-    }
-  }, [user, initialized]);
-
-  // ✅ Refetch quando filtros mudarem
-  useEffect(() => {
-    if (user && initialized && lojaInfo) {
-      fetchVendas();
-    }
-  }, [selectedPeriod, filtroAdicional, dataEspecifica, user, initialized, currentLojaId, selectedLojaId, lojaInfo]);
-
-  // Quando selecionar um colaborador
-  useEffect(() => {
-    if (vendedorFilter !== 'all') {
-      setCategoriaFilter('all');
-      setChartCategoriaFilter('multi');
-    }
-  }, [vendedorFilter]);
-
-  // Gerar dados do gráfico
-  useEffect(() => {
-    if (user && lojaInfo && initialized) {
-      generateChartData();
-    }
-  }, [vendasProcessadas, lojaInfo, user, chartCategoriaFilter, vendedorFilter, initialized]);
-
-  const fetchLojaInfo = async () => {
-    if (!currentLojaId) return;
+  // ✅ FUNÇÕES OTIMIZADAS COM useCallback
+  const fetchLojaInfo = useCallback(async () => {
+    if (!currentLojaId) return null;
     
     try {
-      // Buscar apenas os campos que existem na tabela lojas
       const { data: lojaData, error: lojaError } = await supabase
         .from('lojas')
         .select('regiao, numero, nome, id')
@@ -287,15 +213,11 @@ export default function Vendas() {
       
       if (lojaError) throw lojaError;
 
-      // Usar o campo 'numero' da loja como CDFIL para a API
-      // Se não tiver numero, usar o ID
       let cdfil = null;
       
       if (lojaData.numero) {
-        // Se numero é string, converter para int. Se já é número, manter
         cdfil = typeof lojaData.numero === 'string' ? parseInt(lojaData.numero) : lojaData.numero;
       } else {
-        // Usar o próprio ID como CDFIL
         cdfil = lojaData.id;
       }
 
@@ -306,16 +228,41 @@ export default function Vendas() {
         cdfil
       };
 
-      setLojaInfo(infoLoja);
       console.log('Loja carregada:', infoLoja);
+      return infoLoja;
       
     } catch (error) {
       console.error('Erro ao buscar informações da loja:', error);
+      return null;
     }
-  };
+  }, [currentLojaId]);
 
-  const fetchVendas = async () => {
-    if (!lojaInfo) return;
+  const processarDadosFuncionarios = useCallback((dados: any[]): VendaProcessada[] => {
+    console.log('Processando dados dos funcionários:', dados.length, 'registros');
+    
+    const processados = dados.map((item, index) => {
+      const categoria = mapearGrupoParaCategoria(item.CDGRUPO);
+      const valorLiquido = (item.TOTAL_VLR_VE || 0) - (item.TOTAL_VLR_DV || 0);
+      
+      return {
+        id: `${item.CDFIL}-${item.CDFUN}-${item.CDGRUPO}-${item.DATA}-${index}`,
+        cdfun: item.CDFUN,
+        nomefun: item.NOMEFUN,
+        cdfil: item.CDFIL,
+        data_venda: item.DATA.split('T')[0],
+        categoria,
+        valor_venda: item.TOTAL_VLR_VE || 0,
+        valor_devolucao: item.TOTAL_VLR_DV || 0,
+        valor_liquido: valorLiquido
+      };
+    }).filter(item => item.valor_liquido > 0);
+    
+    console.log('Dados processados:', processados.length, 'vendas válidas');
+    return processados;
+  }, []);
+
+  const fetchVendas = useCallback(async (lojaInfoParam: any) => {
+    if (!lojaInfoParam) return;
     
     try {
       // Calcular período baseado no filtro
@@ -355,21 +302,20 @@ export default function Vendas() {
         return;
       }
 
-      console.log(`Buscando dados API: ${dataInicio} a ${dataFim} para loja CDFIL ${lojaInfo.cdfil}`);
+      console.log(`Buscando dados API: ${dataInicio} a ${dataFim} para loja CDFIL ${lojaInfoParam.cdfil}`);
 
       if (vendedorFilter !== 'all') {
         // Buscar dados específicos do funcionário
         const dadosFuncionario = await callfarmaAPI.buscarVendasFuncionariosDetalhadas(
           dataInicio,
           dataFim,
-          lojaInfo.cdfil,
+          lojaInfoParam.cdfil,
           parseInt(vendedorFilter)
         );
         
         const vendasProcessadasFunc = processarDadosFuncionarios(dadosFuncionario);
         setVendasProcessadas(vendasProcessadasFunc);
         
-        // Para funcionário específico, não temos dados gerais da filial
         setDadosFilial({
           valor: 0,
           totCli: 0,
@@ -377,15 +323,11 @@ export default function Vendas() {
           crescimento: '0'
         });
       } else {
-        // Buscar dados completos
-        // CORREÇÃO: Só buscar 'all' se for admin E não tiver loja selecionada E não tiver selectedLojaId
         let cdfil;
         if (canViewAllStores && !selectedLojaId) {
-          // Admin sem loja específica selecionada - buscar todas as lojas
           cdfil = 'all';
         } else {
-          // Usuário normal OU admin com loja selecionada - sempre usar CDFIL específico
-          cdfil = lojaInfo.cdfil;
+          cdfil = lojaInfoParam.cdfil;
         }
         
         console.log('CDFIL determinado para busca:', cdfil, {
@@ -406,25 +348,6 @@ export default function Vendas() {
           vendasFuncionarios: vendasFuncionarios.length,
           funcionarios: funcAPI.length
         });
-
-        // DEBUG: Verificar se dados vieram filtrados corretamente
-        if (vendasFuncionarios.length > 0) {
-          const filiaisNosResultados = [...new Set(vendasFuncionarios.map(v => v.CDFIL))];
-          console.log('🔍 FILIAIS NOS RESULTADOS:', filiaisNosResultados);
-          console.log('🎯 DEVERIA SER APENAS:', cdfil === 'all' ? 'TODAS' : [cdfil]);
-          
-          if (cdfil !== 'all' && filiaisNosResultados.length > 1) {
-            console.error('❌ PROBLEMA: Recebeu dados de múltiplas filiais quando deveria ser apenas uma!');
-            console.error('❌ Filiais recebidas:', filiaisNosResultados);
-            console.error('❌ CDFIL esperado:', cdfil);
-          } else if (cdfil !== 'all' && !filiaisNosResultados.includes(cdfil)) {
-            console.error('❌ PROBLEMA: Não recebeu dados da filial correta!');
-            console.error('❌ Filiais recebidas:', filiaisNosResultados);
-            console.error('❌ CDFIL esperado:', cdfil);
-          } else {
-            console.log('✅ Filtro por filial funcionando corretamente!');
-          }
-        }
 
         // Processar dados da filial
         if (vendasFilial.length > 0) {
@@ -456,57 +379,30 @@ export default function Vendas() {
       console.error('Erro ao buscar vendas da API:', error);
       toast.error('Erro ao carregar dados de vendas da API');
     }
-  };
+  }, [filtroAdicional, dataEspecifica, selectedPeriod, vendedorFilter, canViewAllStores, selectedLojaId, user?.loja_id, currentLojaId, callfarmaAPI, processarDadosFuncionarios]);
 
-  const processarDadosFuncionarios = (dados: any[]): VendaProcessada[] => {
-    console.log('Processando dados dos funcionários:', dados.length, 'registros');
-    
-    const processados = dados.map((item, index) => {
-      const categoria = mapearGrupoParaCategoria(item.CDGRUPO);
-      const valorLiquido = (item.TOTAL_VLR_VE || 0) - (item.TOTAL_VLR_DV || 0);
-      
-      return {
-        id: `${item.CDFIL}-${item.CDFUN}-${item.CDGRUPO}-${item.DATA}-${index}`,
-        cdfun: item.CDFUN,
-        nomefun: item.NOMEFUN,
-        cdfil: item.CDFIL,
-        data_venda: item.DATA.split('T')[0],
-        categoria,
-        valor_venda: item.TOTAL_VLR_VE || 0,
-        valor_devolucao: item.TOTAL_VLR_DV || 0,
-        valor_liquido: valorLiquido
-      };
-    }).filter(item => item.valor_liquido > 0);
-    
-    console.log('Dados processados:', processados.length, 'vendas válidas');
-    return processados;
-  };
-
-  const generateChartData = async () => {
+  const generateChartData = useCallback(async (lojaInfoParam: any) => {
     try {
-      if (!lojaInfo) return;
+      if (!lojaInfoParam) return;
       
       const hoje = new Date();
       const inicioMes = startOfMonth(subMonths(hoje, 2));
       
-      // Para gráficos usamos sempre os últimos 3 meses
       const dataInicio = format(inicioMes, 'yyyy-MM-dd');
       const dataFim = format(hoje, 'yyyy-MM-dd');
       
-      const cdfil = canViewAllStores && !selectedLojaId ? 'all' : lojaInfo.cdfil;
+      const cdfil = canViewAllStores && !selectedLojaId ? 'all' : lojaInfoParam.cdfil;
       
       let dadosChart: any[] = [];
       
       if (vendedorFilter !== 'all') {
-        // Dados específicos do funcionário
         dadosChart = await callfarmaAPI.buscarVendasFuncionariosDetalhadas(
           dataInicio,
           dataFim,
-          lojaInfo.cdfil,
+          lojaInfoParam.cdfil,
           parseInt(vendedorFilter)
         );
       } else {
-        // Dados gerais
         const { vendasFuncionarios } = await callfarmaAPI.buscarDadosVendasCompletos(dataInicio, dataFim, cdfil);
         dadosChart = vendasFuncionarios;
       }
@@ -517,7 +413,7 @@ export default function Vendas() {
       const chartMap = new Map<string, ChartData>();
 
       const allDays = eachDayOfInterval({ start: inicioMes, end: hoje });
-      const shouldExcludeSundays = lojaInfo?.regiao === 'centro' && (selectedLojaId || !canViewAllStores);
+      const shouldExcludeSundays = lojaInfoParam?.regiao === 'centro' && (selectedLojaId || !canViewAllStores);
       
       allDays.forEach(day => {
         const dayOfWeek = getDay(day);
@@ -566,7 +462,105 @@ export default function Vendas() {
     } catch (error) {
       console.error('Erro ao gerar dados do gráfico:', error);
     }
-  };
+  }, [canViewAllStores, selectedLojaId, vendedorFilter, callfarmaAPI]);
+
+  const fetchMetas = useCallback(async () => {
+    if (!user || !selectedPeriod || !currentLojaId) return;
+    
+    try {
+      const { data: metasLoja } = await supabase
+        .from('metas_loja')
+        .select('*, metas_loja_categorias(*)')
+        .eq('loja_id', currentLojaId)
+        .eq('periodo_meta_id', selectedPeriod.id);
+
+      const metasMap: Record<string, { meta: number; realizado: number }> = {};
+
+      const categorias = ['geral', 'r_mais', 'perfumaria_r_mais', 'conveniencia_r_mais', 'goodlife'];
+      categorias.forEach(categoria => {
+        let metaValor = 0;
+
+        if (categoria === 'geral') {
+          metaValor = metasLoja?.[0]?.meta_valor_total || 0;
+        } else {
+          const metaCategoria = metasLoja?.[0]?.metas_loja_categorias?.find((m: any) => m.categoria === categoria);
+          metaValor = metaCategoria?.meta_valor || 0;
+        }
+
+        const categoriaDados = vendasPorCategoria[categoria];
+        const realizado = categoriaDados?.valor || 0;
+        
+        metasMap[categoria] = {
+          meta: metaValor,
+          realizado
+        };
+      });
+      
+      setMetasData(metasMap);
+    } catch (error) {
+      console.error('Erro ao buscar metas para ranking:', error);
+    }
+  }, [user, selectedPeriod, vendasPorCategoria, currentLojaId]);
+
+  // ✅ PRINCIPAL useEffect - CARREGA TUDO UMA VEZ SÓ
+  useEffect(() => {
+    let isCancelled = false;
+
+    const initializeData = async () => {
+      if (!user || !currentLojaId) return;
+      
+      console.log('Inicializando dados da página Vendas...');
+      
+      try {
+        // 1. Buscar informações da loja primeiro
+        const lojaInfoData = await fetchLojaInfo();
+        if (isCancelled || !lojaInfoData) return;
+        
+        setLojaInfo(lojaInfoData);
+        console.log('Loja carregada, iniciando busca de vendas e gráficos...');
+        
+        // 2. Buscar vendas e gerar gráficos em paralelo
+        await Promise.all([
+          fetchVendas(lojaInfoData),
+          generateChartData(lojaInfoData)
+        ]);
+        
+      } catch (error) {
+        console.error('Erro na inicialização:', error);
+      }
+    };
+
+    initializeData();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    user, 
+    currentLojaId, 
+    selectedPeriod, 
+    filtroAdicional, 
+    dataEspecifica, 
+    vendedorFilter,
+    fetchLojaInfo,
+    fetchVendas,
+    generateChartData
+  ]);
+
+  // ✅ useEffect separado para buscar metas (depende de vendasPorCategoria)
+  useEffect(() => {
+    if (Object.keys(vendasPorCategoria).length > 0) {
+      fetchMetas();
+    }
+  }, [vendasPorCategoria, fetchMetas]);
+
+  // Quando selecionar um colaborador
+  useEffect(() => {
+    if (vendedorFilter !== 'all') {
+      setCategoriaFilter('all');
+      setChartCategoriaFilter('multi');
+    }
+  }, [vendedorFilter]);
 
   // ✅ Early returns após hooks
   if (authLoading || callfarmaAPI.loading) {
