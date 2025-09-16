@@ -280,53 +280,49 @@ export default function Vendas() {
     if (!currentLojaId) return;
     
     try {
-      // Primeiro, vamos ver todos os campos disponíveis na tabela lojas
-      const { data: allData, error: allError } = await supabase
+      // Buscar apenas os campos que existem na tabela lojas
+      const { data: lojaData, error: lojaError } = await supabase
         .from('lojas')
-        .select('*') // Selecionar todos os campos para debug
+        .select('regiao, numero, nome, id')
         .eq('id', currentLojaId)
         .single();
       
-      console.log('🏪 Dados completos da loja:', allData);
-      console.log('🏪 Erro ao buscar loja:', allError);
+      console.log('🏪 Dados da loja:', lojaData);
+      console.log('🏪 Erro ao buscar loja:', lojaError);
       
-      if (allError) {
-        setDebugInfo(`Erro ao buscar loja: ${allError.message}`);
-        throw allError;
+      if (lojaError) {
+        setDebugInfo(`Erro ao buscar loja: ${lojaError.message}`);
+        throw lojaError;
       }
 
-      // Definir cdfil baseado nos campos disponíveis
+      // Usar o campo 'numero' da loja como CDFIL para a API
+      // Se não tiver numero, usar o ID
       let cdfil = null;
       
-      // Tentar diferentes possibilidades de nome do campo
-      if (allData.cdfil) {
-        cdfil = allData.cdfil;
-      } else if (allData.codigo_filial) {
-        cdfil = allData.codigo_filial;
-      } else if (allData.numero) {
-        // Se não tiver cdfil, usar o número da loja como fallback
-        cdfil = parseInt(allData.numero);
+      if (lojaData.numero) {
+        // Se numero é string, converter para int. Se já é número, manter
+        cdfil = typeof lojaData.numero === 'string' ? parseInt(lojaData.numero) : lojaData.numero;
       } else {
-        // Usar o próprio ID como último recurso
-        cdfil = currentLojaId;
+        // Usar o próprio ID como CDFIL
+        cdfil = lojaData.id;
       }
 
-      console.log('🏪 CDFIL definido:', cdfil);
+      console.log('🏪 CDFIL definido (usando campo numero ou id):', cdfil);
 
-      const lojaData = {
-        regiao: allData.regiao || 'centro',
-        numero: allData.numero || currentLojaId.toString(),
-        nome: allData.nome || `Loja ${currentLojaId}`,
+      const infoLoja = {
+        regiao: lojaData.regiao || 'centro',
+        numero: lojaData.numero || currentLojaId.toString(),
+        nome: lojaData.nome || `Loja ${currentLojaId}`,
         cdfil
       };
 
-      setLojaInfo(lojaData);
-      setDebugInfo(`Loja carregada: ${lojaData.nome} (CDFIL: ${cdfil})`);
-      console.log('🏪 Info da loja final:', lojaData);
+      setLojaInfo(infoLoja);
+      setDebugInfo(`Loja carregada: ${infoLoja.nome} (CDFIL: ${cdfil} do campo '${lojaData.numero ? 'numero' : 'id'}')`);
+      console.log('🏪 Info da loja final:', infoLoja);
       
     } catch (error) {
       console.error('❌ Erro ao buscar informações da loja:', error);
-      setDebugInfo(`Erro: ${error}`);
+      setDebugInfo(`Erro ao buscar loja: ${error}`);
     }
   };
 
