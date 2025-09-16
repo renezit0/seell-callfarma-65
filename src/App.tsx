@@ -108,7 +108,7 @@ function AppContent() {
             <button onClick={() => setSidebarExpanded(!sidebarExpanded)} className="menu-toggle lg:hidden p-2 transition-colors text-base rounded-lg text-slate-200 font-thin text-left bg-stone-300 hover:bg-stone-200">
               <i className="fas fa-bars text-foreground"></i>
             </button>
-            <h1 className="page-title text-lg font-semibold md:text-xl">Dashboard</h1>
+            
           </div>
           
             <div className="flex items-center gap-4 text-sm">
