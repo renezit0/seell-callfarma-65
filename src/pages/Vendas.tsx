@@ -296,7 +296,7 @@ export default function Vendas() {
           acc.push({
             id: venda.usuario_id,
             nome: venda.nome_funcionario || `Funcionário ${venda.usuario_id}`,
-            codigo_funcionario: venda.usuario_id.toString()
+            codigo_funcionario: venda.codigo_funcionario ? venda.codigo_funcionario.toString() : venda.usuario_id.toString()
           });
         }
         return acc;
@@ -717,7 +717,7 @@ export default function Vendas() {
                 <SelectItem value="all">Todos os Vendedores</SelectItem>
                 {vendedores.map((vendedor) => (
                   <SelectItem key={vendedor.id} value={vendedor.id.toString()}>
-                    {vendedor.nome}
+                    {vendedor.codigo_funcionario ? `${vendedor.codigo_funcionario} - ${vendedor.nome}` : vendedor.nome}
                   </SelectItem>
                 ))}
               </SelectContent>
