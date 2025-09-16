@@ -437,6 +437,7 @@ export const useCallfarmaAPI = () => {
         const registro = dadosProcessados.get(data);
         registro.value += valorLiquido;
         registro.transactions += 1;
+        registro.geral += valorLiquido;
 
         // Categorizar por grupos
         if ([20, 25].includes(grupo)) {
@@ -494,10 +495,10 @@ export const useCallfarmaAPI = () => {
 
           if (!dadosProcessados.has(data)) {
             dadosProcessados.set(data, {
-              date: new Date(data).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-              value: valorLiquido,
-              transactions: 1,
-              geral: valorLiquido,
+              date: new Date(data).toLocaleDateString(\'pt-BR\', { day: \'2-digit\', month: \'2-digit\' }),
+              value: 0,
+              transactions: 0,
+              geral: 0,
               goodlife: 0,
               perfumaria_r_mais: 0,
               conveniencia_r_mais: 0,
