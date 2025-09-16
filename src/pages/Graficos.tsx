@@ -63,7 +63,7 @@ export default function Graficos() {
   const [pieChartData, setPieChartData] = useState<PieChartData[]>([]);
   const [metasData, setMetasData] = useState<MetasData[]>([]);
   const [lojaInfo, setLojaInfo] = useState<{ regiao: string; numero: string; nome: string } | null>(null);
-  const [periodRange, setPeriodRange] = useState<'periodo_atual' | '1_mes' | '3_meses' | '6_meses' | '12_meses'>('3_meses');
+  const [periodRange, setPeriodRange] = useState<'periodo_atual' | '1_mes' | '3_meses' | '6_meses' | '12_meses'>('periodo_atual');
 
   const canViewAllStores = user?.tipo && ['admin', 'supervisor', 'compras'].includes(user.tipo);
   const currentLojaId = selectedLojaId || user?.loja_id || null;
