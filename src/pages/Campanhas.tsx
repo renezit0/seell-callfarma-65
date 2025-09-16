@@ -1888,7 +1888,7 @@ export default function Campanhas() {
           id: loja.id,
           numero: loja.numero,
           nome: loja.nome,
-          grupo_id: participante.grupo_id || '1',
+          grupo_id: String(participante.grupo_id || 1),
           totalVendas,
           meta,
           percentualAtingimento,
