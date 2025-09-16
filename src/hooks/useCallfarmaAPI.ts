@@ -215,12 +215,18 @@ export const useCallfarmaAPI = () => {
         if (funcionarioData?.codigo_funcionario) {
           params.filtroFuncionarios = funcionarioData.codigo_funcionario;
           console.log(`👤 Filtro por funcionário: ${funcionarioData.codigo_funcionario}`);
+        } else {
+          // Se o funcionarioId não tiver um codigo_funcionario, não filtrar por ele
+          // Isso pode acontecer se o funcionário for um usuário interno sem codigo_funcionario Callfarma
+          console.warn(`Funcionário com ID ${funcionarioId} não possui codigo_funcionario. Não será aplicado filtro de funcionário na API Callfarma.`);
+          delete params.filtroFuncionarios;
         }
       }
 
-      // Buscar dados de todas as categorias relevantes
-      const gruposRelevantes = '20,25,46,36,13,22'; // Todos os grupos que mapeamos
-      params.filtroGrupos = gruposRelevantes;
+      // Não filtrar por grupos para obter todos os dados de uma vez
+      // A categorização será feita no frontend
+      // const gruposRelevantes = '20,25,46,36,13,22';
+      // params.filtroGrupos = gruposRelevantes;
 
       const { data, error } = await supabase.functions.invoke('callfarma-vendas', {
         body: {
@@ -374,7 +380,7 @@ export const useCallfarmaAPI = () => {
         groupBy: 'scekarde.DATA,sceprodu.CDGRUPO',
         orderBy: 'scekarde.DATA asc',
         filtroFiliais: numeroLoja,
-        filtroGrupos: '20,25,46,36,13,22' // Apenas grupos necessários
+
       };
 
       // Filtro por funcionário se selecionado
@@ -437,99 +443,168 @@ export const useCallfarmaAPI = () => {
         const registro = dadosProcessados.get(data);
         registro.value += valorLiquido;
         registro.transactions += 1;
-        registro.geral += valorLiquido;
+        // A categorização de 'geral' já é feita acima, não precisa de uma segunda chamada
 
         // Categorizar por grupos
         if ([20, 25].includes(grupo)) {
           registro.r_mais += valorLiquido;
         } else if ([46].includes(grupo)) {
-          registro.perfumaria_r_mais += valorLiquido;
-        } else if ([36, 13].includes(grupo)) {
-          registro.conveniencia_r_mais += valorLiquido;
-        } else if ([22].includes(grupo)) {
-          registro.goodlife += valorLiquido;
-        }
-      });
-
-      // Buscar dados gerais separadamente - MAIS RÁPIDO
-      const paramsGeral = {
-        dataFim,
-        dataIni: dataInicio,
-        groupBy: 'scekarde.DATA',
-        orderBy: 'scekarde.DATA asc',
-        filtroFiliais: numeroLoja
-      };
-
-      if (funcionarioId) {
-        const { data: funcionarioData } = await supabase
-          .from('usuarios')
-          .select('codigo_funcionario')
-          .eq('id', funcionarioId)
-          .single();
-        
-        if (funcionarioData?.codigo_funcionario) {
-          paramsGeral.filtroFuncionarios = funcionarioData.codigo_funcionario;
-        }
-      }
-
-      const { data: dataGeral } = await supabase.functions.invoke('callfarma-vendas', {
-        body: {
-          endpoint: '/financeiro/vendas-por-funcionario',
-          params: paramsGeral
-        }
-      });
-
-      // Processar vendas gerais
-      if (dataGeral?.msg) {
-        const dadosGeraisFiltrados = dataGeral.msg.filter((item: any) => {
-          return item.CDFIL && item.CDFIL.toString().padStart(2, '0') === numeroLoja;
-        });
-
-        dadosGeraisFiltrados.forEach(item => {
-          const data = item.DATA;
-          const valorVenda = parseFloat(item.TOTAL_VLR_VE || 0);
-          const valorDevolucao = parseFloat(item.TOTAL_VLR_DV || 0);
-          const valorLiquido = valorVenda - valorDevolucao;
-
-          if (valorLiquido <= 0) return;
-
-          if (!dadosProcessados.has(data)) {
-            dadosProcessados.set(data, {
-              date: new Date(data).toLocaleDateString(\'pt-BR\', { day: \'2-digit\', month: \'2-digit\' }),
-              value: 0,
-              transactions: 0,
-              geral: 0,
-              goodlife: 0,
-              perfumaria_r_mais: 0,
-              conveniencia_r_mais: 0,
-              r_mais: 0
-            });
-          } else {
-            const registro = dadosProcessados.get(data);
-            registro.geral += valorLiquido;
-          }
-        });
-      }
-
-      const resultado = Array.from(dadosProcessados.values())
-        .sort((a, b) => new Date(a.date.split('/').reverse().join('-')).getTime() - 
-                      new Date(b.date.split('/').reverse().join('-')).getTime());
+          registro.perfumaria_r_mais += valorLiqu      const resultado = Array.from(dadosProcessados.values())
+        .sort((a, b) => new Date(a.date.split(\'/\').reverse().join(\'-\')).getTime() - 
+                      new Date(b.date.split(\'/\').reverse().join(\'-\')).getTime());
 
       console.log(`✅ Gráfico processado: ${resultado.length} pontos`);
       return resultado;
+  };ma-vendas\', {
+        body: {
+          endpoint: \'/familias\'
+        }
+      });
 
+      if (error) throw error;
+      return data || [];
     } catch (error) {
-      console.error('❌ Erro ao buscar dados do gráfico:', error);
+      console.error(\'Erro ao buscar famílias:\', error);
+      toast({
+        title: \"Erro\",
+        description: \"Erro ao buscar famílias da API externa\",
+        variant: \"destructive\",
+      });
       return [];
     } finally {
       setLoading(false);
     }
   };
 
-  const buscarFamilias = async () => {
+  const buscarGrupos = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('callfarma-vendas', {
+      const { data, error } = await supabase.functions.invoke(\'callfarma-vendas\', {
+        body: {
+          endpoint: \'/grupos\'
+        }
+      });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error(\'Erro ao buscar grupos:\', error);
+      toast({
+        title: \"Erro\",
+        description: \"Erro ao buscar grupos da API externa\",
+        variant: \"destructive\",
+      });
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const buscarTodasVendasConsolidadas = async (
+    dataInicio: string,
+    dataFim: string,
+    lojaId?: number
+  ): Promise<{
+    geral: any[];
+    rentaveis: any[];
+    perfumaria_alta: any[];
+    conveniencia_alta: any[];
+    goodlife: any[];
+    dadosGrupos: any[];
+  }> => {
+    setLoading(true);
+    try {
+      let numeroLoja = undefined;
+      if (lojaId) {
+        numeroLoja = await buscarNumeroLoja(lojaId);
+      }
+
+      const baseParams = {
+        dataFim,
+        dataIni: dataInicio,
+        groupBy: \'sceprodu.CDGRUPO,scekarde.DATA\',
+        orderBy: \'scekarde.DATA asc\',
+        filtroFiliais: numeroLoja
+      };
+
+      const paramsGeral = {
+        ...baseParams,
+        groupBy: \'scekarde.DATA\'
+      };
+
+      const paramsRentaveis = {
+        ...baseParams,
+        filtroGrupos: \'20,25\'
+      };
+
+      const paramsPerfumariaAlta = {
+        ...baseParams,
+        filtroGrupos: \'46\'
+      };
+
+      const paramsConvenienciaAlta = {
+        ...baseParams,
+        filtroGrupos: \'36,13\'
+      };
+
+      const paramsGoodlife = {
+        ...baseParams,
+        filtroGrupos: \'22\'
+      };
+
+      const paramsDadosGrupos = {
+        ...baseParams,
+        filtroGrupos: \'20,25,46,36,13,22\'
+      };
+
+      const [dataGeral, dataRentaveis, dataPerfumariaAlta, dataConvenienciaAlta, dataGoodlife, dadosGrupos] = await Promise.all([
+        supabase.functions.invoke(\'callfarma-vendas\', { body: { endpoint: \'/financeiro/vendas-por-funcionario\', params: paramsGeral } }),
+        supabase.functions.invoke(\'callfarma-vendas\', { body: { endpoint: \'/financeiro/vendas-por-funcionario\', params: paramsRentaveis } }),
+        supabase.functions.invoke(\'callfarma-vendas\', { body: { endpoint: \'/financeiro/vendas-por-funcionario\', params: paramsPerfumariaAlta } }),
+        supabase.functions.invoke(\'callfarma-vendas\', { body: { endpoint: \'/financeiro/vendas-por-funcionario\', params: paramsConvenienciaAlta } }),
+        supabase.functions.invoke(\'callfarma-vendas\', { body: { endpoint: \'/financeiro/vendas-por-funcionario\', params: paramsGoodlife } }),
+        supabase.functions.invoke(\'callfarma-vendas\', { body: { endpoint: \'/financeiro/vendas-por-funcionario\', params: paramsDadosGrupos } }),
+      ]);
+
+      return {
+        geral: dataGeral.data?.msg || [],
+        rentaveis: dataRentaveis.data?.msg || [],
+        perfumaria_alta: dataPerfumariaAlta.data?.msg || [],
+        conveniencia_alta: dataConvenienciaAlta.data?.msg || [],
+        goodlife: dataGoodlife.data?.msg || [],
+        dadosGrupos: dadosGrupos.data?.msg || [],
+      };
+    } catch (error) {
+      console.error(\'Erro ao buscar todas as vendas consolidadas:\', error);
+      toast({
+        title: \"Erro\",
+        description: \"Erro ao buscar dados consolidados da API externa\",
+        variant: \"destructive\",
+      });
+      return {
+        geral: [],
+        rentaveis: [],
+        perfumaria_alta: [],
+        conveniencia_alta: [],
+        goodlife: [],
+        dadosGrupos: [],
+      };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return {
+    buscarVendasFuncionarios,
+    buscarVendasFormatadas,
+    buscarDadosGraficoAPI,
+    buscarFamilias,
+    buscarGrupos,
+    buscarNumeroLoja,
+    buscarTodasVendasConsolidadas,
+    loading,
+  };
+};{
         body: {
           endpoint: '/familias'
         }
