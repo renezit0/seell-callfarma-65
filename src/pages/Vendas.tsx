@@ -290,46 +290,22 @@ export default function Vendas() {
         return;
       }
 
-      // Buscar dados dos funcionários no banco local
-      let query = supabase
-        .from('usuarios')
-        .select('id, nome, codigo_funcionario')
-        .eq('status', 'ativo')
-      .in("id", funcionariosComVendas) // Filtrar apenas funcionários com vendas, usando o ID do usuário
-        .order("nome");
-
-      // Aplicar filtro de loja
-      if (selectedLojaId) {
-        query = query.eq('loja_id', selectedLojaId);
-      } else if (!canViewAllStores && currentLojaId) {
-        query = query.eq('loja_id', currentLojaId);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      
-      // Se não encontrou no banco local, ou se a lista de vendedores do banco está incompleta,
-      // complementar com os dados da API para garantir que todos os vendedores com vendas apareçam.
-      let vendedoresCompletos = data || [];
-
-      vendasPeriodo.forEach(venda => {
-        // Adicionar vendedor se ele não estiver na lista atual e tiver um ID válido
-        if (venda.usuario_id && !vendedoresCompletos.some(f => f.id === venda.usuario_id)) {
-          vendedoresCompletos.push({
+      // Criar lista de vendedores diretamente com base nos dados da API
+      const funcionariosUnicos = vendasPeriodo.reduce((acc, venda) => {
+        if (venda.usuario_id && !acc.some(f => f.id === venda.usuario_id)) {
+          acc.push({
             id: venda.usuario_id,
             nome: venda.nome_funcionario || `Funcionário ${venda.usuario_id}`,
             codigo_funcionario: venda.usuario_id.toString()
           });
         }
-      });
+        return acc;
+      }, [] as Vendedor[]);
       
-      // Remover duplicatas e ordenar por nome
-      const uniqueVendedores = Array.from(new Set(vendedoresCompletos.map(v => v.id)))
-        .map(id => vendedoresCompletos.find(v => v.id === id)!)
-        .sort((a, b) => a.nome.localeCompare(b.nome));
-
-      setVendedores(uniqueVendedores);
+      // Ordenar por nome
+      funcionariosUnicos.sort((a, b) => a.nome.localeCompare(b.nome));
+      
+      setVendedores(funcionariosUnicos);
     } catch (error) {
       console.error('Erro ao buscar vendedores:', error);
       setVendedores([]);
