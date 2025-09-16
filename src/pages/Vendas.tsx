@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { useCallfarmaAPI, VendaFilial, VendaFuncionarioAPI } from '@/hooks/useCallfarmaAPI';
+import { useCallfarmaAPI } from '@/hooks/useCallfarmaAPI';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -58,11 +58,7 @@ export default function Vendas() {
   // ✅ ALL HOOKS DECLARED FIRST
   const { user, loading: authLoading } = useAuth();
   const { selectedPeriod } = usePeriodContext();
-  const { 
-    loading: apiLoading,
-    buscarDadosVendasCompletos,
-    buscarVendasFuncionarioEspecifico
-  } = useCallfarmaAPI();
+  const callfarmaAPI = useCallfarmaAPI();
 
   // Estados principais
   const [vendasProcessadas, setVendasProcessadas] = useState<VendaProcessada[]>([]);
@@ -290,13 +286,17 @@ export default function Vendas() {
       
       if (error) throw error;
       setLojaInfo(data);
+      console.log('Info da loja carregada:', data);
     } catch (error) {
       console.error('Erro ao buscar informações da loja:', error);
     }
   };
 
   const fetchVendas = async () => {
-    if (!lojaInfo) return;
+    if (!lojaInfo) {
+      console.log('Sem info da loja ainda, aguardando...');
+      return;
+    }
     
     try {
       // Calcular período baseado no filtro
@@ -333,21 +333,25 @@ export default function Vendas() {
         dataInicio = format(dataInicioAjustada, 'yyyy-MM-dd');
         dataFim = format(selectedPeriod.endDate, 'yyyy-MM-dd');
       } else {
+        console.log('Filtro não reconhecido:', filtroAdicional);
         return;
       }
 
       console.log(`Buscando dados API: ${dataInicio} a ${dataFim} para loja CDFIL ${lojaInfo.cdfil}`);
 
+      // Usar as novas funções do hook
       if (vendedorFilter !== 'all') {
         // Buscar dados específicos do funcionário
-        const dadosFuncionario = await buscarVendasFuncionarioEspecifico(
+        console.log('Buscando dados específicos do funcionário:', vendedorFilter);
+        
+        const dadosFuncionario = await callfarmaAPI.buscarVendasFuncionariosDetalhadas(
           dataInicio,
           dataFim,
-          parseInt(vendedorFilter),
-          lojaInfo.cdfil
+          lojaInfo.cdfil,
+          parseInt(vendedorFilter)
         );
         
-        const vendasProcessadasFunc = processarDadosFuncionarios([dadosFuncionario].flat());
+        const vendasProcessadasFunc = processarDadosFuncionarios(dadosFuncionario);
         setVendasProcessadas(vendasProcessadasFunc);
         
         // Para funcionário específico, não temos dados gerais da filial
@@ -359,12 +363,21 @@ export default function Vendas() {
         });
       } else {
         // Buscar dados completos
+        console.log('Buscando dados completos da loja');
+        
         const cdfil = canViewAllStores && !selectedLojaId ? 'all' : lojaInfo.cdfil;
-        const { vendasFilial, vendasFuncionarios, funcionarios: funcAPI } = await buscarDadosVendasCompletos(
+        
+        const { vendasFilial, vendasFuncionarios, funcionarios: funcAPI } = await callfarmaAPI.buscarDadosVendasCompletos(
           dataInicio,
           dataFim,
           cdfil
         );
+
+        console.log('Dados recebidos:', {
+          vendasFilial: vendasFilial.length,
+          vendasFuncionarios: vendasFuncionarios.length,
+          funcionarios: funcAPI.length
+        });
 
         // Processar dados da filial
         if (vendasFilial.length > 0) {
@@ -375,16 +388,20 @@ export default function Vendas() {
             crescimento: item.crescimento
           }), { valor: 0, totCli: 0, ticketMedio: 0, crescimento: '0' });
           
+          console.log('Dados filial processados:', dadosFilialAgregados);
           setDadosFilial(dadosFilialAgregados);
         } else {
+          console.log('Nenhum dado de filial encontrado');
           setDadosFilial({ valor: 0, totCli: 0, ticketMedio: 0, crescimento: '0' });
         }
 
         // Processar dados dos funcionários
         const vendasProc = processarDadosFuncionarios(vendasFuncionarios);
+        console.log('Vendas processadas:', vendasProc.length);
         setVendasProcessadas(vendasProc);
         
         // Atualizar lista de funcionários
+        console.log('Funcionários encontrados:', funcAPI.length);
         setFuncionarios(funcAPI);
       }
 
@@ -394,8 +411,10 @@ export default function Vendas() {
     }
   };
 
-  const processarDadosFuncionarios = (dados: VendaFuncionarioAPI[]): VendaProcessada[] => {
-    return dados.map((item, index) => {
+  const processarDadosFuncionarios = (dados: any[]): VendaProcessada[] => {
+    console.log('Processando dados dos funcionários:', dados.length, 'registros');
+    
+    const processados = dados.map((item, index) => {
       const categoria = mapearGrupoParaCategoria(item.CDGRUPO);
       const valorLiquido = (item.TOTAL_VLR_VE || 0) - (item.TOTAL_VLR_DV || 0);
       
@@ -411,6 +430,9 @@ export default function Vendas() {
         valor_liquido: valorLiquido
       };
     }).filter(item => item.valor_liquido > 0);
+    
+    console.log('Dados processados:', processados.length, 'vendas válidas');
+    return processados;
   };
 
   const generateChartData = async () => {
@@ -426,21 +448,23 @@ export default function Vendas() {
       
       const cdfil = canViewAllStores && !selectedLojaId ? 'all' : lojaInfo.cdfil;
       
-      let dadosChart: VendaFuncionarioAPI[] = [];
+      let dadosChart: any[] = [];
       
       if (vendedorFilter !== 'all') {
         // Dados específicos do funcionário
-        dadosChart = await buscarVendasFuncionarioEspecifico(
+        dadosChart = await callfarmaAPI.buscarVendasFuncionariosDetalhadas(
           dataInicio,
           dataFim,
-          parseInt(vendedorFilter),
-          lojaInfo.cdfil
+          lojaInfo.cdfil,
+          parseInt(vendedorFilter)
         );
       } else {
         // Dados gerais
-        const { vendasFuncionarios } = await buscarDadosVendasCompletos(dataInicio, dataFim, cdfil);
+        const { vendasFuncionarios } = await callfarmaAPI.buscarDadosVendasCompletos(dataInicio, dataFim, cdfil);
         dadosChart = vendasFuncionarios;
       }
+
+      console.log('Dados para gráfico:', dadosChart.length, 'registros');
 
       // Agrupar por data
       const chartMap = new Map<string, ChartData>();
@@ -489,6 +513,7 @@ export default function Vendas() {
       });
 
       const finalData = Array.from(chartMap.values());
+      console.log('Dados finais do gráfico:', finalData.length, 'pontos');
       setChartData(finalData);
       
     } catch (error) {
@@ -497,7 +522,7 @@ export default function Vendas() {
   };
 
   // ✅ Early returns após hooks
-  if (authLoading || apiLoading) {
+  if (authLoading || callfarmaAPI.loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -918,7 +943,7 @@ export default function Vendas() {
         <TabsContent value="table">
           <Card>
             <CardHeader>
-              <CardTitle>Lista de Vendas</CardTitle>
+              <CardTitle>Lista de Vendas ({filteredVendas.length} registros)</CardTitle>
             </CardHeader>
             <CardContent>
               {/* Desktop Table */}
@@ -960,7 +985,7 @@ export default function Vendas() {
                     {filteredVendas.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                          Nenhuma venda encontrada
+                          {callfarmaAPI.loading ? 'Carregando dados...' : 'Nenhuma venda encontrada'}
                         </TableCell>
                       </TableRow>
                     )}
@@ -996,7 +1021,7 @@ export default function Vendas() {
                 ))}
                 {filteredVendas.length === 0 && (
                   <div className="text-center text-muted-foreground py-8 border rounded-lg">
-                    Nenhuma venda encontrada
+                    {callfarmaAPI.loading ? 'Carregando dados...' : 'Nenhuma venda encontrada'}
                   </div>
                 )}
               </div>
