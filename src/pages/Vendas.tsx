@@ -282,7 +282,10 @@ export default function Vendas() {
     
     try {
       setLoading(true);
-      console.log('🔍 Buscando vendas da API para loja:', numeroLoja);
+      
+      // Converter número da loja para CDFIL (número da loja na API)
+      const cdfilLoja = parseInt(numeroLoja);
+      console.log('🔍 Buscando vendas da API para loja:', numeroLoja, 'CDFIL:', cdfilLoja);
 
       // Calcular período
       const hoje = new Date();
@@ -312,7 +315,9 @@ export default function Vendas() {
         dataFim = format(selectedPeriod.endDate, 'yyyy-MM-dd');
       }
 
-      // Fazer requisição ÚNICA e OTIMIZADA para a loja específica
+      console.log('📅 Período:', dataInicio, 'até', dataFim);
+
+      // Fazer requisição com filtro de loja
       const { data, error } = await supabase.functions.invoke('callfarma-vendas', {
         body: {
           endpoint: '/financeiro/vendas-por-funcionario',
@@ -321,7 +326,7 @@ export default function Vendas() {
             dataIni: dataInicio,
             groupBy: 'scekarde.DATA,scefun.CDFUN,sceprodu.CDGRUPO',
             orderBy: 'scekarde.DATA desc',
-            filtroFiliais: numeroLoja.padStart(2, '0') // FILTRO DIRETO pela loja
+            filtroFiliais: numeroLoja.toString().padStart(2, '0')
           }
         }
       });
@@ -332,17 +337,34 @@ export default function Vendas() {
       }
 
       const dadosAPI: VendaAPI[] = data?.msg || [];
-      console.log('📊 Dados recebidos:', dadosAPI.length, 'registros');
+      console.log('📊 Dados recebidos da API:', dadosAPI.length, 'registros');
+
+      // FILTRO ADICIONAL LOCAL - Garantir que só apareçam dados da loja específica
+      const dadosFiltrados = dadosAPI.filter(item => {
+        const match = item.CDFIL === cdfilLoja;
+        if (!match) {
+          console.log('⚠️ Filtrando item de outra loja:', item.CDFIL, 'esperado:', cdfilLoja);
+        }
+        return match;
+      });
+
+      console.log('🔍 Dados após filtro local:', dadosFiltrados.length, 'registros');
+
+      // Verificar se recebemos dados da loja correta
+      if (dadosFiltrados.length > 0) {
+        const lojasUnicas = [...new Set(dadosFiltrados.map(item => item.CDFIL))];
+        console.log('🏪 Lojas nos dados filtrados:', lojasUnicas);
+      }
 
       // Processar dados de forma mais eficiente
       const vendasMap = new Map<string, VendaProcessada>();
 
-      dadosAPI.forEach((item, index) => {
+      dadosFiltrados.forEach((item, index) => {
         const categoria = mapearGrupoParaCategoria(item.CDGRUPO);
         const valorLiquido = (item.TOTAL_VLR_VE || 0) - (item.TOTAL_VLR_DV || 0);
         
         if (valorLiquido > 0) {
-          const key = `${item.CDFUN}-${item.DATA}-${item.CDGRUPO || 0}`;
+          const key = `${item.CDFUN}-${item.DATA}-${item.CDGRUPO || 0}-${index}`;
           
           if (vendasMap.has(key)) {
             // Agregar se já existe
@@ -371,11 +393,20 @@ export default function Vendas() {
       // Extrair funcionários únicos
       const funcionariosUnicos = Array.from(
         new Map(
-          dadosAPI.map(item => [item.CDFUN, { cdfun: item.CDFUN, nome: item.NOMEFUN }])
+          dadosFiltrados.map(item => [item.CDFUN, { cdfun: item.CDFUN, nome: item.NOMEFUN }])
         ).values()
       );
 
       console.log('✅ Processamento concluído:', vendasProcessadasArray.length, 'vendas,', funcionariosUnicos.length, 'funcionários');
+      
+      // Verificar total de valores por categoria
+      const totalPorCategoria = vendasProcessadasArray.reduce((acc, venda) => {
+        if (!acc[venda.categoria]) acc[venda.categoria] = 0;
+        acc[venda.categoria] += venda.valor_liquido;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      console.log('💰 Total por categoria:', totalPorCategoria);
       
       setVendasProcessadas(vendasProcessadasArray);
       setFuncionarios(funcionariosUnicos);
