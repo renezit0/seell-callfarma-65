@@ -448,7 +448,7 @@ export type Database = {
           campanha_id: number | null
           codigo_loja: number | null
           data_inicio_participacao: string | null
-          grupo_id: string | null
+          grupo_id: number | null
           id: number
           loja_id: number | null
           meta_quantidade: number | null
@@ -462,7 +462,7 @@ export type Database = {
           campanha_id?: number | null
           codigo_loja?: number | null
           data_inicio_participacao?: string | null
-          grupo_id?: string | null
+          grupo_id?: number | null
           id: number
           loja_id?: number | null
           meta_quantidade?: number | null
@@ -476,7 +476,7 @@ export type Database = {
           campanha_id?: number | null
           codigo_loja?: number | null
           data_inicio_participacao?: string | null
-          grupo_id?: string | null
+          grupo_id?: number | null
           id?: number
           loja_id?: number | null
           meta_quantidade?: number | null
@@ -1182,7 +1182,6 @@ export type Database = {
           cep: string | null
           cidade: string | null
           cnpj: string | null
-          grupo_id: number | null
           id: number
           nome: string
           numero: string
@@ -1197,7 +1196,6 @@ export type Database = {
           cep?: string | null
           cidade?: string | null
           cnpj?: string | null
-          grupo_id?: number | null
           id?: number
           nome: string
           numero: string
@@ -1212,7 +1210,6 @@ export type Database = {
           cep?: string | null
           cidade?: string | null
           cnpj?: string | null
-          grupo_id?: number | null
           id?: number
           nome?: string
           numero?: string
