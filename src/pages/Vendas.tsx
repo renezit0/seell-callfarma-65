@@ -19,12 +19,12 @@ import { StoreSelector } from '@/components/StoreSelector';
 import { usePeriodContext } from '@/contexts/PeriodContext';
 import { LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
-// CORREÇÃO 1: Mapeamento dos grupos conforme fornecido - REMOVIDO grupo 22 de 'similar'
+// Mapeamento dos grupos conforme fornecido
 const CATEGORIAS_GRUPOS = {
-  'similar': [2, 21, 20, 25], // REMOVIDO 22 para evitar duplicação com goodlife
+  'similar': [2, 21, 20, 25, 22],
   'generico': [47, 5, 6],
   'perfumaria_alta': [46],
-  'goodlife': [22], // Mantido apenas aqui
+  'goodlife': [22],
   'rentaveis20': [20],
   'rentaveis25': [25],
   'dermocosmetico': [31, 16],
@@ -127,9 +127,9 @@ export default function Vendas() {
     });
   }, [vendasProcessadas, searchTerm, categoriaFilter, funcionarioFilter]);
 
-  // CORREÇÃO 2: Cálculos das vendas - Total geral da loja é a soma de todos os CDFIL da loja
+  // Cálculos das vendas
   const calculatedData = useMemo(() => {
-    // GERAL = TODAS as vendas da loja (soma total por CDFIL)
+    // GERAL = TODAS as vendas (soma total)
     const totalGeralVendas = vendasProcessadas.reduce((sum, venda) => sum + venda.valor_liquido, 0);
     
     // Para participação, geral é 100% do total
@@ -148,7 +148,7 @@ export default function Vendas() {
     };
   }, [vendasProcessadas, filteredVendas]);
 
-  // CORREÇÃO 3: Vendas por categoria - Corrigida a lógica de agregação
+  // Vendas por categoria
   const vendasPorCategoria = useMemo(() => {
     const grouped = vendasProcessadas.reduce((acc, venda) => {
       // Adicionar à categoria específica
@@ -160,33 +160,24 @@ export default function Vendas() {
       acc[categoria].valor += venda.valor_liquido;
       acc[categoria].transacoes += 1;
 
-      // CORREÇÃO: Mapear para categorias agrupadas SEM duplicação
-      // Genérico & Similar: somar apenas uma vez cada categoria
+      // Também mapear para categorias agrupadas para indicadores
       if (venda.categoria === 'similar' || venda.categoria === 'generico') {
         if (!acc['generico_similar']) acc['generico_similar'] = { valor: 0, transacoes: 0 };
         acc['generico_similar'].valor += venda.valor_liquido;
         acc['generico_similar'].transacoes += 1;
-      } 
-      // Conveniência R+: somar conveniencia e brinquedo
-      else if (venda.categoria === 'conveniencia' || venda.categoria === 'brinquedo') {
+      } else if (venda.categoria === 'conveniencia' || venda.categoria === 'brinquedo') {
         if (!acc['conveniencia_r_mais']) acc['conveniencia_r_mais'] = { valor: 0, transacoes: 0 };
         acc['conveniencia_r_mais'].valor += venda.valor_liquido;
         acc['conveniencia_r_mais'].transacoes += 1;
-      } 
-      // R+: somar rentaveis20 e rentaveis25
-      else if (venda.categoria === 'rentaveis20' || venda.categoria === 'rentaveis25') {
+      } else if (venda.categoria === 'rentaveis20' || venda.categoria === 'rentaveis25') {
         if (!acc['r_mais']) acc['r_mais'] = { valor: 0, transacoes: 0 };
         acc['r_mais'].valor += venda.valor_liquido;
         acc['r_mais'].transacoes += 1;
-      } 
-      // GoodLife: somar apenas goodlife (SEM duplicação)
-      else if (venda.categoria === 'goodlife') {
+      } else if (venda.categoria === 'goodlife') {
         if (!acc['goodlife']) acc['goodlife'] = { valor: 0, transacoes: 0 };
         acc['goodlife'].valor += venda.valor_liquido;
         acc['goodlife'].transacoes += 1;
-      } 
-      // Perfumaria R+: somar perfumaria_alta
-      else if (venda.categoria === 'perfumaria_alta') {
+      } else if (venda.categoria === 'perfumaria_alta') {
         if (!acc['perfumaria_r_mais']) acc['perfumaria_r_mais'] = { valor: 0, transacoes: 0 };
         acc['perfumaria_r_mais'].valor += venda.valor_liquido;
         acc['perfumaria_r_mais'].transacoes += 1;
@@ -195,7 +186,7 @@ export default function Vendas() {
       return acc;
     }, {} as Record<string, { valor: number; transacoes: number }>);
 
-    // CORREÇÃO: Total geral como categoria - soma de TODOS os CDFIL da loja
+    // Adicionar o total geral como categoria
     const totalGeral = vendasProcessadas.reduce((sum, venda) => sum + venda.valor_liquido, 0);
     const totalTransacoes = vendasProcessadas.length;
     
@@ -308,7 +299,7 @@ export default function Vendas() {
     }
   };
 
-  // CORREÇÃO 4: Buscar vendas da API externa - Garantir soma correta por CDFIL da loja
+  // Buscar vendas da API externa - OTIMIZADO para uma loja específica
   const fetchVendasAPI = async () => {
     if (!numeroLoja || !selectedPeriod) return;
     
@@ -349,7 +340,7 @@ export default function Vendas() {
 
       console.log('📅 Período:', dataInicio, 'até', dataFim);
 
-      // CORREÇÃO: Fazer requisição com filtro de loja específico
+      // Fazer requisição com filtro de loja
       const { data, error } = await supabase.functions.invoke('callfarma-vendas', {
         body: {
           endpoint: '/financeiro/vendas-por-funcionario',
@@ -358,7 +349,7 @@ export default function Vendas() {
             dataIni: dataInicio,
             groupBy: 'scekarde.DATA,scefun.CDFUN,sceprodu.CDGRUPO',
             orderBy: 'scekarde.DATA desc',
-            filtroFiliais: numeroLoja.toString().padStart(2, '0') // Garantir filtro correto
+            filtroFiliais: numeroLoja.toString().padStart(2, '0')
           }
         }
       });
@@ -371,7 +362,7 @@ export default function Vendas() {
       const dadosAPI: VendaAPI[] = data?.msg || [];
       console.log('📊 Dados recebidos da API:', dadosAPI.length, 'registros');
 
-      // CORREÇÃO: Filtro adicional local para garantir que só apareçam dados da loja específica
+      // FILTRO ADICIONAL LOCAL - Garantir que só apareçam dados da loja específica
       const dadosFiltrados = dadosAPI.filter(item => {
         const match = item.CDFIL === cdfilLoja;
         if (!match) {
@@ -388,7 +379,7 @@ export default function Vendas() {
         console.log('🏪 Lojas nos dados filtrados:', lojasUnicas);
       }
 
-      // CORREÇÃO: Processar dados sem duplicação
+      // Processar dados de forma mais eficiente
       const vendasMap = new Map<string, VendaProcessada>();
 
       dadosFiltrados.forEach((item, index) => {
@@ -431,79 +422,82 @@ export default function Vendas() {
 
       console.log('✅ Processamento concluído:', vendasProcessadasArray.length, 'vendas,', funcionariosUnicos.length, 'funcionários');
       
-      // CORREÇÃO: Verificar total de valores por categoria (sem duplicação)
+      // Verificar total de valores por categoria
       const totalPorCategoria = vendasProcessadasArray.reduce((acc, venda) => {
         if (!acc[venda.categoria]) acc[venda.categoria] = 0;
         acc[venda.categoria] += venda.valor_liquido;
         return acc;
       }, {} as Record<string, number>);
       
-      console.log('💰 Total por categoria (SEM duplicação):', totalPorCategoria);
+      console.log('💰 Total por categoria:', totalPorCategoria);
       
       setVendasProcessadas(vendasProcessadasArray);
       setFuncionarios(funcionariosUnicos);
       
-      // Gerar dados do gráfico
-      generateChartData(vendasProcessadasArray);
-      
-      toast.success(`Vendas carregadas: ${vendasProcessadasArray.length} registros da loja ${numeroLoja}`);
-      
     } catch (error) {
-      console.error('Erro ao buscar vendas:', error);
+      console.error('Erro ao buscar vendas da API:', error);
       toast.error('Erro ao carregar vendas da API externa');
     } finally {
       setLoading(false);
     }
   };
 
-  // Gerar dados do gráfico
-  const generateChartData = (vendas: VendaProcessada[]) => {
-    try {
-      // Agrupar vendas por data
-      const vendasPorData = vendas.reduce((acc, venda) => {
-        const data = venda.data_venda;
-        if (!acc[data]) {
-          acc[data] = {
-            geral: 0,
-            goodlife: 0,
-            perfumaria_r_mais: 0,
-            conveniencia_r_mais: 0,
-            r_mais: 0,
-            transacoes: 0
-          };
-        }
-        
-        acc[data].geral += venda.valor_liquido;
-        acc[data].transacoes += 1;
-        
-        // CORREÇÃO: Mapear categorias sem duplicação
-        if (venda.categoria === 'goodlife') {
-          acc[data].goodlife += venda.valor_liquido;
-        } else if (venda.categoria === 'perfumaria_alta') {
-          acc[data].perfumaria_r_mais += venda.valor_liquido;
-        } else if (venda.categoria === 'conveniencia' || venda.categoria === 'brinquedo') {
-          acc[data].conveniencia_r_mais += venda.valor_liquido;
-        } else if (venda.categoria === 'rentaveis20' || venda.categoria === 'rentaveis25') {
-          acc[data].r_mais += venda.valor_liquido;
-        }
-        
-        return acc;
-      }, {} as Record<string, any>);
+  // Gerar dados do gráfico de forma simplificada
+  useEffect(() => {
+    if (vendasProcessadas.length > 0) {
+      generateChartData();
+    }
+  }, [vendasProcessadas, chartCategoriaFilter]);
 
-      // Converter para array e ordenar por data
+  const generateChartData = () => {
+    try {
       const chartMap = new Map<string, ChartData>();
       
-      Object.entries(vendasPorData).forEach(([data, valores]) => {
-        chartMap.set(data, {
-          date: data,
-          value: valores.geral,
-          transactions: valores.transacoes,
-          geral: valores.geral,
-          goodlife: valores.goodlife,
-          perfumaria_r_mais: valores.perfumaria_r_mais,
-          conveniencia_r_mais: valores.conveniencia_r_mais,
-          r_mais: valores.r_mais
+      // Inicializar últimos 30 dias
+      const hoje = new Date();
+      const inicio = new Date(hoje);
+      inicio.setDate(hoje.getDate() - 30);
+      
+      const allDays = eachDayOfInterval({ start: inicio, end: hoje });
+      const shouldExcludeSundays = lojaInfo?.regiao === 'centro';
+
+      allDays.forEach(day => {
+        const dayOfWeek = getDay(day);
+        if (shouldExcludeSundays && dayOfWeek === 0) return;
+
+        const dateStr = format(day, 'yyyy-MM-dd');
+        chartMap.set(dateStr, {
+          date: format(day, 'dd/MM'),
+          value: 0,
+          transactions: 0,
+          geral: 0,
+          goodlife: 0,
+          perfumaria_r_mais: 0,
+          conveniencia_r_mais: 0,
+          r_mais: 0
         });
+      });
+
+      // Processar vendas para o gráfico
+      vendasProcessadas.forEach((venda) => {
+        const existing = chartMap.get(venda.data_venda);
+        if (existing) {
+          // Todas as vendas contribuem para o valor geral
+          existing.value += venda.valor_liquido;
+          existing.geral += venda.valor_liquido;
+          existing.transactions += 1;
+
+          // Também contribuir para categorias específicas
+          if (venda.categoria === 'goodlife') {
+            existing.goodlife += venda.valor_liquido;
+          } else if (venda.categoria === 'perfumaria_alta') {
+            existing.perfumaria_r_mais += venda.valor_liquido;
+          } else if (venda.categoria === 'conveniencia' || venda.categoria === 'brinquedo') {
+            existing.conveniencia_r_mais += venda.valor_liquido;
+          } else if (venda.categoria === 'rentaveis20' || venda.categoria === 'rentaveis25') {
+            existing.r_mais += venda.valor_liquido;
+          }
+        }
       });
 
       const finalData = Array.from(chartMap.values());
@@ -556,7 +550,7 @@ export default function Vendas() {
             }
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Dados da API Externa Callfarma - CORRIGIDO (sem duplicação)
+            Dados da API Externa Callfarma
             {selectedPeriod && (
               <span className="block text-xs text-muted-foreground/70 mt-1">
                 Período: {selectedPeriod.label}
@@ -681,7 +675,7 @@ export default function Vendas() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5" />
-            Indicadores por Categoria (API Externa - CORRIGIDO)
+            Indicadores por Categoria (API Externa)
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -712,10 +706,178 @@ export default function Vendas() {
         </CardContent>
       </Card>
 
-      {/* Resto do componente permanece igual... */}
-      {/* Filters, Tables, etc. */}
-      
+      {/* Filters */}
+      <Card className="mb-4 sm:mb-6">
+        <CardHeader>
+          <CardTitle className="text-base sm:text-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <span>Filtros</span>
+            <Badge variant="secondary" className="bg-green-100 text-green-800">
+              API Externa - Loja {numeroLoja}
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+              <Input
+                placeholder="Buscar..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            
+            <Select value={filtroAdicional} onValueChange={setFiltroAdicional}>
+              <SelectTrigger>
+                <SelectValue placeholder="Período" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="periodo">Período Selecionado</SelectItem>
+                <SelectItem value="hoje">Hoje</SelectItem>
+                <SelectItem value="ontem">Ontem</SelectItem>
+                <SelectItem value="ultima_semana">Última Semana</SelectItem>
+                <SelectItem value="ultimo_mes">Último Mês</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={funcionarioFilter} onValueChange={setFuncionarioFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Funcionário" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Funcionários</SelectItem>
+                {funcionarios.map((funcionario) => (
+                  <SelectItem key={funcionario.cdfun} value={funcionario.cdfun.toString()}>
+                    {funcionario.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={categoriaFilter} onValueChange={setCategoriaFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as Categorias</SelectItem>
+                <SelectItem value="geral">Geral</SelectItem>
+                <SelectItem value="rentaveis20">Rentáveis 20</SelectItem>
+                <SelectItem value="rentaveis25">Rentáveis 25</SelectItem>
+                <SelectItem value="perfumaria_alta">Perfumaria Alta</SelectItem>
+                <SelectItem value="conveniencia">Conveniência</SelectItem>
+                <SelectItem value="brinquedo">Brinquedo</SelectItem>
+                <SelectItem value="goodlife">GoodLife</SelectItem>
+                <SelectItem value="similar">Similar</SelectItem>
+                <SelectItem value="generico">Genérico</SelectItem>
+                <SelectItem value="dermocosmetico">Dermocosmético</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <div className="text-xs sm:text-sm text-muted-foreground flex items-center">
+              Total: {filteredVendas.length} vendas
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tabela de Vendas */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Lista de Vendas (API Externa)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <span className="ml-2">Carregando vendas da API...</span>
+            </div>
+          ) : (
+            <>
+              <div className="hidden md:block overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Funcionário</TableHead>
+                      <TableHead>Categoria</TableHead>
+                      <TableHead>Valor Bruto</TableHead>
+                      <TableHead>Valor Líquido</TableHead>
+                      <TableHead>Quantidade</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredVendas.slice(0, 100).map((venda) => (
+                      <TableRow key={venda.id}>
+                        <TableCell>
+                          {new Date(venda.data_venda).toLocaleDateString('pt-BR')}
+                        </TableCell>
+                        <TableCell>{venda.nome_funcionario}</TableCell>
+                        <TableCell>
+                          <Badge className={getCategoriaColor(venda.categoria)} variant="secondary">
+                            <i className={`${getIconeCategoria(venda.categoria)} mr-1`}></i>
+                            {getNomeCategoria(venda.categoria)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          R$ {venda.valor_bruto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell>
+                          R$ {venda.valor_liquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell>{venda.quantidade}</TableCell>
+                      </TableRow>
+                    ))}
+                    {filteredVendas.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                          Nenhuma venda encontrada
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <div className="md:hidden space-y-3">
+                {filteredVendas.slice(0, 50).map((venda) => (
+                  <div key={venda.id} className="border rounded-lg p-4 bg-card">
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="text-sm text-muted-foreground">
+                        {new Date(venda.data_venda).toLocaleDateString('pt-BR')}
+                      </div>
+                      <div className="text-lg font-semibold">
+                        R$ {venda.valor_liquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <div className="text-sm font-medium">{venda.nome_funcionario}</div>
+                      <Badge className={getCategoriaColor(venda.categoria)} variant="secondary">
+                        <i className={`${getIconeCategoria(venda.categoria)} mr-1`}></i>
+                        {getNomeCategoria(venda.categoria)}
+                      </Badge>
+                      <div className="text-sm text-muted-foreground">
+                        Qtd: {venda.quantidade}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {filteredVendas.length === 0 && (
+                  <div className="text-center text-muted-foreground py-8 border rounded-lg">
+                    Nenhuma venda encontrada
+                  </div>
+                )}
+              </div>
+              
+              {filteredVendas.length > 100 && (
+                <div className="mt-4 text-center text-sm text-muted-foreground">
+                  Mostrando primeiros 100 resultados de {filteredVendas.length} vendas
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
-
