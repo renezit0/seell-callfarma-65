@@ -85,7 +85,7 @@ export default function Vendas() {
   const [filtroAdicional, setFiltroAdicional] = useState<string>('periodo');
   const [dataEspecifica, setDataEspecifica] = useState<string>('');
   const [selectedLojaId, setSelectedLojaId] = useState<number | null>(null);
-  const [initialized, setInitialized] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(false);
 
   // Check if user can view all stores
   const canViewAllStores = user?.tipo && ['admin', 'supervisor', 'compras'].includes(user.tipo);
@@ -179,7 +179,7 @@ export default function Vendas() {
 
   // Buscar metas da loja
   useEffect(() => {
-    if (!user || !selectedPeriod || !currentLojaId) return;
+    if (!user || !selectedPeriod || !currentLojaId || isLoadingData) return;
     
     const fetchMetas = async () => {
       try {
@@ -244,20 +244,32 @@ export default function Vendas() {
     };
   }, [vendasPorCategoria, metasData]);
 
-  // ✅ useEffect principal
+  // ✅ useEffect principal consolidado
   useEffect(() => {
-    if (user && !initialized) {
-      fetchLojaInfo();
-      setInitialized(true);
-    }
-  }, [user, initialized]);
+    if (!user || isLoadingData) return;
+    
+    const initializeData = async () => {
+      setIsLoadingData(true);
+      try {
+        if (!lojaInfo) {
+          await fetchLojaInfo();
+        } else {
+          await fetchVendas();
+        }
+      } finally {
+        setIsLoadingData(false);
+      }
+    };
 
-  // ✅ Refetch quando filtros mudarem
+    initializeData();
+  }, [user, selectedPeriod, filtroAdicional, dataEspecifica, currentLojaId, selectedLojaId]);
+
+  // ✅ Fetch vendas quando loja info é atualizada
   useEffect(() => {
-    if (user && initialized && lojaInfo) {
+    if (user && lojaInfo && !isLoadingData) {
       fetchVendas();
     }
-  }, [selectedPeriod, filtroAdicional, dataEspecifica, user, initialized, currentLojaId, selectedLojaId, lojaInfo]);
+  }, [lojaInfo]);
 
   // Quando selecionar um colaborador
   useEffect(() => {
@@ -269,13 +281,13 @@ export default function Vendas() {
 
   // Gerar dados do gráfico
   useEffect(() => {
-    if (user && lojaInfo && initialized) {
+    if (user && lojaInfo && !isLoadingData) {
       generateChartData();
     }
-  }, [vendasProcessadas, lojaInfo, user, chartCategoriaFilter, vendedorFilter, initialized]);
+  }, [vendasProcessadas, lojaInfo, user, chartCategoriaFilter, vendedorFilter]);
 
   const fetchLojaInfo = async () => {
-    if (!currentLojaId) return;
+    if (!currentLojaId || isLoadingData) return;
     
     try {
       // Buscar apenas os campos que existem na tabela lojas
@@ -315,7 +327,7 @@ export default function Vendas() {
   };
 
   const fetchVendas = async () => {
-    if (!lojaInfo) return;
+    if (!lojaInfo || isLoadingData) return;
     
     try {
       // Calcular período baseado no filtro
@@ -569,7 +581,7 @@ export default function Vendas() {
   };
 
   // ✅ Early returns após hooks
-  if (authLoading || callfarmaAPI.loading) {
+  if (authLoading || callfarmaAPI.loading || isLoadingData) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
