@@ -262,6 +262,33 @@ export default function Graficos() {
 
       console.log('Total de dias no gráfico:', chartMap.size);
 
+      // Buscar dados de vendas por filial para calcular ticket médio corretamente
+      let dadosVendasFilial: any[] = [];
+      try {
+        if (lojaIdParaFiltro) {
+          // Buscar dados da API vendas-por-filial para a loja específica
+          const { data: vendasFilialData, error } = await supabase.functions.invoke('callfarma-vendas', {
+            body: {
+              endpoint: '/financeiro/vendas-por-filial',
+              params: {
+                dataFim: dataFim,
+                dataIni: dataInicio,
+                dataFimAnt: dataFim,
+                dataIniAnt: dataInicio
+              }
+            }
+          });
+
+          if (!error && vendasFilialData?.msg) {
+            // Filtrar apenas pela loja específica
+            dadosVendasFilial = vendasFilialData.msg.filter((item: any) => item.CDFIL === numeroLoja);
+            console.log('Dados vendas filial para ticket médio:', dadosVendasFilial.length);
+          }
+        }
+      } catch (error) {
+        console.warn('Erro ao buscar dados de vendas por filial para ticket médio:', error);
+      }
+
       // Função para processar dados de uma categoria
       const processarDadosCategoria = (dados: any[], nomeCategoria: string) => {
         const vendasPorData = new Map<string, number>();
@@ -271,7 +298,6 @@ export default function Graficos() {
           try {
             const cdfil = parseInt(item.CDFIL) || 0;
             const valorLiquido = parseFloat(item.VALOR_LIQUIDO) || 0; // Usar VALOR_LIQUIDO já calculado
-            const qtdClientes = parseInt(item.QTD_CLIENTES) || 1; // Número de clientes únicos
             const dataVendaRaw = item.DATA;
 
             // MODIFICAÇÃO: Só filtrar por loja específica se não for "todas as lojas"
@@ -301,15 +327,28 @@ export default function Graficos() {
             // Somar ao total da data
             const totalAnterior = vendasPorData.get(dataVenda) || 0;
             vendasPorData.set(dataVenda, totalAnterior + valorLiquido);
-            
-            // Somar clientes da data
-            const clientesAnterior = clientesPorData.get(dataVenda) || 0;
-            clientesPorData.set(dataVenda, clientesAnterior + qtdClientes);
 
           } catch (error) {
             console.warn('Erro ao processar registro da API:', error);
           }
         });
+
+        // Calcular clientes usando dados da API vendas-por-filial
+        if (dadosVendasFilial.length > 0) {
+          dadosVendasFilial.forEach((item: any) => {
+            try {
+              const dataVenda = item.DATA ? item.DATA.split('T')[0] : null;
+              const qtdClientes = parseInt(item.TOTCLI) || 0;
+
+              if (dataVenda && qtdClientes > 0) {
+                const clientesAnterior = clientesPorData.get(dataVenda) || 0;
+                clientesPorData.set(dataVenda, clientesAnterior + qtdClientes);
+              }
+            } catch (error) {
+              console.warn('Erro ao processar clientes da API filial:', error);
+            }
+          });
+        }
         
         return { vendas: vendasPorData, clientes: clientesPorData };
       };

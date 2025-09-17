@@ -91,6 +91,15 @@ export default function Vendas() {
   const canViewAllStores = user?.tipo && ['admin', 'supervisor', 'compras'].includes(user.tipo);
   const currentLojaId = selectedLojaId || user?.loja_id || null;
 
+  // Verificar parâmetro de filtro na URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const filtroParam = urlParams.get('filtro');
+    if (filtroParam === 'ontem') {
+      setFiltroAdicional('ontem');
+    }
+  }, []);
+
   // Mapeamento de grupos para categorias
   const mapearGrupoParaCategoria = (cdgrupo: number): string => {
     switch (cdgrupo) {

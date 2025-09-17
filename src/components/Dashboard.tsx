@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { ProgressoIndividual } from "./ProgressoIndividual";
 import { usePeriodContext } from "@/contexts/PeriodContext";
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { getDescricaoTipoUsuario } from "@/utils/userTypes";
 import { supabase } from "@/integrations/supabase/client";
 import { useState, useEffect } from "react";
@@ -20,6 +20,7 @@ function DashboardContent() {
   const { user, loading: authLoading } = useAuth();
   const { selectedPeriod } = usePeriodContext();
   const { avatarUrl } = useUserAvatar();
+  const navigate = useNavigate();
   const [lojaInfo, setLojaInfo] = useState<{ numero: string; nome: string } | null>(null);
   const [selectedLojaId, setSelectedLojaId] = useState<number | null>(null);
   const { metrics, loading } = useDashboardData(user, selectedPeriod, selectedLojaId);
@@ -149,13 +150,24 @@ function DashboardContent() {
               <p className="text-xs sm:text-sm text-muted-foreground">Performance geral da {lojaInfo?.nome || 'loja'}</p>
             </div>
           </div>
-          {shouldShowStoreSelector && (
-            <StoreSelector
-              selectedLojaId={selectedLojaId}
-              onLojaChange={setSelectedLojaId}
-              userLojaId={user?.loja_id}
-            />
-          )}
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => navigate('/vendas?filtro=ontem')}
+              className="text-xs px-3 py-1 h-8"
+            >
+              <i className="fas fa-calendar-day mr-1"></i>
+              Venda Ontem
+            </Button>
+            {shouldShowStoreSelector && (
+              <StoreSelector
+                selectedLojaId={selectedLojaId}
+                onLojaChange={setSelectedLojaId}
+                userLojaId={user?.loja_id}
+              />
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:gap-4">
