@@ -33,6 +33,7 @@ interface ChartData {
   date: string;
   value: number;
   clientes: number;
+  ticketMedio: number;
   geral: number;
   goodlife: number;
   perfumaria_r_mais: number;
@@ -194,14 +195,31 @@ export default function Graficos() {
         goodlife: dadosGoodlife.length
       });
 
-      // Verificar se deve excluir domingos - só se for uma loja específica da região centro
-      let shouldExcludeSundays = false;
-      if (lojaIdParaFiltro && lojaInfo) {
-        shouldExcludeSundays = lojaInfo.regiao === 'centro';
-      }
-      
-      console.log('Informação da loja:', lojaInfo);
-      console.log('Deve excluir domingos?', shouldExcludeSundays);
+  // Verificar se deve excluir domingos - só se for uma loja específica da região centro
+  let shouldExcludeSundays = false;
+  let infoLoja = lojaInfo;
+  
+  // Se não temos info da loja mas temos um ID específico, buscar agora
+  if (lojaIdParaFiltro && !lojaInfo) {
+    try {
+      const { data: tempLojaInfo } = await supabase
+        .from('lojas')
+        .select('regiao, numero, nome')
+        .eq('id', lojaIdParaFiltro)
+        .single();
+      infoLoja = tempLojaInfo;
+      setLojaInfo(tempLojaInfo);
+    } catch (error) {
+      console.warn('Erro ao buscar info da loja:', error);
+    }
+  }
+  
+  if (lojaIdParaFiltro && infoLoja) {
+    shouldExcludeSundays = infoLoja.regiao === 'centro';
+  }
+  
+  console.log('Informação da loja:', infoLoja);
+  console.log('Deve excluir domingos?', shouldExcludeSundays);
 
       // Buscar informações da loja apenas se for uma loja específica
       let numeroLoja = null;
@@ -233,6 +251,7 @@ export default function Graficos() {
           date: format(day, 'dd/MM'),
           value: 0,
           clientes: 0,
+          ticketMedio: 0,
           geral: 0,
           goodlife: 0,
           perfumaria_r_mais: 0,
@@ -246,11 +265,13 @@ export default function Graficos() {
       // Função para processar dados de uma categoria
       const processarDadosCategoria = (dados: any[], nomeCategoria: string) => {
         const vendasPorData = new Map<string, number>();
+        const clientesPorData = new Map<string, number>();
         
         dados.forEach((item: any) => {
           try {
             const cdfil = parseInt(item.CDFIL) || 0;
             const valorLiquido = parseFloat(item.VALOR_LIQUIDO) || 0; // Usar VALOR_LIQUIDO já calculado
+            const qtdClientes = parseInt(item.QTD_CLIENTES) || 1; // Número de clientes únicos
             const dataVendaRaw = item.DATA;
 
             // MODIFICAÇÃO: Só filtrar por loja específica se não for "todas as lojas"
@@ -280,33 +301,41 @@ export default function Graficos() {
             // Somar ao total da data
             const totalAnterior = vendasPorData.get(dataVenda) || 0;
             vendasPorData.set(dataVenda, totalAnterior + valorLiquido);
+            
+            // Somar clientes da data
+            const clientesAnterior = clientesPorData.get(dataVenda) || 0;
+            clientesPorData.set(dataVenda, clientesAnterior + qtdClientes);
 
           } catch (error) {
             console.warn('Erro ao processar registro da API:', error);
           }
         });
         
-        return vendasPorData;
+        return { vendas: vendasPorData, clientes: clientesPorData };
       };
 
       // Processar dados de cada categoria
-      const vendasGeral = processarDadosCategoria(dadosGeral, 'geral');
-      const vendasRentaveis = processarDadosCategoria(dadosRentaveis, 'rentaveis');
-      const vendasPerfumariaAlta = processarDadosCategoria(dadosPerfumariaAlta, 'perfumaria_alta');
-      const vendasConvenienciaAlta = processarDadosCategoria(dadosConvenienciaAlta, 'conveniencia_alta');
-      const vendasGoodlife = processarDadosCategoria(dadosGoodlife, 'goodlife');
+      const resultadosGeral = processarDadosCategoria(dadosGeral, 'geral');
+      const resultadosRentaveis = processarDadosCategoria(dadosRentaveis, 'rentaveis');
+      const resultadosPerfumariaAlta = processarDadosCategoria(dadosPerfumariaAlta, 'perfumaria_alta');
+      const resultadosConvenienciaAlta = processarDadosCategoria(dadosConvenienciaAlta, 'conveniencia_alta');
+      const resultadosGoodlife = processarDadosCategoria(dadosGoodlife, 'goodlife');
 
       // Aplicar vendas aos dias do gráfico
       for (const [dataVenda] of chartMap.entries()) {
         const existing = chartMap.get(dataVenda);
         if (existing) {
-          existing.value = vendasGeral.get(dataVenda) || 0;
-          existing.geral = vendasGeral.get(dataVenda) || 0;
-          existing.goodlife = vendasGoodlife.get(dataVenda) || 0;
-          existing.perfumaria_r_mais = vendasPerfumariaAlta.get(dataVenda) || 0;
-          existing.conveniencia_r_mais = vendasConvenienciaAlta.get(dataVenda) || 0;
-          existing.r_mais = vendasRentaveis.get(dataVenda) || 0;
-          existing.clientes = 1; // Placeholder para clientes
+          const valorGeral = resultadosGeral.vendas.get(dataVenda) || 0;
+          const clientesGeral = resultadosGeral.clientes.get(dataVenda) || 0;
+          
+          existing.value = valorGeral;
+          existing.geral = valorGeral;
+          existing.clientes = clientesGeral;
+          existing.ticketMedio = clientesGeral > 0 ? valorGeral / clientesGeral : 0;
+          existing.goodlife = resultadosGoodlife.vendas.get(dataVenda) || 0;
+          existing.perfumaria_r_mais = resultadosPerfumariaAlta.vendas.get(dataVenda) || 0;
+          existing.conveniencia_r_mais = resultadosConvenienciaAlta.vendas.get(dataVenda) || 0;
+          existing.r_mais = resultadosRentaveis.vendas.get(dataVenda) || 0;
         }
       }
 
@@ -341,7 +370,7 @@ export default function Graficos() {
       
       console.log('Dados processados com sucesso:', {
         registrosGeral: dadosGeral.length,
-        diasComVendas: vendasGeral.size,
+        diasComVendas: resultadosGeral.vendas.size,
         totalGeral: categoryTotals.geral
       });
       
@@ -643,7 +672,7 @@ export default function Graficos() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Activity className="w-5 h-5" />
-                Número de Transações
+                Ticket Médio
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -652,10 +681,32 @@ export default function Graficos() {
                   <RechartsAreaChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="date" fontSize={12} tick={{ fontSize: 10 }} />
-                    <YAxis fontSize={12} tick={{ fontSize: 10 }} />
-                    <Tooltip formatter={(value: number) => [value, 'Transações']} labelFormatter={(label) => `Data: ${label}`} />
-                    <Area type="monotone" dataKey="clientes" stroke="hsl(142, 76%, 36%)" fill="hsl(142, 76%, 36%)" fillOpacity={0.3} />
+                    <YAxis fontSize={12} tick={{ fontSize: 10 }} tickFormatter={(value) => `R$ ${value.toFixed(2)}`} />
+                    <Tooltip formatter={(value: number) => [`R$ ${value.toFixed(2)}`, 'Ticket Médio']} labelFormatter={(label) => `Data: ${label}`} />
+                    <Area type="monotone" dataKey="ticketMedio" stroke="hsl(32, 95%, 44%)" fill="hsl(32, 95%, 44%)" fillOpacity={0.3} />
                   </RechartsAreaChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="w-5 h-5" />
+                Quantidade de Clientes
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RechartsBarChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" fontSize={12} tick={{ fontSize: 10 }} />
+                    <YAxis fontSize={12} tick={{ fontSize: 10 }} />
+                    <Tooltip formatter={(value: number) => [value, 'Clientes']} labelFormatter={(label) => `Data: ${label}`} />
+                    <Bar dataKey="clientes" fill="hsl(142, 76%, 36%)" radius={[4, 4, 0, 0]} />
+                  </RechartsBarChart>
                 </ResponsiveContainer>
               </div>
             </CardContent>

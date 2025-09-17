@@ -2136,24 +2136,22 @@ export default function Campanhas() {
                     <Store className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                     <p className="text-muted-foreground">Nenhuma loja com vendas encontrada no período.</p>
                   </CardContent>
-                </Card> : <div className="space-y-6">
-                  {gruposRanking.map((grupo, grupoIndex) => <Card key={grupo.grupo_id} className="border-2">
+                </Card> : <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {gruposRanking.map((grupo, grupoIndex) => <Card key={grupo.grupo_id} className="border-2 h-fit">
                       <CardHeader className="pb-4">
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="flex items-center gap-2">
+                        <div className="flex flex-col text-center">
+                          <div className="flex items-center justify-center gap-2 mb-2">
                             <span className="text-2xl font-bold">#{grupoIndex + 1}</span>
-                            <span>{grupo.nome_grupo}</span>
-                          </CardTitle>
-                          <div className="text-right">
-                            <div className="text-2xl font-bold text-primary">
-                              {grupo.percentualAtingimentoGrupo.toFixed(1)}%
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              {grupo.totalLojas} lojas • {grupo.totalColaboradores} colaboradores
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {formatarValorCampanha(grupo.totalVendas, campanhasStatus.find(c => c.id === campanhaStatusSelecionada)?.tipo_meta || 'valor')} de {formatarValorCampanha(grupo.totalMeta, campanhasStatus.find(c => c.id === campanhaStatusSelecionada)?.tipo_meta || 'valor')}
-                            </div>
+                            <span className="text-xl font-semibold">{grupo.nome_grupo}</span>
+                          </div>
+                          <div className="text-2xl font-bold text-primary">
+                            {grupo.percentualAtingimentoGrupo.toFixed(1)}%
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {grupo.totalLojas} lojas • {grupo.totalColaboradores} colaboradores
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {formatarValorCampanha(grupo.totalVendas, campanhasStatus.find(c => c.id === campanhaStatusSelecionada)?.tipo_meta || 'valor')} de {formatarValorCampanha(grupo.totalMeta, campanhasStatus.find(c => c.id === campanhaStatusSelecionada)?.tipo_meta || 'valor')}
                           </div>
                         </div>
                       </CardHeader>
@@ -2210,7 +2208,7 @@ export default function Campanhas() {
                     <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                     <p className="text-muted-foreground">Nenhum colaborador com vendas encontrado no período.</p>
                   </CardContent>
-                </Card> : <div className="grid lg:grid-cols-3 gap-4">
+                </Card> : <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {gruposRanking.map((grupo, grupoIndex) => <Card key={grupo.grupo_id} className="border-2 h-fit">
                       <CardHeader className="pb-3">
                         <div className="text-center">
