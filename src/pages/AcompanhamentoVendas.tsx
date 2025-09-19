@@ -127,54 +127,63 @@ interface Funcionario {
 // CONFIGURAÇÕES DE COMISSÕES E PRODUTOS
 // ============================================================================
 
-// Configuração de comissões por cargo
+// Configuração de comissões por cargo (CORRIGIDA)
 export const COMMISSION_RATES: Record<UserRole, CommissionConfig> = {
   // Gerentes e farmacêuticos: similar 2%, generico 2%, dermocosmetico 2%
   gerente: {
-    r_mais: 0.02,      // Rentáveis = similar
-    goodlife: 0.02     // Incluindo goodlife
+    similar: 0.02,
+    generico: 0.02,         // ADICIONADO
+    dermocosmetico: 0.02
   },
   
   gerentefarma: {
-    r_mais: 0.02,
-    goodlife: 0.02
+    similar: 0.02,
+    generico: 0.02,         // ADICIONADO
+    dermocosmetico: 0.02
   },
   
   subgerentefarma: {
-    r_mais: 0.02,
-    goodlife: 0.02
+    similar: 0.02,
+    generico: 0.02,         // ADICIONADO
+    dermocosmetico: 0.02
   },
   
   farmaceutico: {
-    r_mais: 0.02,
-    goodlife: 0.02
+    similar: 0.02,
+    generico: 0.02,         // ADICIONADO
+    dermocosmetico: 0.02
   },
   
   // Subgerente, auxiliar: similar 5%, generico 4,5%, dermocosmetico 2%
   subgerente: {
-    r_mais: 0.05,
-    goodlife: 0.05
+    similar: 0.05,
+    generico: 0.045,        // ADICIONADO
+    dermocosmetico: 0.02
   },
   
   auxiliar: {
-    r_mais: 0.05,
-    goodlife: 0.05
+    similar: 0.05,
+    generico: 0.045,        // ADICIONADO
+    dermocosmetico: 0.02
   },
   
   aux1: {
-    r_mais: 0.05,
-    goodlife: 0.05
+    similar: 0.05,
+    generico: 0.045,        // ADICIONADO
+    dermocosmetico: 0.02
   },
   
   // Consultora: perfumaria_alta 3%, dermocosmetico 2%, goodlife 5%
   consultora: {
-    perfumaria_r_mais: 0.03,
+    perfumaria_alta: 0.03,
+    dermocosmetico: 0.02,
     goodlife: 0.05
   },
   
   // Auxiliar conveniência: brinquedos e conveniencia 2% (é bonus, não comissão)
   aux_conveniencia: {
-    conveniencia_r_mais: 0.02
+    brinquedo: 0.02,
+    conveniencia: 0.02
   },
   
   // Cargos administrativos sem comissão
