@@ -91,7 +91,6 @@ export default function Vendas() {
   // Check if user can view all stores
   // Verificar permissões do usuário
   const hasMultiStoreAccess = user?.tipo && canViewAllStores(user.tipo);
-  const canSeeAllSales = user?.tipo && canViewAllSales(user.tipo);
   const canSeeOwnSalesOnly = user?.tipo && canViewOwnSalesOnly(user.tipo);
   const currentLojaId = selectedLojaId || user?.loja_id || null;
 
