@@ -90,6 +90,7 @@ export default function Vendas() {
 
   // Check if user can view all stores
   // Verificar permissões do usuário
+  const canSeeAllSales = user?.tipo && canViewAllSales(user.tipo);
   const currentLojaId = selectedLojaId || user?.loja_id || null;
 
   // Verificar parâmetro de filtro na URL
