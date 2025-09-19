@@ -14,7 +14,6 @@ import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { PeriodSelector } from '@/components/PeriodSelector';
 import { StoreSelector } from '@/components/StoreSelector';
 import { ProtectedRoute, ConditionalRender } from '@/components/ProtectedRoute';
 import { 
@@ -758,7 +757,7 @@ export default function AcompanhamentoVendasNovo() {
       try {
         const { data, error } = await supabase
           .from('usuarios')
-          .select('id, nome, matricula, tipo, loja_id')
+          .select('id, nome, matricula, status, loja_id')
           .eq('loja_id', currentLojaId)
           .eq('ativo', true);
 
