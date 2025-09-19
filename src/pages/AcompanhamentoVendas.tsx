@@ -1,36 +1,58 @@
+/**
+ * Página de Acompanhamento de Vendas - Versão Unificada
+ * Implementa o sistema de comissões baseado em cargos e busca dados da API
+ */
+
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useCallfarmaAPI } from '@/hooks/useCallfarmaAPI';
+import { usePeriodContext } from '@/contexts/PeriodContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, TrendingUp, DollarSign, Target, Users, Store, Share2, BarChart3, Clock, Trophy, AlertCircle } from 'lucide-react';
-import { Navigate } from 'react-router-dom';
 import { StoreSelector } from '@/components/StoreSelector';
-import { usePeriodContext } from '@/contexts/PeriodContext';
+import { ProtectedRoute, ConditionalRender } from '@/components/ProtectedRoute';
+import { 
+  Calendar, 
+  TrendingUp, 
+  DollarSign, 
+  Target, 
+  Users, 
+  Store, 
+  Share2, 
+  BarChart3, 
+  Clock, 
+  Trophy,
+  AlertCircle,
+  CheckCircle
+} from 'lucide-react';
+import { Navigate } from 'react-router-dom';
 import { format, differenceInDays, isWeekend, addDays } from 'date-fns';
 import { toast } from 'sonner';
 
-// #region TIPOS E INTERFACES
+// ============================================================================
+// TIPOS E INTERFACES
+// ============================================================================
 
 export type UserRole = 
-  | 'admin'
-  | 'supervisor'
-  | 'compras'
-  | 'rh'
-  | 'gerente'
-  | 'gerentefarma'
-  | 'subgerente'
-  | 'subgerentefarma'
-  | 'auxiliar'
-  | 'aux1'
-  | 'farmaceutico'
-  | 'aux_conveniencia'
-  | 'fiscal'
-  | 'consultora';
+  | 'admin' 
+  | 'gerente' 
+  | 'gerentefarma' 
+  | 'subgerentefarma' 
+  | 'farmaceutico' 
+  | 'subgerente' 
+  | 'auxiliar' 
+  | 'aux1' 
+  | 'consultora' 
+  | 'aux_conveniencia' 
+  | 'supervisor' 
+  | 'compras' 
+  | 'rh' 
+  | 'fiscal';
 
 export interface UserPermissions {
   canAccessAllStores: boolean;
@@ -41,14 +63,55 @@ export interface UserPermissions {
   canViewOwnSales: boolean;
   canViewStoreSales: boolean;
   canManageSystem: boolean;
+  canManageStores: boolean;
   canViewReports: boolean;
+  canEditOwnStoreUsers: boolean;
+}
+
+export interface APIVendaItem {
+  categoria_id: number;
+  valor_total: number;
+  quantidade: number;
+  data_venda: string;
+}
+
+export interface APIVendasResponse {
+  vendas: APIVendaItem[];
+  vendas_por_categoria?: Record<string, number>;
+  total_geral?: number;
+  periodo: {
+    data_inicio: string;
+    data_fim: string;
+  };
+}
+
+export interface SalesData {
+  [categoryId: number]: number;
+}
+
+export interface CommissionConfig {
+  [key: string]: number;
+}
+
+export interface CommissionResult {
+  category: string;
+  categoryName: string;
+  salesAmount: number;
+  rate: number;
+  commission: number;
+}
+
+export interface CommissionSummary {
+  results: CommissionResult[];
+  totalCommission: number;
+  isBonus: boolean;
 }
 
 interface UsuarioInfo {
   id: number;
   nome: string;
   matricula: string;
-  tipo: UserRole;
+  tipo: string;
   loja_id: number;
 }
 
@@ -59,242 +122,637 @@ interface AnalisePeriodo {
   percentual_tempo: number;
 }
 
-interface CommissionResult {
-  category: string;
-  categoryName: string;
-  salesAmount: number;
-  rate: number;
-  commission: number;
-}
+// ============================================================================
+// CONFIGURAÇÕES DE COMISSÕES E PRODUTOS
+// ============================================================================
 
-interface CommissionSummary {
-  results: CommissionResult[];
-  totalCommission: number;
-  isBonus: boolean;
-}
-
-interface APIVendaItem {
-  categoria_id: number;
-  valor_total: number;
-  quantidade: number;
-  data_venda: string;
-}
-
-interface APIVendasResponse {
-  vendas: APIVendaItem[];
-  vendas_por_categoria?: Record<string, number>;
-  total_geral?: number;
-  periodo: {
-    data_inicio: string;
-    data_fim: string;
-  };
-}
-
-// #endregion
-
-// #region LÓGICA DE PERMISSÕES (INLINE)
-
-const ROLE_PERMISSIONS: Record<UserRole, UserPermissions> = {
-  admin: { canAccessAllStores: true, canViewAllUsers: true, canEditUsers: true, canEditSelf: true, canViewAllSales: true, canViewOwnSales: true, canViewStoreSales: true, canManageSystem: true, canViewReports: true },
-  supervisor: { canAccessAllStores: true, canViewAllUsers: true, canEditUsers: false, canEditSelf: false, canViewAllSales: true, canViewOwnSales: true, canViewStoreSales: true, canManageSystem: false, canViewReports: true },
-  compras: { canAccessAllStores: true, canViewAllUsers: false, canEditUsers: false, canEditSelf: false, canViewAllSales: true, canViewOwnSales: true, canViewStoreSales: true, canManageSystem: false, canViewReports: true },
-  rh: { canAccessAllStores: true, canViewAllUsers: true, canEditUsers: true, canEditSelf: false, canViewAllSales: true, canViewOwnSales: true, canViewStoreSales: true, canManageSystem: false, canViewReports: true },
-  gerente: { canAccessAllStores: false, canViewAllUsers: true, canEditUsers: true, canEditSelf: false, canViewAllSales: true, canViewOwnSales: true, canViewStoreSales: true, canManageSystem: false, canViewReports: true },
-  gerentefarma: { canAccessAllStores: false, canViewAllUsers: true, canEditUsers: true, canEditSelf: false, canViewAllSales: true, canViewOwnSales: true, canViewStoreSales: true, canManageSystem: false, canViewReports: true },
-  subgerente: { canAccessAllStores: false, canViewAllUsers: true, canEditUsers: false, canEditSelf: false, canViewAllSales: true, canViewOwnSales: true, canViewStoreSales: true, canManageSystem: false, canViewReports: false },
-  subgerentefarma: { canAccessAllStores: false, canViewAllUsers: true, canEditUsers: false, canEditSelf: false, canViewAllSales: true, canViewOwnSales: true, canViewStoreSales: true, canManageSystem: false, canViewReports: false },
-  auxiliar: { canAccessAllStores: false, canViewAllUsers: false, canEditUsers: false, canEditSelf: false, canViewAllSales: false, canViewOwnSales: true, canViewStoreSales: true, canManageSystem: false, canViewReports: false },
-  aux1: { canAccessAllStores: false, canViewAllUsers: false, canEditUsers: false, canEditSelf: false, canViewAllSales: false, canViewOwnSales: true, canViewStoreSales: true, canManageSystem: false, canViewReports: false },
-  farmaceutico: { canAccessAllStores: false, canViewAllUsers: false, canEditUsers: false, canEditSelf: false, canViewAllSales: false, canViewOwnSales: true, canViewStoreSales: true, canManageSystem: false, canViewReports: false },
-  aux_conveniencia: { canAccessAllStores: false, canViewAllUsers: false, canEditUsers: false, canEditSelf: false, canViewAllSales: false, canViewOwnSales: true, canViewStoreSales: true, canManageSystem: false, canViewReports: false },
-  fiscal: { canAccessAllStores: false, canViewAllUsers: false, canEditUsers: false, canEditSelf: false, canViewAllSales: false, canViewOwnSales: false, canViewStoreSales: true, canManageSystem: false, canViewReports: false },
-  consultora: { canAccessAllStores: false, canViewAllUsers: false, canEditUsers: false, canEditSelf: false, canViewAllSales: false, canViewOwnSales: true, canViewStoreSales: true, canManageSystem: false, canViewReports: false },
-};
-
-const getUserPermissions = (role: UserRole): UserPermissions => {
-  return ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.auxiliar;
-};
-
-const hasPermission = (role: UserRole, permission: keyof UserPermissions): boolean => {
-  const permissions = getUserPermissions(role);
-  return permissions[permission];
-};
-
-const getDescricaoTipoUsuario = (tipo: string): string => {
-  const descricoes: Record<string, string> = {
-    'admin': 'Administrador',
-    'supervisor': 'Supervisor',
-    'compras': 'Compras',
-    'rh': 'RH',
-    'gerente': 'Gerente Loja',
-    'gerentefarma': 'Gerente Farmacêutico',
-    'subgerente': 'Auxiliar de Farmácia II - SUB',
-    'subgerentefarma': 'Farmacêutico - SUB',
-    'auxiliar': 'Auxiliar de Farmácia II',
-    'aux1': 'Auxiliar de Farmácia I',
-    'farmaceutico': 'Farmacêutico',
-    'aux_conveniencia': 'Auxiliar de Farmácia I - Conveniência',
-    'fiscal': 'Fiscal de Estacionamento',
-    'consultora': 'Consultora de Beleza',
-  };
-  return descricoes[tipo] ?? tipo.charAt(0).toUpperCase() + tipo.slice(1);
-};
-
-const ConditionalRender: React.FC<{ requiredPermission: keyof UserPermissions; children: React.ReactNode; fallback?: React.ReactNode; userRole: UserRole | null }> = 
-  ({ requiredPermission, children, fallback = null, userRole }) => {
-  if (!userRole) return <>{fallback}</>;
-  if (!hasPermission(userRole, requiredPermission)) return <>{fallback}</>;
-  return <>{children}</>;
-};
-
-// #endregion
-
-// #region LÓGICA DE COMISSÕES (INLINE)
-
-const PRODUCT_GROUPS: Record<string, number[]> = {
-  'similar': [2, 21, 20, 25, 22],
+// Mapeamento dos grupos de produtos para IDs de categoria
+export const PRODUCT_GROUPS: Record<string, number[]> = {
+  'similar': [2, 21, 20, 25, 22],  // Similar inclui rentáveis E goodlife
   'generico': [47, 5, 6],
   'perfumaria_alta': [46],
-  'goodlife': [22],
-  'rentaveis20': [20],
-  'rentaveis25': [25],
+  'goodlife': [22],                 // Goodlife mantém categoria própria
+  'rentaveis20': [20],              // Rentáveis mantêm categorias específicas
+  'rentaveis25': [25],              // Rentáveis mantêm categorias específicas
   'dermocosmetico': [31, 16],
   'conveniencia': [36],
   'brinquedo': [13]
 };
 
-const COMMISSION_RATES: Record<UserRole, Record<string, number>> = {
-  gerente: { similar: 0.02, generico: 0.02, dermocosmetico: 0.02 },
-  gerentefarma: { similar: 0.02, generico: 0.02, dermocosmetico: 0.02 },
-  subgerentefarma: { similar: 0.02, generico: 0.02, dermocosmetico: 0.02 },
-  farmaceutico: { similar: 0.02, generico: 0.02, dermocosmetico: 0.02 },
-  subgerente: { similar: 0.05, generico: 0.045, dermocosmetico: 0.02 },
-  auxiliar: { similar: 0.05, generico: 0.045, dermocosmetico: 0.02 },
-  aux1: { similar: 0.05, generico: 0.045, dermocosmetico: 0.02 },
-  consultora: { perfumaria_alta: 0.03, dermocosmetico: 0.02, goodlife: 0.05 },
-  aux_conveniencia: { brinquedo: 0.02, conveniencia: 0.02 },
-  admin: {}, supervisor: {}, compras: {}, rh: {}, fiscal: {}
+// Configuração de comissões por cargo
+export const COMMISSION_RATES: Record<UserRole, CommissionConfig> = {
+  // Gerentes e farmacêuticos: similar 2%, generico 2%, dermocosmetico 2%
+  gerente: {
+    similar: 0.02,
+    generico: 0.02,
+    dermocosmetico: 0.02
+  },
+  
+  gerentefarma: {
+    similar: 0.02,
+    generico: 0.02,
+    dermocosmetico: 0.02
+  },
+  
+  subgerentefarma: {
+    similar: 0.02,
+    generico: 0.02,
+    dermocosmetico: 0.02
+  },
+  
+  farmaceutico: {
+    similar: 0.02,
+    generico: 0.02,
+    dermocosmetico: 0.02
+  },
+  
+  // Subgerente, auxiliar: similar 5%, generico 4,5%, dermocosmetico 2%
+  subgerente: {
+    similar: 0.05,
+    generico: 0.045,
+    dermocosmetico: 0.02
+  },
+  
+  auxiliar: {
+    similar: 0.05,
+    generico: 0.045,
+    dermocosmetico: 0.02
+  },
+  
+  aux1: {
+    similar: 0.05,
+    generico: 0.045,
+    dermocosmetico: 0.02
+  },
+  
+  // Consultora: perfumaria_alta 3%, dermocosmetico 2%, goodlife 5%
+  consultora: {
+    perfumaria_alta: 0.03,
+    dermocosmetico: 0.02,
+    goodlife: 0.05
+  },
+  
+  // Auxiliar conveniência: brinquedos e conveniencia 2% (é bonus, não comissão)
+  aux_conveniencia: {
+    brinquedo: 0.02,
+    conveniencia: 0.02
+  },
+  
+  // Cargos administrativos sem comissão
+  admin: {},
+  supervisor: {},
+  compras: {},
+  rh: {},
+  fiscal: {}
 };
 
-const getCommissionCategoryDisplayName = (category: string): string => {
+// ============================================================================
+// FUNÇÕES UTILITÁRIAS
+// ============================================================================
+
+// Permissões por cargo
+const ROLE_PERMISSIONS: Record<UserRole, UserPermissions> = {
+  admin: {
+    canAccessAllStores: true,
+    canViewAllUsers: true,
+    canEditUsers: true,
+    canEditSelf: true,
+    canViewAllSales: true,
+    canViewOwnSales: true,
+    canViewStoreSales: true,
+    canManageSystem: true,
+    canManageStores: true,
+    canViewReports: true,
+    canEditOwnStoreUsers: true
+  },
+  gerente: {
+    canAccessAllStores: false,
+    canViewAllUsers: false,
+    canEditUsers: false,
+    canEditSelf: true,
+    canViewAllSales: true,
+    canViewOwnSales: true,
+    canViewStoreSales: true,
+    canManageSystem: false,
+    canManageStores: false,
+    canViewReports: true,
+    canEditOwnStoreUsers: true
+  },
+  gerentefarma: {
+    canAccessAllStores: false,
+    canViewAllUsers: false,
+    canEditUsers: false,
+    canEditSelf: true,
+    canViewAllSales: true,
+    canViewOwnSales: true,
+    canViewStoreSales: true,
+    canManageSystem: false,
+    canManageStores: false,
+    canViewReports: true,
+    canEditOwnStoreUsers: true
+  },
+  subgerentefarma: {
+    canAccessAllStores: false,
+    canViewAllUsers: false,
+    canEditUsers: false,
+    canEditSelf: true,
+    canViewAllSales: false,
+    canViewOwnSales: true,
+    canViewStoreSales: false,
+    canManageSystem: false,
+    canManageStores: false,
+    canViewReports: false,
+    canEditOwnStoreUsers: false
+  },
+  farmaceutico: {
+    canAccessAllStores: false,
+    canViewAllUsers: false,
+    canEditUsers: false,
+    canEditSelf: true,
+    canViewAllSales: false,
+    canViewOwnSales: true,
+    canViewStoreSales: false,
+    canManageSystem: false,
+    canManageStores: false,
+    canViewReports: false,
+    canEditOwnStoreUsers: false
+  },
+  subgerente: {
+    canAccessAllStores: false,
+    canViewAllUsers: false,
+    canEditUsers: false,
+    canEditSelf: true,
+    canViewAllSales: false,
+    canViewOwnSales: true,
+    canViewStoreSales: false,
+    canManageSystem: false,
+    canManageStores: false,
+    canViewReports: false,
+    canEditOwnStoreUsers: false
+  },
+  auxiliar: {
+    canAccessAllStores: false,
+    canViewAllUsers: false,
+    canEditUsers: false,
+    canEditSelf: true,
+    canViewAllSales: false,
+    canViewOwnSales: true,
+    canViewStoreSales: false,
+    canManageSystem: false,
+    canManageStores: false,
+    canViewReports: false,
+    canEditOwnStoreUsers: false
+  },
+  aux1: {
+    canAccessAllStores: false,
+    canViewAllUsers: false,
+    canEditUsers: false,
+    canEditSelf: true,
+    canViewAllSales: false,
+    canViewOwnSales: true,
+    canViewStoreSales: false,
+    canManageSystem: false,
+    canManageStores: false,
+    canViewReports: false,
+    canEditOwnStoreUsers: false
+  },
+  consultora: {
+    canAccessAllStores: false,
+    canViewAllUsers: false,
+    canEditUsers: false,
+    canEditSelf: true,
+    canViewAllSales: false,
+    canViewOwnSales: true,
+    canViewStoreSales: false,
+    canManageSystem: false,
+    canManageStores: false,
+    canViewReports: false,
+    canEditOwnStoreUsers: false
+  },
+  aux_conveniencia: {
+    canAccessAllStores: false,
+    canViewAllUsers: false,
+    canEditUsers: false,
+    canEditSelf: true,
+    canViewAllSales: false,
+    canViewOwnSales: true,
+    canViewStoreSales: false,
+    canManageSystem: false,
+    canManageStores: false,
+    canViewReports: false,
+    canEditOwnStoreUsers: false
+  },
+  supervisor: {
+    canAccessAllStores: true,
+    canViewAllUsers: true,
+    canEditUsers: false,
+    canEditSelf: true,
+    canViewAllSales: true,
+    canViewOwnSales: true,
+    canViewStoreSales: true,
+    canManageSystem: false,
+    canManageStores: false,
+    canViewReports: true,
+    canEditOwnStoreUsers: false
+  },
+  compras: {
+    canAccessAllStores: false,
+    canViewAllUsers: false,
+    canEditUsers: false,
+    canEditSelf: true,
+    canViewAllSales: false,
+    canViewOwnSales: false,
+    canViewStoreSales: false,
+    canManageSystem: false,
+    canManageStores: false,
+    canViewReports: false,
+    canEditOwnStoreUsers: false
+  },
+  rh: {
+    canAccessAllStores: false,
+    canViewAllUsers: true,
+    canEditUsers: true,
+    canEditSelf: true,
+    canViewAllSales: false,
+    canViewOwnSales: false,
+    canViewStoreSales: false,
+    canManageSystem: false,
+    canManageStores: false,
+    canViewReports: false,
+    canEditOwnStoreUsers: false
+  },
+  fiscal: {
+    canAccessAllStores: true,
+    canViewAllUsers: false,
+    canEditUsers: false,
+    canEditSelf: true,
+    canViewAllSales: true,
+    canViewOwnSales: true,
+    canViewStoreSales: true,
+    canManageSystem: false,
+    canManageStores: false,
+    canViewReports: true,
+    canEditOwnStoreUsers: false
+  }
+};
+
+// Funções de permissão
+export function getUserPermissions(role: UserRole): UserPermissions {
+  return ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.auxiliar;
+}
+
+export function hasPermission(role: UserRole, permission: keyof UserPermissions): boolean {
+  const permissions = getUserPermissions(role);
+  return permissions[permission];
+}
+
+export function canViewSalesData(role: UserRole, context: 'own' | 'store' | 'all'): boolean {
+  const permissions = getUserPermissions(role);
+  
+  switch (context) {
+    case 'own':
+      return permissions.canViewOwnSales;
+    case 'store':
+      return permissions.canViewStoreSales;
+    case 'all':
+      return permissions.canViewAllSales;
+    default:
+      return false;
+  }
+}
+
+// Funções de comissão
+export function isBonus(role: UserRole): boolean {
+  return role === 'aux_conveniencia';
+}
+
+export function getCommissionRates(role: UserRole): CommissionConfig {
+  return COMMISSION_RATES[role] || {};
+}
+
+export function hasCommissions(role: UserRole): boolean {
+  const rates = getCommissionRates(role);
+  return Object.keys(rates).length > 0;
+}
+
+export function getCategoryDisplayName(category: string): string {
   const names: Record<string, string> = {
     'similar': 'Similar',
     'generico': 'Genérico',
     'perfumaria_alta': 'Perfumaria Alta',
     'goodlife': 'Good Life',
+    'rentaveis20': 'Rentáveis 20%',
+    'rentaveis25': 'Rentáveis 25%',
     'dermocosmetico': 'Dermocosmético',
     'conveniencia': 'Conveniência',
     'brinquedo': 'Brinquedos'
   };
+  
   return names[category] || category;
-};
+}
 
-const calculateCommissions = (userRole: UserRole, salesData: Record<number, number>): CommissionSummary => {
-  const rates = COMMISSION_RATES[userRole] || {};
+export function getDescricaoTipoUsuario(tipo: string): string {
+  const descricoes: Record<string, string> = {
+    'admin': 'Administrador',
+    'gerente': 'Gerente',
+    'gerentefarma': 'Gerente Farmácia',
+    'subgerentefarma': 'Subgerente Farmácia',
+    'farmaceutico': 'Farmacêutico',
+    'subgerente': 'Subgerente',
+    'auxiliar': 'Auxiliar',
+    'aux1': 'Auxiliar Nível 1',
+    'consultora': 'Consultora',
+    'aux_conveniencia': 'Auxiliar Conveniência',
+    'supervisor': 'Supervisor',
+    'compras': 'Compras',
+    'rh': 'Recursos Humanos',
+    'fiscal': 'Fiscal'
+  };
+  
+  return descricoes[tipo] || tipo;
+}
+
+export function calculateCommissions(role: UserRole, salesData: SalesData): CommissionSummary {
+  const rates = getCommissionRates(role);
   const results: CommissionResult[] = [];
   let totalCommission = 0;
-
+  
+  // Para cada categoria configurada para o cargo
   Object.entries(rates).forEach(([category, rate]) => {
     const categoryIds = PRODUCT_GROUPS[category] || [];
-    const salesAmount = categoryIds.reduce((sum, id) => sum + (salesData[id] || 0), 0);
-
-    if (salesAmount > 0) {
-      const commission = salesAmount * rate;
+    let categoryTotal = 0;
+    
+    // Soma vendas de todos os IDs da categoria
+    categoryIds.forEach(categoryId => {
+      categoryTotal += salesData[categoryId] || 0;
+    });
+    
+    if (categoryTotal > 0) {
+      const commission = categoryTotal * rate;
       results.push({
         category,
-        categoryName: getCommissionCategoryDisplayName(category),
-        salesAmount,
+        categoryName: getCategoryDisplayName(category),
+        salesAmount: categoryTotal,
         rate,
         commission
       });
       totalCommission += commission;
     }
   });
+  
+  return {
+    results,
+    totalCommission,
+    isBonus: isBonus(role)
+  };
+}
 
-  return { results, totalCommission, isBonus: userRole === 'aux_conveniencia' };
-};
-
-const hasCommissions = (userRole: UserRole): boolean => {
-  const rates = COMMISSION_RATES[userRole];
-  return rates && Object.keys(rates).length > 0;
-};
-
-// #endregion
-
-// #region LÓGICA DE PROCESSAMENTO DE DADOS (INLINE)
-
-const processSalesData = (apiResponse: APIVendasResponse): Record<number, number> => {
-  const salesData: Record<number, number> = {};
+// Processamento de dados de vendas
+export function processSalesData(apiResponse: APIVendasResponse): SalesData {
+  const salesData: SalesData = {};
+  
+  // Se a API já retorna vendas agrupadas por categoria
   if (apiResponse.vendas_por_categoria) {
     Object.entries(apiResponse.vendas_por_categoria).forEach(([categoryId, value]) => {
       salesData[parseInt(categoryId)] = Number(value);
     });
-  } else if (apiResponse.vendas && Array.isArray(apiResponse.vendas)) {
+    return salesData;
+  }
+  
+  // Caso contrário, processar vendas individuais
+  if (apiResponse.vendas && Array.isArray(apiResponse.vendas)) {
     apiResponse.vendas.forEach(venda => {
       const categoryId = venda.categoria_id;
-      if (!salesData[categoryId]) salesData[categoryId] = 0;
+      if (!salesData[categoryId]) {
+        salesData[categoryId] = 0;
+      }
       salesData[categoryId] += venda.valor_total;
     });
   }
+  
   return salesData;
-};
+}
 
-const validateSalesData = (apiResponse: any): apiResponse is APIVendasResponse => {
-  if (!apiResponse || typeof apiResponse !== 'object') return false;
+export function validateSalesData(apiResponse: any): apiResponse is APIVendasResponse {
+  if (!apiResponse || typeof apiResponse !== 'object') {
+    return false;
+  }
+  
+  // Verificar se tem vendas ou vendas_por_categoria
   const hasVendas = Array.isArray(apiResponse.vendas);
   const hasVendasPorCategoria = apiResponse.vendas_por_categoria && typeof apiResponse.vendas_por_categoria === 'object';
-  if (!hasVendas && !hasVendasPorCategoria) return false;
-  if (!apiResponse.periodo || !apiResponse.periodo.data_inicio || !apiResponse.periodo.data_fim) return false;
+  
+  if (!hasVendas && !hasVendasPorCategoria) {
+    return false;
+  }
+  
+  // Verificar estrutura do período
+  if (!apiResponse.periodo || !apiResponse.periodo.data_inicio || !apiResponse.periodo.data_fim) {
+    return false;
+  }
+  
   return true;
-};
+}
 
-// #endregion
+// ============================================================================
+// HOOKS PERSONALIZADOS
+// ============================================================================
 
-export default function AcompanhamentoVendas() {
+interface UsePermissionsReturn {
+  permissions: UserPermissions;
+  hasPermission: (permission: keyof UserPermissions) => boolean;
+  canViewSales: (context: 'own' | 'store' | 'all') => boolean;
+  canViewOwnSales: boolean;
+  userRole: UserRole | null;
+}
+
+function usePermissions(user: any): UsePermissionsReturn {
+  const userRole = useMemo(() => {
+    return user?.tipo as UserRole || null;
+  }, [user?.tipo]);
+  
+  const permissions = useMemo(() => {
+    if (!userRole) {
+      return {
+        canAccessAllStores: false,
+        canViewAllUsers: false,
+        canEditUsers: false,
+        canEditSelf: false,
+        canViewAllSales: false,
+        canViewOwnSales: false,
+        canViewStoreSales: false,
+        canManageSystem: false,
+        canManageStores: false,
+        canViewReports: false,
+        canEditOwnStoreUsers: false
+      };
+    }
+    
+    return getUserPermissions(userRole);
+  }, [userRole]);
+  
+  const checkPermission = useMemo(() => {
+    return (permission: keyof UserPermissions): boolean => {
+      if (!userRole) return false;
+      return hasPermission(userRole, permission);
+    };
+  }, [userRole]);
+  
+  const checkViewSales = useMemo(() => {
+    return (context: 'own' | 'store' | 'all'): boolean => {
+      if (!userRole) return false;
+      return canViewSalesData(userRole, context);
+    };
+  }, [userRole]);
+  
+  return {
+    permissions,
+    hasPermission: checkPermission,
+    canViewSales: checkViewSales,
+    canViewOwnSales: permissions.canViewOwnSales,
+    userRole
+  };
+}
+
+interface UseCommissionsReturn {
+  hasCommissions: boolean;
+  isBonus: boolean;
+  calculateCommissions: (salesData: SalesData) => CommissionSummary;
+  formatCommission: (value: number) => string;
+  formatRate: (rate: number) => string;
+}
+
+function useCommissions(userRole: UserRole | null): UseCommissionsReturn {
+  const userHasCommissions = useMemo(() => {
+    if (!userRole) return false;
+    return hasCommissions(userRole);
+  }, [userRole]);
+  
+  const userIsBonus = useMemo(() => {
+    if (!userRole) return false;
+    return isBonus(userRole);
+  }, [userRole]);
+  
+  const calculate = useMemo(() => {
+    return (salesData: SalesData): CommissionSummary => {
+      if (!userRole) {
+        return {
+          results: [],
+          totalCommission: 0,
+          isBonus: false
+        };
+      }
+      return calculateCommissions(userRole, salesData);
+    };
+  }, [userRole]);
+  
+  const formatCommission = useMemo(() => {
+    return (value: number): string => {
+      return value.toLocaleString('pt-BR', { 
+        style: 'currency', 
+        currency: 'BRL',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+    };
+  }, []);
+  
+  const formatRate = useMemo(() => {
+    return (rate: number): string => {
+      return `${(rate * 100).toFixed(1)}%`;
+    };
+  }, []);
+  
+  return {
+    hasCommissions: userHasCommissions,
+    isBonus: userIsBonus,
+    calculateCommissions: calculate,
+    formatCommission,
+    formatRate
+  };
+}
+
+// ============================================================================
+// COMPONENTE PRINCIPAL
+// ============================================================================
+
+export default function AcompanhamentoVendasNovo() {
   const { user, loading: authLoading } = useAuth();
   const { selectedPeriod } = usePeriodContext();
   const callfarmaAPI = useCallfarmaAPI();
 
-  const userRole = user?.tipo as UserRole | null;
-  const userPermissions = useMemo(() => userRole ? getUserPermissions(userRole) : ROLE_PERMISSIONS.auxiliar, [userRole]);
+  // Hooks personalizados
+  const { hasPermission, canViewSales, canViewOwnSales, userRole } = usePermissions(user);
+  const { hasCommissions, isBonus, calculateCommissions, formatCommission, formatRate } = useCommissions(userRole);
 
   const [loading, setLoading] = useState(true);
   const [selectedLojaId, setSelectedLojaId] = useState<number | null>(null);
   const [funcionariosLoja, setFuncionariosLoja] = useState<UsuarioInfo[]>([]);
   const [selectedFuncionarioId, setSelectedFuncionarioId] = useState<string>('me');
-  const [commissionSummary, setCommissionSummary] = useState<CommissionSummary>({ results: [], totalCommission: 0, isBonus: false });
-  const [analisePeriodo, setAnalisePeriodo] = useState<AnalisePeriodo>({ total_dias: 0, dias_trabalhados: 0, dias_uteis_restantes: 0, percentual_tempo: 0 });
+  const [visualizacao, setVisualizacao] = useState<string>('resumo');
+  const [salesData, setSalesData] = useState<SalesData>({});
+  const [commissionSummary, setCommissionSummary] = useState<CommissionSummary>({
+    results: [],
+    totalCommission: 0,
+    isBonus: false
+  });
+  const [analisePeriodo, setAnalisePeriodo] = useState<AnalisePeriodo>({
+    total_dias: 0,
+    dias_trabalhados: 0,
+    dias_uteis_restantes: 0,
+    percentual_tempo: 0
+  });
   const [lojaInfo, setLojaInfo] = useState<{ nome: string; regiao: string } | null>(null);
 
+  // Verificações de acesso
+  const canAccessAllStores = hasPermission('canAccessAllStores');
   const currentLojaId = selectedLojaId || user?.loja_id || null;
+  const canViewAllSales = hasPermission('canViewAllSales');
+
+  // Definir visualização padrão baseada em permissões
+  useEffect(() => {
+    if (user && userRole) {
+      if (canViewAllSales) {
+        setVisualizacao('comparativo');
+      } else {
+        setVisualizacao('resumo');
+      }
+    }
+  }, [user, userRole, canViewAllSales]);
 
   // Definir loja inicial
   useEffect(() => {
-    if (user && !userPermissions.canAccessAllStores && user.loja_id) {
+    if (user && !canAccessAllStores && user.loja_id) {
       setSelectedLojaId(user.loja_id);
     }
-  }, [user, userPermissions.canAccessAllStores]);
+  }, [user, canAccessAllStores]);
 
   // Buscar informações da loja
   useEffect(() => {
     const fetchLojaInfo = async () => {
       if (!currentLojaId) return;
+
       try {
         const response = await callfarmaAPI.get(`/lojas/${currentLojaId}`);
         if (response.data) {
-          setLojaInfo({ nome: response.data.nome || 'Loja', regiao: response.data.regiao || '' });
+          setLojaInfo({
+            nome: response.data.nome || 'Loja',
+            regiao: response.data.regiao || ''
+          });
         }
       } catch (error) {
         console.error('Erro ao buscar informações da loja:', error);
       }
     };
+
     fetchLojaInfo();
   }, [currentLojaId, callfarmaAPI]);
 
   // Buscar funcionários da loja
   useEffect(() => {
     const fetchFuncionarios = async () => {
-      if (!currentLojaId || !userPermissions.canViewAllSales) return;
+      if (!currentLojaId || !canViewAllSales) return;
+
       try {
         const response = await callfarmaAPI.get(`/funcionarios/loja/${currentLojaId}`);
         if (response.data) {
@@ -305,8 +763,9 @@ export default function AcompanhamentoVendas() {
         setFuncionariosLoja([]);
       }
     };
+
     fetchFuncionarios();
-  }, [currentLojaId, userPermissions.canViewAllSales, callfarmaAPI]);
+  }, [currentLojaId, canViewAllSales, callfarmaAPI]);
 
   // Análise do período
   const calcularAnalisePeriodo = useMemo(() => {
@@ -354,6 +813,7 @@ export default function AcompanhamentoVendas() {
         const dataInicio = format(new Date(selectedPeriod.startDate), 'yyyy-MM-dd');
         const dataFim = format(new Date(selectedPeriod.endDate), 'yyyy-MM-dd');
 
+        // Buscar dados de vendas da API
         const response = await callfarmaAPI.get('/vendas', {
           params: {
             usuario_id: usuarioId,
@@ -365,39 +825,56 @@ export default function AcompanhamentoVendas() {
         });
 
         if (response.data && validateSalesData(response.data)) {
+          // Processar dados de vendas
           const processedSales = processSalesData(response.data);
-          if (hasCommissions(userRole)) {
-            setCommissionSummary(calculateCommissions(userRole, processedSales));
+          setSalesData(processedSales);
+
+          // Calcular comissões se o usuário tem direito
+          if (hasCommissions) {
+            const summary = calculateCommissions(processedSales);
+            setCommissionSummary(summary);
           } else {
-            setCommissionSummary({ results: [], totalCommission: 0, isBonus: false });
+            setCommissionSummary({
+              results: [],
+              totalCommission: 0,
+              isBonus: false
+            });
           }
         } else {
-          // Fallback para dados simulados em caso de erro ou dados inválidos
-          const mockSales: Record<number, number> = {};
+          // Dados simulados para demonstração
+          const mockSales: SalesData = {};
           [2, 21, 20, 25, 22, 47, 5, 6, 46, 31, 16, 36, 13].forEach(categoryId => {
             mockSales[categoryId] = Math.floor(Math.random() * 5000) + 1000;
           });
-          if (hasCommissions(userRole)) {
-            setCommissionSummary(calculateCommissions(userRole, mockSales));
-          } else {
-            setCommissionSummary({ results: [], totalCommission: 0, isBonus: false });
+          
+          setSalesData(mockSales);
+          
+          if (hasCommissions) {
+            const summary = calculateCommissions(mockSales);
+            setCommissionSummary(summary);
           }
         }
+
+        // Atualizar análise do período
         setAnalisePeriodo(calcularAnalisePeriodo);
 
       } catch (error) {
         console.error('Erro ao buscar dados de vendas:', error);
         toast.error('Erro ao carregar dados de vendas');
+        
         // Fallback para dados simulados em caso de erro
-        const mockSales: Record<number, number> = {};
+        const mockSales: SalesData = {};
         [2, 21, 20, 25, 22, 47, 5, 6, 46, 31, 16, 36, 13].forEach(categoryId => {
           mockSales[categoryId] = Math.floor(Math.random() * 5000) + 1000;
         });
-        if (hasCommissions(userRole)) {
-          setCommissionSummary(calculateCommissions(userRole, mockSales));
-        } else {
-          setCommissionSummary({ results: [], totalCommission: 0, isBonus: false });
+        
+        setSalesData(mockSales);
+        
+        if (hasCommissions) {
+          const summary = calculateCommissions(mockSales);
+          setCommissionSummary(summary);
         }
+        
         setAnalisePeriodo(calcularAnalisePeriodo);
       } finally {
         setLoading(false);
@@ -405,8 +882,9 @@ export default function AcompanhamentoVendas() {
     };
 
     fetchSalesData();
-  }, [user, selectedPeriod, currentLojaId, selectedFuncionarioId, userRole, callfarmaAPI, calcularAnalisePeriodo]);
+  }, [user, selectedPeriod, currentLojaId, selectedFuncionarioId, userRole, callfarmaAPI, hasCommissions, calculateCommissions, calcularAnalisePeriodo]);
 
+  // Função para compartilhar no WhatsApp
   const handleShare = () => {
     const nomeUsuario = selectedFuncionarioId === 'me' ? user?.nome : funcionariosLoja.find(f => f.id.toString() === selectedFuncionarioId)?.nome;
     const periodo = `${format(new Date(selectedPeriod.startDate), 'dd/MM/yyyy')} a ${format(new Date(selectedPeriod.endDate), 'dd/MM/yyyy')}`;
@@ -446,7 +924,8 @@ export default function AcompanhamentoVendas() {
     return <Navigate to="/login" replace />;
   }
 
-  if (!userPermissions.canViewOwnSales && !userPermissions.canViewStoreSales) {
+  // Verificar se o usuário tem permissão para ver vendas
+  if (!canViewOwnSales && !canViewSales('store') && !canViewSales('all')) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -470,31 +949,29 @@ export default function AcompanhamentoVendas() {
         </div>
         
         <div className="flex gap-4 items-center">
-          <ConditionalRender requiredPermission="canAccessAllStores" userRole={userRole}>
+          {canAccessAllStores && (
             <StoreSelector
               selectedLojaId={selectedLojaId}
               onLojaChange={setSelectedLojaId}
               userLojaId={user?.loja_id || 0}
             />
-          </ConditionalRender>
+          )}
           
-          <ConditionalRender requiredPermission="canViewAllSales" userRole={userRole}>
-            {funcionariosLoja.length > 0 && (
-              <Select value={selectedFuncionarioId} onValueChange={setSelectedFuncionarioId}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Selecionar Funcionário" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="me">Meu Acompanhamento</SelectItem>
-                  {funcionariosLoja.map((funcionario) => (
-                    <SelectItem key={funcionario.id} value={funcionario.id.toString()}>
-                      {funcionario.nome} ({funcionario.matricula})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </ConditionalRender>
+          {canViewAllSales && funcionariosLoja.length > 0 && (
+            <Select value={selectedFuncionarioId} onValueChange={setSelectedFuncionarioId}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Selecionar Funcionário" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="me">Meu Acompanhamento</SelectItem>
+                {funcionariosLoja.map((funcionario) => (
+                  <SelectItem key={funcionario.id} value={funcionario.id.toString()}>
+                    {funcionario.nome} ({funcionario.matricula})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           
           <Button onClick={handleShare} variant="outline" size="sm">
             <Share2 className="w-4 h-4 mr-2" />
@@ -544,12 +1021,12 @@ export default function AcompanhamentoVendas() {
       )}
 
       {/* Tabs de Visualização */}
-      <Tabs defaultValue="resumo">
+      <Tabs value={visualizacao} onValueChange={setVisualizacao}>
         <TabsList className="grid w-full grid-cols-2 lg:grid-cols-3">
           <TabsTrigger value="resumo">Resumo</TabsTrigger>
-          <ConditionalRender requiredPermission="canViewAllSales" userRole={userRole}>
+          {canViewAllSales && (
             <TabsTrigger value="comparativo">Comparativo</TabsTrigger>
-          </ConditionalRender>
+          )}
           <TabsTrigger value="detalhado">Detalhado</TabsTrigger>
         </TabsList>
 
@@ -567,48 +1044,74 @@ export default function AcompanhamentoVendas() {
                 <Card key={result.category}>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <DollarSign className="w-5 h-5 text-green-500" />
+                      <DollarSign className="w-5 h-5 text-green-600" />
                       {result.categoryName}
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <p className="text-2xl font-bold">R$ {result.commission.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {result.salesAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} em vendas @ {(result.rate * 100).toFixed(1)}%
-                    </p>
+                  <CardContent className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Vendas:</span>
+                      <span className="font-medium">
+                        R$ {result.salesAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Taxa:</span>
+                      <span className="font-medium">{formatRate(result.rate)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">{commissionSummary.isBonus ? 'Bônus:' : 'Comissão:'}</span>
+                      <span className="font-bold text-green-600">
+                        {formatCommission(result.commission)}
+                      </span>
+                    </div>
                   </CardContent>
                 </Card>
               ))}
-              <Card className="col-span-full md:col-span-1">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Trophy className="w-5 h-5 text-yellow-500" />
-                    Total de {commissionSummary.isBonus ? 'Bônus' : 'Comissões'}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-3xl font-bold">R$ {commissionSummary.totalCommission.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                </CardContent>
-              </Card>
+
+              {/* Card Total */}
+              {commissionSummary.results.length > 0 && (
+                <Card className="border-green-200 bg-green-50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-green-700">
+                      <Trophy className="w-5 h-5" />
+                      Total {commissionSummary.isBonus ? 'Bônus' : 'Comissões'}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-center">
+                      <p className="text-3xl font-bold text-green-700">
+                        {formatCommission(commissionSummary.totalCommission)}
+                      </p>
+                      <p className="text-sm text-green-600 mt-1">Acumulado no período</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Mensagem quando não há comissões */}
+              {commissionSummary.results.length === 0 && (
+                <Card className="col-span-full">
+                  <CardContent className="text-center py-8">
+                    <AlertCircle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">Nenhuma comissão encontrada</h3>
+                    <p className="text-muted-foreground">
+                      {hasCommissions 
+                        ? 'Não há vendas nas categorias que geram comissão no período selecionado.'
+                        : 'Seu cargo não possui sistema de comissões configurado.'
+                      }
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
         </TabsContent>
 
         {/* Visualização Comparativa */}
         <TabsContent value="comparativo">
-          <ConditionalRender 
-            requiredPermission="canViewAllSales"
-            userRole={userRole}
-            fallback={
-              <Card>
-                <CardContent className="text-center py-8">
-                  <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-                  <p className="text-muted-foreground">Você não tem permissão para visualizar dados comparativos.</p>
-                </CardContent>
-              </Card>
-            }
-          >
-            {loading ? (
+          {canViewAllSales ? (
+            loading ? (
               <div className="text-center py-8 text-muted-foreground">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
                 Carregando tabela comparativa...
@@ -646,7 +1149,7 @@ export default function AcompanhamentoVendas() {
                           funcionariosLoja.map((funcionario) => {
                             const funcRole = funcionario.tipo as UserRole;
                             const funcHasCommissions = hasCommissions(funcRole);
-                            const rates = COMMISSION_RATES[funcRole] || {};
+                            const rates = getCommissionRates(funcRole);
                             
                             return (
                               <TableRow key={funcionario.id}>
@@ -663,7 +1166,7 @@ export default function AcompanhamentoVendas() {
                                   <div className="space-y-1">
                                     {Object.keys(rates).map(category => (
                                       <Badge key={category} variant="outline" className="mr-1 text-xs">
-                                        {getCommissionCategoryDisplayName(category)}
+                                        {getCategoryDisplayName(category)}
                                       </Badge>
                                     ))}
                                   </div>
@@ -675,7 +1178,7 @@ export default function AcompanhamentoVendas() {
                                   {funcHasCommissions ? (
                                     <>
                                       R$ {Math.floor(Math.random() * 500).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                      {hasCommissions(funcRole) && funcRole === 'aux_conveniencia' && (
+                                      {isBonus(funcRole) && (
                                         <Badge variant="outline" className="ml-2 text-xs">Bônus</Badge>
                                       )}
                                     </>
@@ -697,8 +1200,15 @@ export default function AcompanhamentoVendas() {
                   </div>
                 </CardContent>
               </Card>
-            )}
-          </ConditionalRender>
+            )
+          ) : (
+            <Card>
+              <CardContent className="text-center py-8">
+                <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+                <p className="text-muted-foreground">Você não tem permissão para visualizar dados comparativos.</p>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* Visualização Detalhada */}
@@ -753,7 +1263,7 @@ export default function AcompanhamentoVendas() {
                         <div key={result.category} className="border rounded-lg p-4">
                           <div className="flex justify-between items-center mb-3">
                             <h4 className="font-semibold text-lg">{result.categoryName}</h4>
-                            <Badge variant="outline">{(result.rate * 100).toFixed(1)}% de comissão</Badge>
+                            <Badge variant="outline">{formatRate(result.rate)} de comissão</Badge>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
@@ -764,12 +1274,12 @@ export default function AcompanhamentoVendas() {
                             </div>
                             <div>
                               <p className="text-sm text-muted-foreground">Taxa Aplicada</p>
-                              <p className="text-xl font-bold text-blue-600">{(result.rate * 100).toFixed(1)}%</p>
+                              <p className="text-xl font-bold text-blue-600">{formatRate(result.rate)}</p>
                             </div>
                             <div>
                               <p className="text-sm text-muted-foreground">{commissionSummary.isBonus ? 'Bônus Gerado' : 'Comissão Gerada'}</p>
                               <p className="text-xl font-bold text-green-600">
-                                R$ {result.commission.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                {formatCommission(result.commission)}
                               </p>
                             </div>
                           </div>
@@ -786,5 +1296,3 @@ export default function AcompanhamentoVendas() {
     </div>
   );
 }
-
-
