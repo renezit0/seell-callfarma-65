@@ -759,7 +759,7 @@ export default function AcompanhamentoVendasNovo() {
           .from('usuarios')
           .select('id, nome, matricula, tipo, loja_id')
           .eq('loja_id', currentLojaId)
-          .eq('ativo', true);
+          .eq('status', 'ativo');
 
         if (error) {
           console.error('Erro ao buscar funcionários:', error);
