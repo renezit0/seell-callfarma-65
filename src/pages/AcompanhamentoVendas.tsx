@@ -805,121 +805,171 @@ export default function AcompanhamentoVendasNovo() {
     };
   }, [selectedPeriod]);
 
-  // Buscar vendas (CORRIGIDO)
+  // Buscar vendas (IGUAL AO RANKINGS)
   const fetchVendas = async () => {
     if (!lojaInfo || isLoadingData) return;
     
     try {
-      // Calcular período baseado no selectedPeriod
       if (!selectedPeriod) return;
       
       const dataInicio = format(new Date(selectedPeriod.startDate), 'yyyy-MM-dd');
       const dataFim = format(new Date(selectedPeriod.endDate), 'yyyy-MM-dd');
 
-      console.log(`🔍 Buscando dados API: ${dataInicio} a ${dataFim} para loja CDFIL ${lojaInfo.cdfil}`);
+      console.log(`🔍 Buscando dados API: ${dataInicio} a ${dataFim}`);
       console.log(`👤 Funcionário selecionado: ${selectedFuncionarioId}`);
 
-      // Determinar CDFIL para busca
-      let cdfil;
-      if (canAccessAllStores && !selectedLojaId) {
-        cdfil = 'all';
-      } else {
-        cdfil = lojaInfo.cdfil;
+      // Buscar dados por categoria (igual Rankings)
+      const promises = [];
+      
+      // Buscar todas as categorias que podem gerar comissão
+      promises.push(callfarmaAPI.buscarVendasFuncionarios({
+        dataInicio,
+        dataFim,
+        filtroGrupos: '20,25' // Rentáveis (r_mais)
+      }));
+      
+      promises.push(callfarmaAPI.buscarVendasFuncionarios({
+        dataInicio,
+        dataFim,
+        filtroGrupos: '22' // GoodLife
+      }));
+      
+      promises.push(callfarmaAPI.buscarVendasFuncionarios({
+        dataInicio,
+        dataFim,
+        filtroGrupos: '46' // Perfumaria R+
+      }));
+      
+      promises.push(callfarmaAPI.buscarVendasFuncionarios({
+        dataInicio,
+        dataFim,
+        filtroGrupos: '36,13' // Conveniência R+
+      }));
+      
+      const [vendasRentaveis, vendasGoodlife, vendasPerfumaria, vendasConveniencia] = await Promise.all(promises);
+      
+      console.log('Dados recebidos:', {
+        rentaveis: vendasRentaveis.length,
+        goodlife: vendasGoodlife.length,
+        perfumaria: vendasPerfumaria.length,
+        conveniencia: vendasConveniencia.length
+      });
+      
+      // Filtrar por loja (IGUAL AO RANKINGS)
+      const filtrarPorLoja = (vendas: any[]) => {
+        if (!canAccessAllStores && user?.loja_id) {
+          // Buscar código da loja do usuário
+          return vendas.filter(v => v.CDFIL === lojaInfo.cdfil);
+        } else if (canAccessAllStores && selectedLojaId) {
+          return vendas.filter(v => v.CDFIL === lojaInfo.cdfil);
+        }
+        return vendas;
+      };
+      
+      const rentaveisFiltradas = filtrarPorLoja(vendasRentaveis);
+      const goodlifeFiltradas = filtrarPorLoja(vendasGoodlife);
+      const perfumariaFiltradas = filtrarPorLoja(vendasPerfumaria);
+      const convenienciaFiltradas = filtrarPorLoja(vendasConveniencia);
+      
+      console.log('Dados filtrados por loja:', {
+        rentaveis: rentaveisFiltradas.length,
+        goodlife: goodlifeFiltradas.length,
+        perfumaria: perfumariaFiltradas.length,
+        conveniencia: convenienciaFiltradas.length
+      });
+      
+      // Filtrar por funcionário
+      let funcionarioSelecionado = null;
+      
+      if (selectedFuncionarioId === 'me') {
+        // Buscar CDFUN do usuário logado
+        const { data: userData } = await supabase
+          .from('usuarios')
+          .select('cdfun, matricula')
+          .eq('id', user.id)
+          .single();
+        
+        console.log('Dados do usuário:', userData);
+        funcionarioSelecionado = userData?.cdfun;
+      } else if (selectedFuncionarioId !== 'all') {
+        funcionarioSelecionado = parseInt(selectedFuncionarioId);
       }
-
-      console.log(`🎯 CDFIL determinado: ${cdfil}`);
-
-      if (selectedFuncionarioId !== 'me' && selectedFuncionarioId !== 'all') {
-        // Buscar dados específicos do funcionário selecionado
-        console.log(`🔍 Buscando dados específicos do funcionário ID ${selectedFuncionarioId}`);
+      
+      // Agregar vendas por categoria para o funcionário
+      const salesData: SalesData = {};
+      
+      if (funcionarioSelecionado) {
+        console.log(`Filtrando por funcionário CDFUN: ${funcionarioSelecionado}`);
         
-        const dadosFuncionario = await callfarmaAPI.buscarVendasFuncionariosDetalhadas(
-          dataInicio,
-          dataFim,
-          cdfil === 'all' ? undefined : cdfil,
-          parseInt(selectedFuncionarioId)
-        );
-        
-        console.log(`📊 Dados do funcionário recebidos: ${dadosFuncionario.length} registros`);
-        const vendasProcessadasFunc = processarDadosFuncionarios(dadosFuncionario);
-        setVendasProcessadas(vendasProcessadasFunc);
-        
-        // Buscar lista de funcionários também
-        try {
-          const { funcionarios: funcAPI } = await callfarmaAPI.buscarDadosVendasCompletos(
-            dataInicio,
-            dataFim,
-            cdfil
-          );
-          setFuncionarios(funcAPI);
-        } catch (e) {
-          console.log('Erro ao buscar lista de funcionários:', e);
+        // Processar cada categoria
+        const funcionarioRentaveis = rentaveisFiltradas.find(f => f.CDFUN === funcionarioSelecionado);
+        if (funcionarioRentaveis) {
+          salesData['r_mais'] = funcionarioRentaveis.TOTAL_VALOR || 0;
         }
+        
+        const funcionarioGoodlife = goodlifeFiltradas.find(f => f.CDFUN === funcionarioSelecionado);
+        if (funcionarioGoodlife) {
+          salesData['goodlife'] = funcionarioGoodlife.TOTAL_VALOR || 0;
+        }
+        
+        const funcionarioPerfumaria = perfumariaFiltradas.find(f => f.CDFUN === funcionarioSelecionado);
+        if (funcionarioPerfumaria) {
+          salesData['perfumaria_r_mais'] = funcionarioPerfumaria.TOTAL_VALOR || 0;
+        }
+        
+        const funcionarioConveniencia = convenienciaFiltradas.find(f => f.CDFUN === funcionarioSelecionado);
+        if (funcionarioConveniencia) {
+          salesData['conveniencia_r_mais'] = funcionarioConveniencia.TOTAL_VALOR || 0;
+        }
+        
+        console.log('Vendas do funcionário por categoria:', salesData);
       } else {
-        // Buscar dados completos da loja
-        console.log(`🔍 Buscando dados completos da loja`);
-        
-        const { vendasFuncionarios, funcionarios: funcAPI } = await callfarmaAPI.buscarDadosVendasCompletos(
-          dataInicio,
-          dataFim,
-          cdfil
-        );
-
-        console.log(`📊 Dados recebidos: ${vendasFuncionarios.length} vendas, ${funcAPI.length} funcionários`);
-
-        // Processar todos os dados
-        const vendasProc = processarDadosFuncionarios(vendasFuncionarios);
-        console.log(`📋 Vendas processadas: ${vendasProc.length} registros`);
-        
-        let vendasFinais = vendasProc;
-        
-        // Se for "me", tentar filtrar pelo usuário logado
-        if (selectedFuncionarioId === 'me') {
-          console.log(`👤 Tentando filtrar vendas do usuário logado (${user?.nome})`);
-          
-          // Primeiro tentar buscar CDFUN na tabela usuarios
-          const { data: userData } = await supabase
-            .from('usuarios')
-            .select('cdfun, matricula')
-            .eq('id', user.id)
-            .single();
-          
-          console.log(`🔍 Dados do usuário na base:`, userData);
-          
-          if (userData?.cdfun) {
-            vendasFinais = vendasProc.filter(venda => venda.cdfun === userData.cdfun);
-            console.log(`✅ Filtrado por CDFUN ${userData.cdfun}: ${vendasFinais.length} registros`);
-          } else {
-            // Se não tiver CDFUN, tentar filtrar por nome/matrícula
-            console.log(`⚠️ CDFUN não encontrado, tentando filtrar por nome`);
-            
-            const nomeUsuario = user?.nome?.toLowerCase();
-            if (nomeUsuario) {
-              vendasFinais = vendasProc.filter(venda => 
-                venda.nomefun?.toLowerCase().includes(nomeUsuario) ||
-                nomeUsuario.includes(venda.nomefun?.toLowerCase())
-              );
-              console.log(`🔍 Filtrado por nome "${nomeUsuario}": ${vendasFinais.length} registros`);
-            }
-            
-            if (vendasFinais.length === 0) {
-              console.log(`❌ Não foi possível filtrar pelo usuário, mostrando todas as vendas da loja`);
-              vendasFinais = vendasProc;
-            }
-          }
-        }
-        
-        setVendasProcessadas(vendasFinais);
-        setFuncionarios(funcAPI);
-        
-        // Debug: mostrar algumas vendas de exemplo
-        if (vendasFinais.length > 0) {
-          console.log(`📝 Primeiras 3 vendas:`, vendasFinais.slice(0, 3));
-        }
+        // Se não especificou funcionário, somar todos
+        salesData['r_mais'] = rentaveisFiltradas.reduce((sum, f) => sum + (f.TOTAL_VALOR || 0), 0);
+        salesData['goodlife'] = goodlifeFiltradas.reduce((sum, f) => sum + (f.TOTAL_VALOR || 0), 0);
+        salesData['perfumaria_r_mais'] = perfumariaFiltradas.reduce((sum, f) => sum + (f.TOTAL_VALOR || 0), 0);
+        salesData['conveniencia_r_mais'] = convenienciaFiltradas.reduce((sum, f) => sum + (f.TOTAL_VALOR || 0), 0);
       }
+      
+      // Atualizar estados
+      setSalesData(salesData);
+      
+      // Criar lista única de funcionários
+      const todosFuncionarios = new Map();
+      [...rentaveisFiltradas, ...goodlifeFiltradas, ...perfumariaFiltradas, ...convenienciaFiltradas].forEach(f => {
+        if (f.CDFUN && f.NOME) {
+          todosFuncionarios.set(f.CDFUN, {
+            id: f.CDFUN,
+            nome: f.NOME
+          });
+        }
+      });
+      
+      setFuncionarios(Array.from(todosFuncionarios.values()));
+      
+      // Mock vendas processadas para compatibilidade
+      const vendasMock: VendaProcessada[] = [];
+      Object.entries(salesData).forEach(([categoria, valor]) => {
+        if (valor > 0) {
+          vendasMock.push({
+            id: `mock-${categoria}`,
+            cdfun: funcionarioSelecionado || 0,
+            nomefun: user?.nome || 'Usuário',
+            cdfil: lojaInfo.cdfil,
+            data_venda: dataInicio,
+            categoria,
+            valor_venda: valor,
+            valor_devolucao: 0,
+            valor_liquido: valor
+          });
+        }
+      });
+      
+      setVendasProcessadas(vendasMock);
+      console.log('Vendas processadas (mock):', vendasMock);
 
     } catch (error) {
-      console.error('❌ Erro ao buscar vendas da API:', error);
+      console.error('Erro ao buscar vendas da API:', error);
       toast.error('Erro ao carregar dados de vendas da API');
     }
   };
