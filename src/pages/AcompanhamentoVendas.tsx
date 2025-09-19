@@ -920,19 +920,39 @@ export default function AcompanhamentoVendasNovo() {
       
       if (selectedFuncionarioId === 'me') {
         try {
+          // Buscar usuário pela matrícula (que corresponde ao CDFUN da API)
           const { data: userData } = await supabase
             .from('usuarios')
-            .select('cdfun, matricula')
+            .select('matricula, nome')
             .eq('id', user.id)
             .single();
           
           console.log('Dados do usuário:', userData);
-          funcionarioSelecionado = userData?.cdfun;
+          
+          // A matrícula do usuário deve corresponder ao CDFUN da API
+          if (userData?.matricula) {
+            funcionarioSelecionado = parseInt(userData.matricula);
+            console.log(`Usando matrícula ${userData.matricula} como CDFUN para filtrar vendas`);
+          }
         } catch (e) {
-          console.warn('Erro ao buscar CDFUN do usuário:', e);
+          console.warn('Erro ao buscar matrícula do usuário:', e);
         }
       } else if (selectedFuncionarioId !== 'all') {
-        funcionarioSelecionado = parseInt(selectedFuncionarioId);
+        // Para funcionário específico selecionado, buscar sua matrícula
+        try {
+          const { data: funcionarioData } = await supabase
+            .from('usuarios')
+            .select('matricula, nome')
+            .eq('id', parseInt(selectedFuncionarioId))
+            .single();
+          
+          if (funcionarioData?.matricula) {
+            funcionarioSelecionado = parseInt(funcionarioData.matricula);
+            console.log(`Usando matrícula ${funcionarioData.matricula} do funcionário selecionado`);
+          }
+        } catch (e) {
+          console.warn('Erro ao buscar matrícula do funcionário selecionado:', e);
+        }
       }
       
       // Processar vendas por categoria para o funcionário
