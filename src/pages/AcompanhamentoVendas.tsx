@@ -13,7 +13,7 @@ import { Calendar, TrendingUp, DollarSign, Target, Users, Store, Share2, BarChar
 import { Navigate } from 'react-router-dom';
 import { StoreSelector } from '@/components/StoreSelector';
 import { usePeriodContext } from '@/contexts/PeriodContext';
-import { canViewAllStores } from '@/utils/userTypes';
+
 import { format, differenceInDays, isWeekend, subDays, addDays } from 'date-fns';
 import { toast } from 'sonner';
 
@@ -233,6 +233,7 @@ export default function Acompanhamento() {
   });
   const [lojaInfo, setLojaInfo] = useState<{ nome: string; regiao: string } | null>(null);
 
+  co  const canViewAllStores = (userType: string) => ["admin", "supervisor", "compras", "rh"].includes(userType););
   const hasMultiStoreAccess = user?.tipo && canViewAllStores(user.tipo);
   const currentLojaId = selectedLojaId || user?.loja_id || null;
   const isLider = user?.tipo === 'lider';
