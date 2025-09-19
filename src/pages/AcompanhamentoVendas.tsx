@@ -805,12 +805,13 @@ export default function AcompanhamentoVendasNovo() {
     };
   }, [selectedPeriod]);
 
-  // Buscar vendas (CORRIGIDO PARA API REAL)
+  // Buscar vendas (COM GARANTIA DE FINALIZAR LOADING)
   const fetchVendas = async () => {
-    if (!lojaInfo || isLoadingData) return;
-    
     try {
-      if (!selectedPeriod) return;
+      if (!selectedPeriod) {
+        console.log('❌ Período não selecionado');
+        return;
+      }
       
       const dataInicio = format(new Date(selectedPeriod.startDate), 'yyyy-MM-dd');
       const dataFim = format(new Date(selectedPeriod.endDate), 'yyyy-MM-dd');
@@ -869,7 +870,12 @@ export default function AcompanhamentoVendasNovo() {
         filtroGrupos: '13'
       }));
       
-      const [vendasSimilar, vendasGenerico, vendasPerfumaria, vendasGoodlife, vendasDermo, vendasConveniencia, vendasBrinquedo] = await Promise.all(promises);
+      const results = await Promise.allSettled(promises);
+      
+      // Extrair dados dos resultados, mesmo que algumas requisições falhem
+      const [vendasSimilar, vendasGenerico, vendasPerfumaria, vendasGoodlife, vendasDermo, vendasConveniencia, vendasBrinquedo] = results.map(result => 
+        result.status === 'fulfilled' ? result.value || [] : []
+      );
       
       console.log('Dados recebidos por categoria:', {
         similar: vendasSimilar.length,
@@ -913,14 +919,18 @@ export default function AcompanhamentoVendasNovo() {
       let funcionarioSelecionado = null;
       
       if (selectedFuncionarioId === 'me') {
-        const { data: userData } = await supabase
-          .from('usuarios')
-          .select('cdfun, matricula')
-          .eq('id', user.id)
-          .single();
-        
-        console.log('Dados do usuário:', userData);
-        funcionarioSelecionado = userData?.cdfun;
+        try {
+          const { data: userData } = await supabase
+            .from('usuarios')
+            .select('cdfun, matricula')
+            .eq('id', user.id)
+            .single();
+          
+          console.log('Dados do usuário:', userData);
+          funcionarioSelecionado = userData?.cdfun;
+        } catch (e) {
+          console.warn('Erro ao buscar CDFUN do usuário:', e);
+        }
       } else if (selectedFuncionarioId !== 'all') {
         funcionarioSelecionado = parseInt(selectedFuncionarioId);
       }
@@ -1013,44 +1023,51 @@ export default function AcompanhamentoVendasNovo() {
       
       setVendasProcessadas(vendasMock);
       
-      console.log('Processamento concluído:', {
+      console.log('✅ Processamento concluído:', {
         funcionarioSelecionado,
         totalCategorias: Object.keys(salesData).length,
         totalVendas: Object.values(salesData).reduce((sum, v) => sum + v, 0)
       });
 
     } catch (error) {
-      console.error('Erro ao buscar vendas da API:', error);
+      console.error('❌ Erro ao buscar vendas da API:', error);
       toast.error('Erro ao carregar dados de vendas da API');
+      
+      // Em caso de erro, limpar dados mas não deixar em loading
+      setSalesData({});
+      setVendasProcessadas([]);
+      setFuncionarios([]);
     }
   };
 
-  // useEffect principal (IGUAL ao Vendas.tsx)
+  // useEffect principal (CORRIGIDO)
   useEffect(() => {
-    if (!user || isLoadingData) return;
+    if (!user) return;
     
     const initializeData = async () => {
-      setIsLoadingData(true);
-      try {
-        if (!lojaInfo) {
-          await fetchLojaInfo();
-        } else {
-          await fetchVendas();
-        }
-      } finally {
-        setIsLoadingData(false);
+      if (!lojaInfo && currentLojaId) {
+        await fetchLojaInfo();
       }
     };
 
     initializeData();
-  }, [user, selectedPeriod, currentLojaId, selectedLojaId]);
+  }, [user, currentLojaId]);
 
-  // Fetch vendas quando loja info é atualizada
+  // Fetch vendas quando tudo estiver pronto
   useEffect(() => {
-    if (user && lojaInfo && !isLoadingData) {
-      fetchVendas();
-    }
-  }, [lojaInfo, selectedFuncionarioId]);
+    if (!user || !lojaInfo || !selectedPeriod) return;
+    
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        await fetchVendas();
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [user, lojaInfo, selectedPeriod, selectedFuncionarioId]);
 
   // Calcular vendas por categoria para comissões
   const vendasPorCategoria = useMemo(() => {
