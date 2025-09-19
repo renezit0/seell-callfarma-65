@@ -955,12 +955,38 @@ export default function AcompanhamentoVendasNovo() {
         }
       }
       
-      // Processar vendas por categoria para o funcionário
+      // Processar vendas por categoria para o funcionário (COM DEBUG MELHORADO)
       const processarVendasCategoria = (vendas: any[], funcionarioCdfun?: number) => {
+        console.log(`🔍 Processando categoria com ${vendas.length} vendas para funcionário ${funcionarioCdfun}`);
+        
         if (funcionarioCdfun) {
-          return vendas
-            .filter(v => v.CDFUN === funcionarioCdfun)
-            .reduce((sum, v) => sum + ((v.TOTAL_VLR_VE || 0) - (v.TOTAL_VLR_DV || 0)), 0);
+          // Debug: mostrar os CDFUNs únicos nesta categoria
+          const cdfunsUnicos = [...new Set(vendas.map(v => v.CDFUN))].sort();
+          console.log(`CDFUNs únicos nesta categoria:`, cdfunsUnicos.slice(0, 10)); // Mostrar só os primeiros 10
+          
+          // Tentar várias formas de match
+          const vendasFiltradas = vendas.filter(v => {
+            // Tentar match exato
+            if (v.CDFUN === funcionarioCdfun) return true;
+            
+            // Tentar match como string (caso venha como string da API)
+            if (v.CDFUN?.toString() === funcionarioCdfun.toString()) return true;
+            
+            // Tentar match com zeros à esquerda removidos
+            const cdfunLimpo = v.CDFUN?.toString().replace(/^0+/, '');
+            const funcionarioLimpo = funcionarioCdfun.toString().replace(/^0+/, '');
+            if (cdfunLimpo === funcionarioLimpo) return true;
+            
+            return false;
+          });
+          
+          console.log(`Vendas filtradas para CDFUN ${funcionarioCdfun}:`, vendasFiltradas.length);
+          
+          if (vendasFiltradas.length > 0) {
+            console.log(`Primeira venda encontrada:`, vendasFiltradas[0]);
+          }
+          
+          return vendasFiltradas.reduce((sum, v) => sum + ((v.TOTAL_VLR_VE || 0) - (v.TOTAL_VLR_DV || 0)), 0);
         } else {
           return vendas.reduce((sum, v) => sum + ((v.TOTAL_VLR_VE || 0) - (v.TOTAL_VLR_DV || 0)), 0);
         }
