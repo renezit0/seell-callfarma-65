@@ -425,8 +425,14 @@ export function hasCommissions(role: UserRole): boolean {
 
 export function getCategoryDisplayName(category: string): string {
   const names: Record<string, string> = {
-    'r_mais': 'Rentáveis R+',
+    'similar': 'Similar',
+    'generico': 'Genérico',
+    'perfumaria_alta': 'Perfumaria Alta',
     'goodlife': 'Good Life',
+    'dermocosmetico': 'Dermocosmético',
+    'conveniencia': 'Conveniência',
+    'brinquedo': 'Brinquedos',
+    'r_mais': 'Rentáveis R+',
     'perfumaria_r_mais': 'Perfumaria R+',
     'conveniencia_r_mais': 'Conveniência R+',
     'geral': 'Geral'
@@ -688,6 +694,9 @@ export default function AcompanhamentoVendasNovo() {
   } | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(false);
 
+  // NOVO ESTADO PARA DADOS DO COMPARATIVO
+  const [dadosComparativo, setDadosComparativo] = useState<Map<number, { totalVendas: number; totalComissao: number }>>(new Map());
+
   // Verificações de acesso
   const canAccessAllStores = hasPermission('canAccessAllStores');
   const currentLojaId = selectedLojaId || user?.loja_id || null;
@@ -749,7 +758,7 @@ export default function AcompanhamentoVendasNovo() {
     }
   };
 
-  // Buscar funcionários da loja
+  // Buscar funcionários da loja (CORRIGIDO)
   useEffect(() => {
     const fetchFuncionarios = async () => {
       if (!currentLojaId || !canViewAllSales) return;
@@ -759,7 +768,7 @@ export default function AcompanhamentoVendasNovo() {
           .from('usuarios')
           .select('id, nome, matricula, tipo, loja_id')
           .eq('loja_id', currentLojaId)
-          .eq('status', 'ativo');
+          .eq('status', 'ATIVO'); // CORREÇÃO: Mudou de 'ativo' para 'status' = 'ATIVO'
 
         if (error) {
           console.error('Erro ao buscar funcionários:', error);
@@ -923,6 +932,19 @@ export default function AcompanhamentoVendasNovo() {
         conveniencia: convenienciaFiltradas.length,
         brinquedo: brinquedoFiltradas.length
       });
+
+      // NOVO: Combine todos os dados em uma única lista para o comparativo
+      const todasAsVendasAgregadas = [
+        ...similarFiltradas.map(v => ({ ...v, categoria: 'similar' })),
+        ...genericoFiltradas.map(v => ({ ...v, categoria: 'generico' })),
+        ...perfumariaFiltradas.map(v => ({ ...v, categoria: 'perfumaria_alta' })),
+        ...goodlifeFiltradas.map(v => ({ ...v, categoria: 'goodlife' })),
+        ...dermoFiltradas.map(v => ({ ...v, categoria: 'dermocosmetico' })),
+        ...convenienciaFiltradas.map(v => ({ ...v, categoria: 'conveniencia' })),
+        ...brinquedoFiltradas.map(v => ({ ...v, categoria: 'brinquedo' })),
+      ];
+
+      console.log('📊 Dados para comparativo:', todasAsVendasAgregadas);
       
       // Buscar CDFUN do usuário se necessário
       let funcionarioSelecionado = null;
@@ -1104,6 +1126,45 @@ export default function AcompanhamentoVendasNovo() {
 
     loadData();
   }, [user, lojaInfo, selectedPeriod, selectedFuncionarioId]);
+
+  // NOVO: useEffect para calcular os dados do comparativo
+  useEffect(() => {
+    if (vendasProcessadas.length === 0 || funcionariosLoja.length === 0) {
+      setDadosComparativo(new Map());
+      return;
+    }
+
+    const mapaResultados = new Map<number, { totalVendas: number; totalComissao: number }>();
+
+    funcionariosLoja.forEach(func => {
+      const funcRole = func.tipo as UserRole;
+      const rates = getCommissionRates(funcRole);
+      if (Object.keys(rates).length === 0) return; // Pula se não tem comissão
+
+      const cdfun = parseInt(func.matricula);
+      if (isNaN(cdfun)) return;
+
+      let totalVendasFunc = 0;
+      let totalComissaoFunc = 0;
+
+      vendasProcessadas.forEach(venda => {
+        if (venda.cdfun === cdfun) {
+          totalVendasFunc += venda.valor_liquido;
+          const taxa = rates[venda.categoria];
+          if (taxa) {
+            totalComissaoFunc += venda.valor_liquido * taxa;
+          }
+        }
+      });
+
+      if (totalVendasFunc > 0) {
+        mapaResultados.set(func.id, { totalVendas: totalVendasFunc, totalComissao: totalComissaoFunc });
+      }
+    });
+
+    setDadosComparativo(mapaResultados);
+
+  }, [vendasProcessadas, funcionariosLoja]);
 
   // Calcular vendas por categoria para comissões
   const vendasPorCategoria = useMemo(() => {
@@ -1403,67 +1464,72 @@ export default function AcompanhamentoVendasNovo() {
                           <TableHead>Categorias</TableHead>
                           <TableHead className="text-right">Total Vendas</TableHead>
                           <TableHead className="text-right">Comissões</TableHead>
-                          <TableHead>Status</TableHead>
+                          <TableHead className="text-center">Status</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {funcionariosLoja.length === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                              <Store className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                              <p>Nenhum funcionário encontrado</p>
-                            </TableCell>
-                          </TableRow>
-                        ) : (
-                          funcionariosLoja.map((funcionario) => {
-                            const funcRole = funcionario.tipo as UserRole;
-                            const funcHasCommissions = hasCommissions(funcRole);
-                            const rates = getCommissionRates(funcRole);
-                            
-                            return (
-                              <TableRow key={funcionario.id}>
-                                <TableCell>
-                                  <div>
-                                    <div className="font-medium">{funcionario.nome}</div>
-                                    <div className="text-sm text-muted-foreground">({funcionario.matricula})</div>
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <Badge variant="secondary">{getDescricaoTipoUsuario(funcionario.tipo)}</Badge>
-                                </TableCell>
-                                <TableCell>
-                                  <div className="space-y-1">
-                                    {Object.keys(rates).map(category => (
-                                      <Badge key={category} variant="outline" className="mr-1 text-xs">
-                                        {getCategoryDisplayName(category)}
-                                      </Badge>
-                                    ))}
-                                  </div>
-                                </TableCell>
-                                <TableCell className="text-right font-medium">
-                                  <span className="text-muted-foreground">-</span>
-                                </TableCell>
-                                <TableCell className="text-right font-medium text-green-600">
-                                  {funcHasCommissions ? (
-                                    <>
-                                      <span className="text-muted-foreground">-</span>
-                                      {isBonus(funcRole) && (
-                                        <Badge variant="outline" className="ml-2 text-xs">Bônus</Badge>
-                                      )}
-                                    </>
-                                  ) : (
-                                    <span className="text-muted-foreground">N/A</span>
-                                  )}
-                                </TableCell>
-                                <TableCell>
-                                  <Badge variant={funcHasCommissions ? "default" : "secondary"}>
-                                    {funcHasCommissions ? "Ativo" : "Sem comissão"}
-                                  </Badge>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })
-                        )}
+                        {funcionariosLoja.map((funcionario) => {
+                          const funcRole = funcionario.tipo as UserRole;
+                          const funcHasCommissions = hasCommissions(funcRole); // CORREÇÃO: Usando a função utilitária
+                          const rates = getCommissionRates(funcRole);
+
+                          // CORREÇÃO: Pega os dados calculados do Map
+                          const dadosFunc = dadosComparativo.get(funcionario.id) || { totalVendas: 0, totalComissao: 0 };
+
+                          return (
+                            <TableRow key={funcionario.id}>
+                              <TableCell>
+                                <div>
+                                  <p className="font-medium">{funcionario.nome}</p>
+                                  <p className="text-sm text-muted-foreground">Mat: {funcionario.matricula}</p>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline">
+                                  {getDescricaoTipoUsuario(funcionario.tipo)}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex flex-wrap gap-1">
+                                  {Object.keys(rates).map((categoria) => (
+                                    <Badge key={categoria} variant="secondary" className="text-xs">
+                                      {getCategoryDisplayName(categoria)}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right font-medium">
+                                {/* CORREÇÃO: Exibe o total de vendas calculado */}
+                                {dadosFunc.totalVendas > 0 
+                                  ? formatCommission(dadosFunc.totalVendas) 
+                                  : <span className="text-muted-foreground">-</span>}
+                              </TableCell>
+                              <TableCell className="text-right font-medium text-green-600">
+                                {funcHasCommissions ? (
+                                  <>
+                                    {/* CORREÇÃO: Exibe a comissão calculada */}
+                                    {dadosFunc.totalComissao > 0 
+                                      ? formatCommission(dadosFunc.totalComissao) 
+                                      : <span className="text-muted-foreground">-</span>}
+                                    
+                                    {isBonus(funcRole) && (
+                                      <Badge variant="outline" className="ml-2 text-xs">Bônus</Badge>
+                                    )}
+                                  </>
+                                ) : (
+                                  <span className="text-muted-foreground">N/A</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {dadosFunc.totalVendas > 0 ? (
+                                  <CheckCircle className="w-4 h-4 text-green-500 mx-auto" />
+                                ) : (
+                                  <AlertCircle className="w-4 h-4 text-yellow-500 mx-auto" />
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </div>
@@ -1473,8 +1539,11 @@ export default function AcompanhamentoVendasNovo() {
           ) : (
             <Card>
               <CardContent className="text-center py-8">
-                <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-                <p className="text-muted-foreground">Você não tem permissão para visualizar dados comparativos.</p>
+                <AlertCircle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Acesso Restrito</h3>
+                <p className="text-muted-foreground">
+                  Você não tem permissão para visualizar o comparativo de todos os funcionários.
+                </p>
               </CardContent>
             </Card>
           )}
@@ -1485,19 +1554,19 @@ export default function AcompanhamentoVendasNovo() {
           {loading || isLoadingData ? (
             <div className="text-center py-8 text-muted-foreground">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-              Carregando detalhes...
+              Carregando dados detalhados...
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Estatísticas do Período */}
+              {/* Análise do Período */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5 text-purple-500" />
-                    Estatísticas do Período
+                    <Calendar className="w-5 h-5 text-blue-500" />
+                    Análise do Período
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                   <div className="text-center">
                     <p className="text-2xl font-bold text-foreground">{analisePeriodo.total_dias}</p>
                     <p className="text-sm text-muted-foreground">Dias no Período</p>
