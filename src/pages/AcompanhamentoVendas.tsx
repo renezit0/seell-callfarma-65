@@ -984,9 +984,19 @@ export default function AcompanhamentoVendasNovo() {
           
           if (vendasFiltradas.length > 0) {
             console.log(`Primeira venda encontrada:`, vendasFiltradas[0]);
+            console.log(`Grupos encontrados nesta categoria:`, [...new Set(vendasFiltradas.map(v => v.CDGRUPO))]);
           }
           
-          return vendasFiltradas.reduce((sum, v) => sum + ((v.TOTAL_VLR_VE || 0) - (v.TOTAL_VLR_DV || 0)), 0);
+          const total = vendasFiltradas.reduce((sum, v) => {
+            const valor = (v.TOTAL_VLR_VE || 0) - (v.TOTAL_VLR_DV || 0);
+            if (valor > 0) {
+              console.log(`  Venda válida: Grupo ${v.CDGRUPO}, Valor: R$ ${valor.toFixed(2)}, Produto: ${v.NOMEPRODU}`);
+            }
+            return sum + valor;
+          }, 0);
+          
+          console.log(`Total calculado para esta categoria: R$ ${total.toFixed(2)}`);
+          return total;
         } else {
           return vendas.reduce((sum, v) => sum + ((v.TOTAL_VLR_VE || 0) - (v.TOTAL_VLR_DV || 0)), 0);
         }
