@@ -887,6 +887,20 @@ export default function AcompanhamentoVendasNovo() {
         brinquedo: vendasBrinquedo.length
       });
       
+      // DEBUG: Ver alguns exemplos de vendas genéricas
+      if (vendasGenerico.length > 0) {
+        console.log('Primeiras 3 vendas genéricas:', vendasGenerico.slice(0, 3));
+        const gruposGenericos = [...new Set(vendasGenerico.map(v => v.CDGRUPO))];
+        console.log('Grupos encontrados nas vendas genéricas:', gruposGenericos);
+        
+        // Ver se tem vendas do FLAVIO (3794)
+        const vendasFlavio = vendasGenerico.filter(v => v.CDFUN === 3794);
+        console.log(`Vendas genéricas do FLAVIO (3794): ${vendasFlavio.length} vendas`);
+        if (vendasFlavio.length > 0) {
+          console.log('Vendas do Flavio:', vendasFlavio);
+        }
+      }
+      
       // Filtrar por loja
       const filtrarPorLoja = (vendas: any[]) => {
         if (!canAccessAllStores && user?.loja_id) {
