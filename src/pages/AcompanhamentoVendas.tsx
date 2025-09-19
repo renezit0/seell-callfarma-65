@@ -69,23 +69,6 @@ export interface UserPermissions {
   canEditOwnStoreUsers: boolean;
 }
 
-export interface APIVendaItem {
-  categoria_id: number;
-  valor_total: number;
-  quantidade: number;
-  data_venda: string;
-}
-
-export interface APIVendasResponse {
-  vendas: APIVendaItem[];
-  vendas_por_categoria?: Record<string, number>;
-  total_geral?: number;
-  periodo: {
-    data_inicio: string;
-    data_fim: string;
-  };
-}
-
 export interface SalesData {
   [categoryId: number]: number;
 }
@@ -127,17 +110,32 @@ interface AnalisePeriodo {
 // CONFIGURAÇÕES DE COMISSÕES E PRODUTOS
 // ============================================================================
 
-// Mapeamento dos grupos de produtos para IDs de categoria
-export const PRODUCT_GROUPS: Record<string, number[]> = {
-  'similar': [2, 21, 20, 25, 22],  // Similar inclui rentáveis E goodlife
-  'generico': [47, 5, 6],
-  'perfumaria_alta': [46],
-  'goodlife': [22],                 // Goodlife mantém categoria própria
-  'rentaveis20': [20],              // Rentáveis mantêm categorias específicas
-  'rentaveis25': [25],              // Rentáveis mantêm categorias específicas
-  'dermocosmetico': [31, 16],
-  'conveniencia': [36],
-  'brinquedo': [13]
+// Mapeamento dos grupos da API Callfarma para categorias de comissão
+export const GRUPOS_PARA_CATEGORIA: Record<number, string> = {
+  // Grupos rentáveis (20, 25) -> similar
+  20: 'similar',
+  25: 'similar',
+  
+  // Grupos genéricos (47, 5, 6) -> generico  
+  47: 'generico',
+  5: 'generico',
+  6: 'generico',
+  
+  // Perfumaria alta (46) -> perfumaria_alta
+  46: 'perfumaria_alta',
+  
+  // GoodLife (22) -> goodlife
+  22: 'goodlife',
+  
+  // Dermocosméticos (31, 16) -> dermocosmetico
+  31: 'dermocosmetico',
+  16: 'dermocosmetico',
+  
+  // Conveniência (36) -> conveniencia
+  36: 'conveniencia',
+  
+  // Brinquedos (13) -> brinquedo  
+  13: 'brinquedo'
 };
 
 // Configuração de comissões por cargo
@@ -442,8 +440,6 @@ export function getCategoryDisplayName(category: string): string {
     'generico': 'Genérico',
     'perfumaria_alta': 'Perfumaria Alta',
     'goodlife': 'Good Life',
-    'rentaveis20': 'Rentáveis 20%',
-    'rentaveis25': 'Rentáveis 25%',
     'dermocosmetico': 'Dermocosmético',
     'conveniencia': 'Conveniência',
     'brinquedo': 'Brinquedos'
@@ -473,6 +469,11 @@ export function getDescricaoTipoUsuario(tipo: string): string {
   return descricoes[tipo] || tipo;
 }
 
+// Mapear grupo da API para categoria de comissão
+export function mapearGrupoParaCategoria(cdgrupo: number): string {
+  return GRUPOS_PARA_CATEGORIA[cdgrupo] || 'outros';
+}
+
 export function calculateCommissions(role: UserRole, salesData: SalesData): CommissionSummary {
   const rates = getCommissionRates(role);
   const results: CommissionResult[] = [];
@@ -480,13 +481,8 @@ export function calculateCommissions(role: UserRole, salesData: SalesData): Comm
   
   // Para cada categoria configurada para o cargo
   Object.entries(rates).forEach(([category, rate]) => {
-    const categoryIds = PRODUCT_GROUPS[category] || [];
-    let categoryTotal = 0;
-    
-    // Soma vendas de todos os IDs da categoria
-    categoryIds.forEach(categoryId => {
-      categoryTotal += salesData[categoryId] || 0;
-    });
+    // Somar todas as vendas desta categoria
+    const categoryTotal = salesData[category] || 0;
     
     if (categoryTotal > 0) {
       const commission = categoryTotal * rate;
@@ -508,51 +504,40 @@ export function calculateCommissions(role: UserRole, salesData: SalesData): Comm
   };
 }
 
-// Processamento de dados de vendas
-export function processSalesData(apiResponse: APIVendasResponse): SalesData {
+// Processar dados da API para categorias
+export function processarDadosAPI(dadosAPI: any[]): SalesData {
   const salesData: SalesData = {};
   
-  // Se a API já retorna vendas agrupadas por categoria
-  if (apiResponse.vendas_por_categoria) {
-    Object.entries(apiResponse.vendas_por_categoria).forEach(([categoryId, value]) => {
-      salesData[parseInt(categoryId)] = Number(value);
-    });
-    return salesData;
-  }
-  
-  // Caso contrário, processar vendas individuais
-  if (apiResponse.vendas && Array.isArray(apiResponse.vendas)) {
-    apiResponse.vendas.forEach(venda => {
-      const categoryId = venda.categoria_id;
-      if (!salesData[categoryId]) {
-        salesData[categoryId] = 0;
+  dadosAPI.forEach(item => {
+    const grupo = item.CDGRUPO;
+    const categoria = mapearGrupoParaCategoria(grupo);
+    
+    if (categoria !== 'outros') {
+      const valorLiquido = (item.TOTAL_VLR_VE || 0) - (item.TOTAL_VLR_DV || 0);
+      
+      if (!salesData[categoria]) {
+        salesData[categoria] = 0;
       }
-      salesData[categoryId] += venda.valor_total;
-    });
-  }
+      salesData[categoria] += valorLiquido;
+    }
+  });
   
   return salesData;
 }
 
-export function validateSalesData(apiResponse: any): apiResponse is APIVendasResponse {
-  if (!apiResponse || typeof apiResponse !== 'object') {
-    return false;
+// Calcular período correto (dia 21 ao dia 20)
+export function calcularPeriodoComercial(selectedPeriod: any): { dataInicio: string; dataFim: string } {
+  if (!selectedPeriod) {
+    return { dataInicio: '', dataFim: '' };
   }
+
+  // Os períodos comerciais são do dia 21 ao dia 20
+  // O selectedPeriod já deve estar no formato correto, mas vamos garantir
+  const dataInicio = format(new Date(selectedPeriod.startDate), 'yyyy-MM-dd');
+  const dataFim = format(new Date(selectedPeriod.endDate), 'yyyy-MM-dd');
   
-  // Verificar se tem vendas ou vendas_por_categoria
-  const hasVendas = Array.isArray(apiResponse.vendas);
-  const hasVendasPorCategoria = apiResponse.vendas_por_categoria && typeof apiResponse.vendas_por_categoria === 'object';
-  
-  if (!hasVendas && !hasVendasPorCategoria) {
-    return false;
-  }
-  
-  // Verificar estrutura do período
-  if (!apiResponse.periodo || !apiResponse.periodo.data_inicio || !apiResponse.periodo.data_fim) {
-    return false;
-  }
-  
-  return true;
+  console.log('Período comercial calculado:', { dataInicio, dataFim });
+  return { dataInicio, dataFim };
 }
 
 // ============================================================================
@@ -703,7 +688,7 @@ export default function AcompanhamentoVendasNovo() {
     dias_uteis_restantes: 0,
     percentual_tempo: 0
   });
-  const [lojaInfo, setLojaInfo] = useState<{ nome: string; regiao: string } | null>(null);
+  const [lojaInfo, setLojaInfo] = useState<{ nome: string; regiao: string; numero: number } | null>(null);
 
   // Verificações de acesso
   const canAccessAllStores = hasPermission('canAccessAllStores');
@@ -736,7 +721,7 @@ export default function AcompanhamentoVendasNovo() {
       try {
         const { data, error } = await supabase
           .from('lojas')
-          .select('nome, regiao')
+          .select('nome, regiao, numero')
           .eq('id', currentLojaId)
           .single();
 
@@ -748,7 +733,8 @@ export default function AcompanhamentoVendasNovo() {
         if (data) {
           setLojaInfo({
             nome: data.nome || 'Loja',
-            regiao: data.regiao || ''
+            regiao: data.regiao || '',
+            numero: data.numero || currentLojaId
           });
         }
       } catch (error) {
@@ -827,23 +813,72 @@ export default function AcompanhamentoVendasNovo() {
   // Buscar dados de vendas e calcular comissões
   useEffect(() => {
     const fetchSalesData = async () => {
-      if (!user || !selectedPeriod || !currentLojaId || !userRole) return;
+      if (!user || !selectedPeriod || !currentLojaId || !userRole || !lojaInfo) return;
 
       setLoading(true);
       try {
-        console.log('Iniciando busca de dados de vendas...');
+        console.log('Iniciando busca de dados de vendas da API...');
         
-        // Usar dados simulados para demonstração, já que a integração não está funcionando
-        const mockSales: SalesData = {};
-        [2, 21, 20, 25, 22, 47, 5, 6, 46, 31, 16, 36, 13].forEach(categoryId => {
-          mockSales[categoryId] = Math.floor(Math.random() * 5000) + 1000;
+        // Calcular período comercial (dia 21 ao dia 20)
+        const { dataInicio, dataFim } = calcularPeriodoComercial(selectedPeriod);
+        
+        if (!dataInicio || !dataFim) {
+          console.error('Período inválido');
+          return;
+        }
+
+        // Determinar CDFIL para busca
+        const cdfil = canAccessAllStores && !selectedLojaId ? 'all' : lojaInfo.numero;
+        
+        console.log('Buscando dados da API:', {
+          dataInicio,
+          dataFim,
+          cdfil,
+          funcionarioId: selectedFuncionarioId === 'me' ? user.id : parseInt(selectedFuncionarioId)
         });
+
+        let dadosAPI: any[] = [];
+
+        if (selectedFuncionarioId === 'me') {
+          // Buscar dados do usuário logado
+          const { vendasFuncionarios } = await callfarmaAPI.buscarDadosVendasCompletos(
+            dataInicio,
+            dataFim,
+            cdfil
+          );
+          
+          // Filtrar apenas dados do usuário logado
+          dadosAPI = vendasFuncionarios.filter((item: any) => item.CDFUN === user.id);
+        } else if (selectedFuncionarioId !== 'all') {
+          // Buscar dados de funcionário específico
+          dadosAPI = await callfarmaAPI.buscarVendasFuncionariosDetalhadas(
+            dataInicio,
+            dataFim,
+            typeof cdfil === 'string' ? undefined : cdfil,
+            parseInt(selectedFuncionarioId)
+          );
+        } else {
+          // Buscar dados de todos os funcionários da loja
+          const { vendasFuncionarios } = await callfarmaAPI.buscarDadosVendasCompletos(
+            dataInicio,
+            dataFim,
+            cdfil
+          );
+          dadosAPI = vendasFuncionarios;
+        }
+
+        console.log('Dados recebidos da API:', dadosAPI.length, 'registros');
+
+        // Processar dados da API para categorias
+        const processedSales = processarDadosAPI(dadosAPI);
+        console.log('Dados processados por categoria:', processedSales);
         
-        setSalesData(mockSales);
+        setSalesData(processedSales);
         
         // Calcular comissões se o usuário tem direito
         if (hasCommissions) {
-          const summary = calculateCommissions(mockSales);
+          const summary = calculateCommissions(processedSales);
+          console.log('Comissões calculadas:', summary);
           setCommissionSummary(summary);
         } else {
           setCommissionSummary({
@@ -858,21 +893,15 @@ export default function AcompanhamentoVendasNovo() {
 
       } catch (error) {
         console.error('Erro ao buscar dados de vendas:', error);
-        toast.error('Erro ao carregar dados de vendas');
+        toast.error('Erro ao carregar dados de vendas da API');
         
-        // Fallback para dados simulados em caso de erro
-        const mockSales: SalesData = {};
-        [2, 21, 20, 25, 22, 47, 5, 6, 46, 31, 16, 36, 13].forEach(categoryId => {
-          mockSales[categoryId] = Math.floor(Math.random() * 5000) + 1000;
+        // Em caso de erro, manter dados vazios
+        setSalesData({});
+        setCommissionSummary({
+          results: [],
+          totalCommission: 0,
+          isBonus: false
         });
-        
-        setSalesData(mockSales);
-        
-        if (hasCommissions) {
-          const summary = calculateCommissions(mockSales);
-          setCommissionSummary(summary);
-        }
-        
         setAnalisePeriodo(calcularAnalisePeriodo);
       } finally {
         setLoading(false);
@@ -880,7 +909,7 @@ export default function AcompanhamentoVendasNovo() {
     };
 
     fetchSalesData();
-  }, [user, selectedPeriod, currentLojaId, selectedFuncionarioId, userRole, hasCommissions, calculateCommissions, calcularAnalisePeriodo]);
+  }, [user, selectedPeriod, currentLojaId, selectedFuncionarioId, userRole, hasCommissions, calculateCommissions, calcularAnalisePeriodo, lojaInfo, canAccessAllStores, selectedLojaId, callfarmaAPI]);
 
   // Função para compartilhar no WhatsApp
   const handleShare = () => {
@@ -907,12 +936,14 @@ export default function AcompanhamentoVendasNovo() {
     window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank');
   };
 
-  if (authLoading) {
+  if (authLoading || callfarmaAPI.loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Verificando autenticação...</p>
+          <p className="text-muted-foreground">
+            {authLoading ? 'Verificando autenticação...' : 'Carregando dados da API...'}
+          </p>
         </div>
       </div>
     );
@@ -943,6 +974,11 @@ export default function AcompanhamentoVendasNovo() {
           <h1 className="text-2xl font-bold text-foreground">Acompanhamento de Vendas</h1>
           <p className="text-muted-foreground mt-1">
             {commissionSummary.isBonus ? 'Acompanhe seus bônus' : 'Visualize o desempenho de vendas e comissões'}
+            {selectedPeriod && (
+              <span className="block text-sm text-muted-foreground/70 mt-1">
+                Período: {selectedPeriod.label} (dia 21 ao dia 20)
+              </span>
+            )}
           </p>
         </div>
         
@@ -1033,7 +1069,7 @@ export default function AcompanhamentoVendasNovo() {
           {loading ? (
             <div className="text-center py-8 text-muted-foreground">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-              Carregando dados...
+              Carregando dados da API...
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1170,12 +1206,12 @@ export default function AcompanhamentoVendasNovo() {
                                   </div>
                                 </TableCell>
                                 <TableCell className="text-right font-medium">
-                                  R$ {Math.floor(Math.random() * 10000).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                  <span className="text-muted-foreground">-</span>
                                 </TableCell>
                                 <TableCell className="text-right font-medium text-green-600">
                                   {funcHasCommissions ? (
                                     <>
-                                      R$ {Math.floor(Math.random() * 500).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                      <span className="text-muted-foreground">-</span>
                                       {isBonus(funcRole) && (
                                         <Badge variant="outline" className="ml-2 text-xs">Bônus</Badge>
                                       )}
@@ -1287,6 +1323,35 @@ export default function AcompanhamentoVendasNovo() {
                   </CardContent>
                 </Card>
               )}
+
+              {/* Dados da API */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <DollarSign className="w-5 h-5 text-green-500" />
+                    Dados da API Callfarma
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      Período comercial: {selectedPeriod ? format(new Date(selectedPeriod.startDate), 'dd/MM/yyyy') : ''} a {selectedPeriod ? format(new Date(selectedPeriod.endDate), 'dd/MM/yyyy') : ''}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Total de categorias com vendas: {Object.keys(salesData).length}
+                    </p>
+                    <div className="mt-4">
+                      <h4 className="font-medium mb-2">Vendas por Categoria:</h4>
+                      {Object.entries(salesData).map(([categoria, valor]) => (
+                        <div key={categoria} className="flex justify-between py-1">
+                          <span className="text-sm">{getCategoryDisplayName(categoria)}</span>
+                          <span className="text-sm font-medium">R$ {valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           )}
         </TabsContent>
