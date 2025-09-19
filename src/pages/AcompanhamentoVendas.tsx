@@ -70,7 +70,7 @@ export interface UserPermissions {
 }
 
 export interface SalesData {
-  [categoryId: number]: number;
+  [categoria: string]: number; // Mudança: usar string em vez de number
 }
 
 export interface CommissionConfig {
@@ -106,95 +106,75 @@ interface AnalisePeriodo {
   percentual_tempo: number;
 }
 
+interface VendaProcessada {
+  id: string;
+  cdfun: number;
+  nomefun: string;
+  cdfil: number;
+  data_venda: string;
+  categoria: string;
+  valor_venda: number;
+  valor_devolucao: number;
+  valor_liquido: number;
+}
+
+interface Funcionario {
+  id: number;
+  nome: string;
+}
+
 // ============================================================================
 // CONFIGURAÇÕES DE COMISSÕES E PRODUTOS
 // ============================================================================
-
-// Mapeamento dos grupos da API Callfarma para categorias de comissão
-export const GRUPOS_PARA_CATEGORIA: Record<number, string> = {
-  // Grupos rentáveis (20, 25) -> similar
-  20: 'similar',
-  25: 'similar',
-  
-  // Grupos genéricos (47, 5, 6) -> generico  
-  47: 'generico',
-  5: 'generico',
-  6: 'generico',
-  
-  // Perfumaria alta (46) -> perfumaria_alta
-  46: 'perfumaria_alta',
-  
-  // GoodLife (22) -> goodlife
-  22: 'goodlife',
-  
-  // Dermocosméticos (31, 16) -> dermocosmetico
-  31: 'dermocosmetico',
-  16: 'dermocosmetico',
-  
-  // Conveniência (36) -> conveniencia
-  36: 'conveniencia',
-  
-  // Brinquedos (13) -> brinquedo  
-  13: 'brinquedo'
-};
 
 // Configuração de comissões por cargo
 export const COMMISSION_RATES: Record<UserRole, CommissionConfig> = {
   // Gerentes e farmacêuticos: similar 2%, generico 2%, dermocosmetico 2%
   gerente: {
-    similar: 0.02,
-    generico: 0.02,
-    dermocosmetico: 0.02
+    r_mais: 0.02,      // Rentáveis = similar
+    goodlife: 0.02     // Incluindo goodlife
   },
   
   gerentefarma: {
-    similar: 0.02,
-    generico: 0.02,
-    dermocosmetico: 0.02
+    r_mais: 0.02,
+    goodlife: 0.02
   },
   
   subgerentefarma: {
-    similar: 0.02,
-    generico: 0.02,
-    dermocosmetico: 0.02
+    r_mais: 0.02,
+    goodlife: 0.02
   },
   
   farmaceutico: {
-    similar: 0.02,
-    generico: 0.02,
-    dermocosmetico: 0.02
+    r_mais: 0.02,
+    goodlife: 0.02
   },
   
   // Subgerente, auxiliar: similar 5%, generico 4,5%, dermocosmetico 2%
   subgerente: {
-    similar: 0.05,
-    generico: 0.045,
-    dermocosmetico: 0.02
+    r_mais: 0.05,
+    goodlife: 0.05
   },
   
   auxiliar: {
-    similar: 0.05,
-    generico: 0.045,
-    dermocosmetico: 0.02
+    r_mais: 0.05,
+    goodlife: 0.05
   },
   
   aux1: {
-    similar: 0.05,
-    generico: 0.045,
-    dermocosmetico: 0.02
+    r_mais: 0.05,
+    goodlife: 0.05
   },
   
   // Consultora: perfumaria_alta 3%, dermocosmetico 2%, goodlife 5%
   consultora: {
-    perfumaria_alta: 0.03,
-    dermocosmetico: 0.02,
+    perfumaria_r_mais: 0.03,
     goodlife: 0.05
   },
   
   // Auxiliar conveniência: brinquedos e conveniencia 2% (é bonus, não comissão)
   aux_conveniencia: {
-    brinquedo: 0.02,
-    conveniencia: 0.02
+    conveniencia_r_mais: 0.02
   },
   
   // Cargos administrativos sem comissão
@@ -436,13 +416,11 @@ export function hasCommissions(role: UserRole): boolean {
 
 export function getCategoryDisplayName(category: string): string {
   const names: Record<string, string> = {
-    'similar': 'Similar',
-    'generico': 'Genérico',
-    'perfumaria_alta': 'Perfumaria Alta',
+    'r_mais': 'Rentáveis R+',
     'goodlife': 'Good Life',
-    'dermocosmetico': 'Dermocosmético',
-    'conveniencia': 'Conveniência',
-    'brinquedo': 'Brinquedos'
+    'perfumaria_r_mais': 'Perfumaria R+',
+    'conveniencia_r_mais': 'Conveniência R+',
+    'geral': 'Geral'
   };
   
   return names[category] || category;
@@ -469,9 +447,22 @@ export function getDescricaoTipoUsuario(tipo: string): string {
   return descricoes[tipo] || tipo;
 }
 
-// Mapear grupo da API para categoria de comissão
+// Mapear grupo da API para categoria (IGUAL ao Vendas.tsx)
 export function mapearGrupoParaCategoria(cdgrupo: number): string {
-  return GRUPOS_PARA_CATEGORIA[cdgrupo] || 'outros';
+  switch (cdgrupo) {
+    case 20:
+    case 25:
+      return 'r_mais';
+    case 36:
+    case 13:
+      return 'conveniencia_r_mais';
+    case 46:
+      return 'perfumaria_r_mais';
+    case 22:
+      return 'goodlife';
+    default:
+      return 'outros';
+  }
 }
 
 export function calculateCommissions(role: UserRole, salesData: SalesData): CommissionSummary {
@@ -481,7 +472,6 @@ export function calculateCommissions(role: UserRole, salesData: SalesData): Comm
   
   // Para cada categoria configurada para o cargo
   Object.entries(rates).forEach(([category, rate]) => {
-    // Somar todas as vendas desta categoria
     const categoryTotal = salesData[category] || 0;
     
     if (categoryTotal > 0) {
@@ -504,41 +494,30 @@ export function calculateCommissions(role: UserRole, salesData: SalesData): Comm
   };
 }
 
-// Processar dados da API para categorias
-export function processarDadosAPI(dadosAPI: any[]): SalesData {
-  const salesData: SalesData = {};
+// Processar dados dos funcionários (IGUAL ao Vendas.tsx)
+const processarDadosFuncionarios = (dados: any[]): VendaProcessada[] => {
+  console.log('Processando dados dos funcionários:', dados.length, 'registros');
   
-  dadosAPI.forEach(item => {
-    const grupo = item.CDGRUPO;
-    const categoria = mapearGrupoParaCategoria(grupo);
+  const processados = dados.map((item, index) => {
+    const categoria = mapearGrupoParaCategoria(item.CDGRUPO);
+    const valorLiquido = (item.TOTAL_VLR_VE || 0) - (item.TOTAL_VLR_DV || 0);
     
-    if (categoria !== 'outros') {
-      const valorLiquido = (item.TOTAL_VLR_VE || 0) - (item.TOTAL_VLR_DV || 0);
-      
-      if (!salesData[categoria]) {
-        salesData[categoria] = 0;
-      }
-      salesData[categoria] += valorLiquido;
-    }
-  });
+    return {
+      id: `${item.CDFIL}-${item.CDFUN}-${item.CDGRUPO}-${item.DATA}-${index}`,
+      cdfun: item.CDFUN,
+      nomefun: item.NOMEFUN,
+      cdfil: item.CDFIL,
+      data_venda: item.DATA.split('T')[0],
+      categoria,
+      valor_venda: item.TOTAL_VLR_VE || 0,
+      valor_devolucao: item.TOTAL_VLR_DV || 0,
+      valor_liquido: valorLiquido
+    };
+  }).filter(item => item.valor_liquido > 0);
   
-  return salesData;
-}
-
-// Calcular período correto (dia 21 ao dia 20)
-export function calcularPeriodoComercial(selectedPeriod: any): { dataInicio: string; dataFim: string } {
-  if (!selectedPeriod) {
-    return { dataInicio: '', dataFim: '' };
-  }
-
-  // Os períodos comerciais são do dia 21 ao dia 20
-  // O selectedPeriod já deve estar no formato correto, mas vamos garantir
-  const dataInicio = format(new Date(selectedPeriod.startDate), 'yyyy-MM-dd');
-  const dataFim = format(new Date(selectedPeriod.endDate), 'yyyy-MM-dd');
-  
-  console.log('Período comercial calculado:', { dataInicio, dataFim });
-  return { dataInicio, dataFim };
-}
+  console.log('Dados processados:', processados.length, 'vendas válidas');
+  return processados;
+};
 
 // ============================================================================
 // HOOKS PERSONALIZADOS
@@ -676,6 +655,10 @@ export default function AcompanhamentoVendasNovo() {
   const [funcionariosLoja, setFuncionariosLoja] = useState<UsuarioInfo[]>([]);
   const [selectedFuncionarioId, setSelectedFuncionarioId] = useState<string>('me');
   const [visualizacao, setVisualizacao] = useState<string>('resumo');
+  
+  // Estados iguais ao Vendas.tsx
+  const [vendasProcessadas, setVendasProcessadas] = useState<VendaProcessada[]>([]);
+  const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [salesData, setSalesData] = useState<SalesData>({});
   const [commissionSummary, setCommissionSummary] = useState<CommissionSummary>({
     results: [],
@@ -688,7 +671,13 @@ export default function AcompanhamentoVendasNovo() {
     dias_uteis_restantes: 0,
     percentual_tempo: 0
   });
-  const [lojaInfo, setLojaInfo] = useState<{ nome: string; regiao: string; numero: number } | null>(null);
+  const [lojaInfo, setLojaInfo] = useState<{
+    regiao: string;
+    numero: string;
+    nome: string;
+    cdfil: number;
+  } | null>(null);
+  const [isLoadingData, setIsLoadingData] = useState(false);
 
   // Verificações de acesso
   const canAccessAllStores = hasPermission('canAccessAllStores');
@@ -713,37 +702,43 @@ export default function AcompanhamentoVendasNovo() {
     }
   }, [user, canAccessAllStores]);
 
-  // Buscar informações da loja
-  useEffect(() => {
-    const fetchLojaInfo = async () => {
-      if (!currentLojaId) return;
+  // Buscar informações da loja (IGUAL ao Vendas.tsx)
+  const fetchLojaInfo = async () => {
+    if (!currentLojaId || isLoadingData) return;
+    
+    try {
+      // Buscar apenas os campos que existem na tabela lojas
+      const { data: lojaData, error: lojaError } = await supabase
+        .from('lojas')
+        .select('regiao, numero, nome, id')
+        .eq('id', currentLojaId)
+        .single();
+      
+      if (lojaError) throw lojaError;
 
-      try {
-        const { data, error } = await supabase
-          .from('lojas')
-          .select('nome, regiao, numero')
-          .eq('id', currentLojaId)
-          .single();
-
-        if (error) {
-          console.error('Erro ao buscar informações da loja:', error);
-          return;
-        }
-
-        if (data) {
-          setLojaInfo({
-            nome: data.nome || 'Loja',
-            regiao: data.regiao || '',
-            numero: data.numero || currentLojaId
-          });
-        }
-      } catch (error) {
-        console.error('Erro ao buscar informações da loja:', error);
+      // Usar o campo 'numero' da loja como CDFIL para a API
+      let cdfil = null;
+      
+      if (lojaData.numero) {
+        cdfil = typeof lojaData.numero === 'string' ? parseInt(lojaData.numero) : lojaData.numero;
+      } else {
+        cdfil = lojaData.id;
       }
-    };
 
-    fetchLojaInfo();
-  }, [currentLojaId]);
+      const infoLoja = {
+        regiao: lojaData.regiao || 'centro',
+        numero: lojaData.numero || currentLojaId.toString(),
+        nome: lojaData.nome || `Loja ${currentLojaId}`,
+        cdfil
+      };
+
+      setLojaInfo(infoLoja);
+      console.log('Loja carregada:', infoLoja);
+      
+    } catch (error) {
+      console.error('Erro ao buscar informações da loja:', error);
+    }
+  };
 
   // Buscar funcionários da loja
   useEffect(() => {
@@ -810,111 +805,191 @@ export default function AcompanhamentoVendasNovo() {
     };
   }, [selectedPeriod]);
 
-  // Buscar dados de vendas e calcular comissões
-  useEffect(() => {
-    const fetchSalesData = async () => {
-      if (!user || !selectedPeriod || !currentLojaId || !userRole || !lojaInfo) return;
+  // Buscar vendas (CORRIGIDO)
+  const fetchVendas = async () => {
+    if (!lojaInfo || isLoadingData) return;
+    
+    try {
+      // Calcular período baseado no selectedPeriod
+      if (!selectedPeriod) return;
+      
+      const dataInicio = format(new Date(selectedPeriod.startDate), 'yyyy-MM-dd');
+      const dataFim = format(new Date(selectedPeriod.endDate), 'yyyy-MM-dd');
 
-      setLoading(true);
-      try {
-        console.log('Iniciando busca de dados de vendas da API...');
-        
-        // Calcular período comercial (dia 21 ao dia 20)
-        const { dataInicio, dataFim } = calcularPeriodoComercial(selectedPeriod);
-        
-        if (!dataInicio || !dataFim) {
-          console.error('Período inválido');
-          return;
-        }
+      console.log(`🔍 Buscando dados API: ${dataInicio} a ${dataFim} para loja CDFIL ${lojaInfo.cdfil}`);
+      console.log(`👤 Funcionário selecionado: ${selectedFuncionarioId}`);
 
-        // Determinar CDFIL para busca
-        const cdfil = canAccessAllStores && !selectedLojaId ? 'all' : lojaInfo.numero;
+      // Determinar CDFIL para busca
+      let cdfil;
+      if (canAccessAllStores && !selectedLojaId) {
+        cdfil = 'all';
+      } else {
+        cdfil = lojaInfo.cdfil;
+      }
+
+      console.log(`🎯 CDFIL determinado: ${cdfil}`);
+
+      if (selectedFuncionarioId !== 'me' && selectedFuncionarioId !== 'all') {
+        // Buscar dados específicos do funcionário selecionado
+        console.log(`🔍 Buscando dados específicos do funcionário ID ${selectedFuncionarioId}`);
         
-        console.log('Buscando dados da API:', {
+        const dadosFuncionario = await callfarmaAPI.buscarVendasFuncionariosDetalhadas(
           dataInicio,
           dataFim,
-          cdfil,
-          funcionarioId: selectedFuncionarioId === 'me' ? user.id : parseInt(selectedFuncionarioId)
-        });
+          cdfil === 'all' ? undefined : cdfil,
+          parseInt(selectedFuncionarioId)
+        );
+        
+        console.log(`📊 Dados do funcionário recebidos: ${dadosFuncionario.length} registros`);
+        const vendasProcessadasFunc = processarDadosFuncionarios(dadosFuncionario);
+        setVendasProcessadas(vendasProcessadasFunc);
+        
+        // Buscar lista de funcionários também
+        try {
+          const { funcionarios: funcAPI } = await callfarmaAPI.buscarDadosVendasCompletos(
+            dataInicio,
+            dataFim,
+            cdfil
+          );
+          setFuncionarios(funcAPI);
+        } catch (e) {
+          console.log('Erro ao buscar lista de funcionários:', e);
+        }
+      } else {
+        // Buscar dados completos da loja
+        console.log(`🔍 Buscando dados completos da loja`);
+        
+        const { vendasFuncionarios, funcionarios: funcAPI } = await callfarmaAPI.buscarDadosVendasCompletos(
+          dataInicio,
+          dataFim,
+          cdfil
+        );
 
-        let dadosAPI: any[] = [];
+        console.log(`📊 Dados recebidos: ${vendasFuncionarios.length} vendas, ${funcAPI.length} funcionários`);
 
+        // Processar todos os dados
+        const vendasProc = processarDadosFuncionarios(vendasFuncionarios);
+        console.log(`📋 Vendas processadas: ${vendasProc.length} registros`);
+        
+        let vendasFinais = vendasProc;
+        
+        // Se for "me", tentar filtrar pelo usuário logado
         if (selectedFuncionarioId === 'me') {
-          // Buscar dados do usuário logado
-          const { vendasFuncionarios } = await callfarmaAPI.buscarDadosVendasCompletos(
-            dataInicio,
-            dataFim,
-            cdfil
-          );
+          console.log(`👤 Tentando filtrar vendas do usuário logado (${user?.nome})`);
           
-          // Filtrar apenas dados do usuário logado
-          dadosAPI = vendasFuncionarios.filter((item: any) => item.CDFUN === user.id);
-        } else if (selectedFuncionarioId !== 'all') {
-          // Buscar dados de funcionário específico
-          dadosAPI = await callfarmaAPI.buscarVendasFuncionariosDetalhadas(
-            dataInicio,
-            dataFim,
-            typeof cdfil === 'string' ? undefined : cdfil,
-            parseInt(selectedFuncionarioId)
-          );
-        } else {
-          // Buscar dados de todos os funcionários da loja
-          const { vendasFuncionarios } = await callfarmaAPI.buscarDadosVendasCompletos(
-            dataInicio,
-            dataFim,
-            cdfil
-          );
-          dadosAPI = vendasFuncionarios;
+          // Primeiro tentar buscar CDFUN na tabela usuarios
+          const { data: userData } = await supabase
+            .from('usuarios')
+            .select('cdfun, matricula')
+            .eq('id', user.id)
+            .single();
+          
+          console.log(`🔍 Dados do usuário na base:`, userData);
+          
+          if (userData?.cdfun) {
+            vendasFinais = vendasProc.filter(venda => venda.cdfun === userData.cdfun);
+            console.log(`✅ Filtrado por CDFUN ${userData.cdfun}: ${vendasFinais.length} registros`);
+          } else {
+            // Se não tiver CDFUN, tentar filtrar por nome/matrícula
+            console.log(`⚠️ CDFUN não encontrado, tentando filtrar por nome`);
+            
+            const nomeUsuario = user?.nome?.toLowerCase();
+            if (nomeUsuario) {
+              vendasFinais = vendasProc.filter(venda => 
+                venda.nomefun?.toLowerCase().includes(nomeUsuario) ||
+                nomeUsuario.includes(venda.nomefun?.toLowerCase())
+              );
+              console.log(`🔍 Filtrado por nome "${nomeUsuario}": ${vendasFinais.length} registros`);
+            }
+            
+            if (vendasFinais.length === 0) {
+              console.log(`❌ Não foi possível filtrar pelo usuário, mostrando todas as vendas da loja`);
+              vendasFinais = vendasProc;
+            }
+          }
         }
-
-        console.log('Dados recebidos da API:', dadosAPI.length, 'registros');
-
-        // Processar dados da API para categorias
-        const processedSales = processarDadosAPI(dadosAPI);
-        console.log('Dados processados por categoria:', processedSales);
         
-        setSalesData(processedSales);
+        setVendasProcessadas(vendasFinais);
+        setFuncionarios(funcAPI);
         
-        // Calcular comissões se o usuário tem direito
-        if (hasCommissions) {
-          const summary = calculateCommissions(processedSales);
-          console.log('Comissões calculadas:', summary);
-          setCommissionSummary(summary);
-        } else {
-          setCommissionSummary({
-            results: [],
-            totalCommission: 0,
-            isBonus: false
-          });
+        // Debug: mostrar algumas vendas de exemplo
+        if (vendasFinais.length > 0) {
+          console.log(`📝 Primeiras 3 vendas:`, vendasFinais.slice(0, 3));
         }
+      }
 
-        // Atualizar análise do período
-        setAnalisePeriodo(calcularAnalisePeriodo);
+    } catch (error) {
+      console.error('❌ Erro ao buscar vendas da API:', error);
+      toast.error('Erro ao carregar dados de vendas da API');
+    }
+  };
 
-      } catch (error) {
-        console.error('Erro ao buscar dados de vendas:', error);
-        toast.error('Erro ao carregar dados de vendas da API');
-        
-        // Em caso de erro, manter dados vazios
-        setSalesData({});
-        setCommissionSummary({
-          results: [],
-          totalCommission: 0,
-          isBonus: false
-        });
-        setAnalisePeriodo(calcularAnalisePeriodo);
+  // useEffect principal (IGUAL ao Vendas.tsx)
+  useEffect(() => {
+    if (!user || isLoadingData) return;
+    
+    const initializeData = async () => {
+      setIsLoadingData(true);
+      try {
+        if (!lojaInfo) {
+          await fetchLojaInfo();
+        } else {
+          await fetchVendas();
+        }
       } finally {
-        setLoading(false);
+        setIsLoadingData(false);
       }
     };
 
-    fetchSalesData();
-  }, [user, selectedPeriod, currentLojaId, selectedFuncionarioId, userRole, hasCommissions, calculateCommissions, calcularAnalisePeriodo, lojaInfo, canAccessAllStores, selectedLojaId, callfarmaAPI]);
+    initializeData();
+  }, [user, selectedPeriod, currentLojaId, selectedLojaId]);
+
+  // Fetch vendas quando loja info é atualizada
+  useEffect(() => {
+    if (user && lojaInfo && !isLoadingData) {
+      fetchVendas();
+    }
+  }, [lojaInfo, selectedFuncionarioId]);
+
+  // Calcular vendas por categoria para comissões
+  const vendasPorCategoria = useMemo(() => {
+    const grouped = vendasProcessadas.reduce((acc, venda) => {
+      const categoria = venda.categoria;
+      
+      if (!acc[categoria]) {
+        acc[categoria] = 0;
+      }
+      acc[categoria] += venda.valor_liquido;
+      return acc;
+    }, {} as SalesData);
+
+    console.log('Vendas por categoria:', grouped);
+    return grouped;
+  }, [vendasProcessadas]);
+
+  // Atualizar salesData e comissões quando vendasPorCategoria mudar
+  useEffect(() => {
+    setSalesData(vendasPorCategoria);
+    
+    if (hasCommissions) {
+      const summary = calculateCommissions(vendasPorCategoria);
+      console.log('Comissões calculadas:', summary);
+      setCommissionSummary(summary);
+    } else {
+      setCommissionSummary({
+        results: [],
+        totalCommission: 0,
+        isBonus: false
+      });
+    }
+    
+    setAnalisePeriodo(calcularAnalisePeriodo);
+  }, [vendasPorCategoria, hasCommissions, calculateCommissions, calcularAnalisePeriodo]);
 
   // Função para compartilhar no WhatsApp
   const handleShare = () => {
     const nomeUsuario = selectedFuncionarioId === 'me' ? user?.nome : funcionariosLoja.find(f => f.id.toString() === selectedFuncionarioId)?.nome;
-    const periodo = `${format(new Date(selectedPeriod.startDate), 'dd/MM/yyyy')} a ${format(new Date(selectedPeriod.endDate), 'dd/MM/yyyy')}`;
+    const periodo = selectedPeriod ? `${format(new Date(selectedPeriod.startDate), 'dd/MM/yyyy')} a ${format(new Date(selectedPeriod.endDate), 'dd/MM/yyyy')}` : '';
     
     let texto = `📊 *ACOMPANHAMENTO DE VENDAS*\n\n`;
     texto += `👤 *${nomeUsuario}*\n`;
@@ -936,7 +1011,7 @@ export default function AcompanhamentoVendasNovo() {
     window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank');
   };
 
-  if (authLoading || callfarmaAPI.loading) {
+  if (authLoading || callfarmaAPI.loading || isLoadingData) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -1015,7 +1090,7 @@ export default function AcompanhamentoVendasNovo() {
       </div>
 
       {/* Informações da Loja e Período */}
-      {lojaInfo && (
+      {lojaInfo && selectedPeriod && (
         <Card>
           <CardContent className="pt-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -1066,7 +1141,7 @@ export default function AcompanhamentoVendasNovo() {
 
         {/* Visualização Resumo */}
         <TabsContent value="resumo">
-          {loading ? (
+          {loading || isLoadingData ? (
             <div className="text-center py-8 text-muted-foreground">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
               Carregando dados da API...
@@ -1135,6 +1210,12 @@ export default function AcompanhamentoVendasNovo() {
                         : 'Seu cargo não possui sistema de comissões configurado.'
                       }
                     </p>
+                    {vendasProcessadas.length > 0 && (
+                      <div className="mt-4 text-sm text-muted-foreground">
+                        <p>Vendas encontradas: {vendasProcessadas.length} registros</p>
+                        <p>Total em vendas: R$ {vendasProcessadas.reduce((sum, v) => sum + v.valor_liquido, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               )}
@@ -1145,7 +1226,7 @@ export default function AcompanhamentoVendasNovo() {
         {/* Visualização Comparativa */}
         <TabsContent value="comparativo">
           {canViewAllSales ? (
-            loading ? (
+            loading || isLoadingData ? (
               <div className="text-center py-8 text-muted-foreground">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
                 Carregando tabela comparativa...
@@ -1247,7 +1328,7 @@ export default function AcompanhamentoVendasNovo() {
 
         {/* Visualização Detalhada */}
         <TabsContent value="detalhado">
-          {loading ? (
+          {loading || isLoadingData ? (
             <div className="text-center py-8 text-muted-foreground">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
               Carregando detalhes...
@@ -1324,28 +1405,27 @@ export default function AcompanhamentoVendasNovo() {
                 </Card>
               )}
 
-              {/* Dados da API */}
+              {/* Debug Info */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <DollarSign className="w-5 h-5 text-green-500" />
-                    Dados da API Callfarma
+                    Debug - Dados da API
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">
-                      Período comercial: {selectedPeriod ? format(new Date(selectedPeriod.startDate), 'dd/MM/yyyy') : ''} a {selectedPeriod ? format(new Date(selectedPeriod.endDate), 'dd/MM/yyyy') : ''}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Total de categorias com vendas: {Object.keys(salesData).length}
-                    </p>
+                  <div className="space-y-2 text-sm">
+                    <p>Total de vendas processadas: {vendasProcessadas.length}</p>
+                    <p>Usuário logado: {user?.nome} (ID: {user?.id})</p>
+                    <p>Funcionário selecionado: {selectedFuncionarioId}</p>
+                    <p>Cargo: {user?.tipo}</p>
+                    <p>Tem comissões: {hasCommissions ? 'Sim' : 'Não'}</p>
                     <div className="mt-4">
                       <h4 className="font-medium mb-2">Vendas por Categoria:</h4>
                       {Object.entries(salesData).map(([categoria, valor]) => (
                         <div key={categoria} className="flex justify-between py-1">
-                          <span className="text-sm">{getCategoryDisplayName(categoria)}</span>
-                          <span className="text-sm font-medium">R$ {valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                          <span>{getCategoryDisplayName(categoria)}</span>
+                          <span className="font-medium">R$ {valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                         </div>
                       ))}
                     </div>
