@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Search, Plus, Calendar, DollarSign, TrendingUp, BarChart3, LineChart, Trophy, TrendingDown, Users } from 'lucide-react';
 import { getNomeCategoria, getIconeCategoria, getClasseCorCategoria, getClasseBgCategoria, getCorCategoria } from '@/utils/categories';
+import { canViewAllStores, canViewAllSales, canViewOwnSalesOnly } from '@/utils/userTypes';
 import { Navigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { format, startOfMonth, subMonths, eachDayOfInterval, getDay } from 'date-fns';
@@ -88,7 +89,10 @@ export default function Vendas() {
   const [isLoadingData, setIsLoadingData] = useState(false);
 
   // Check if user can view all stores
-  const canViewAllStores = user?.tipo && ['admin', 'supervisor', 'compras'].includes(user.tipo);
+  // Verificar permissões do usuário
+  const hasMultiStoreAccess = user?.tipo && canViewAllStores(user.tipo);
+  const canSeeAllSales = user?.tipo && canViewAllSales(user.tipo);
+  const canSeeOwnSalesOnly = user?.tipo && canViewOwnSalesOnly(user.tipo);
   const currentLojaId = selectedLojaId || user?.loja_id || null;
 
   // Verificar parâmetro de filtro na URL
@@ -636,7 +640,7 @@ export default function Vendas() {
           </p>
         </div>
         <div className="flex gap-2">
-          {canViewAllStores && (
+          {hasMultiStoreAccess && (
             <StoreSelector 
               selectedLojaId={selectedLojaId} 
               onLojaChange={setSelectedLojaId} 

@@ -26,6 +26,7 @@ import Graficos from "./pages/Graficos";
 import Escala from "./pages/Escala";
 import EscalaConsolidada from "./pages/EscalaConsolidada";
 import Participacao from "./pages/Participacao";
+import AcompanhamentoVendas from "./pages/AcompanhamentoVendas";
 import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 function AppContent() {
@@ -154,6 +155,7 @@ function AppContent() {
             <Route path="/relatorios" element={<Relatorios />} />
             <Route path="/rankings" element={<Rankings />} />
             <Route path="/participacao" element={<Participacao />} />
+            <Route path="/acompanhamento-vendas" element={<AcompanhamentoVendas />} />
             
             <Route path="/escala" element={<Escala />} />
             <Route path="/escala-consolidada" element={<EscalaConsolidada />} />

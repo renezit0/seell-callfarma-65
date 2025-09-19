@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Search, Plus, Edit, Trash2 } from 'lucide-react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { getDescricaoTipoUsuario, getCorTipoUsuario, getTiposUsuario } from '@/utils/userTypes';
+import { getDescricaoTipoUsuario, getCorTipoUsuario, getTiposUsuario, canViewAllStores, canEditUsers, canEditUsersOwnStore, canEditSelf } from '@/utils/userTypes';
 import { StoreSelector } from '@/components/StoreSelector';
 import { AvatarUpload } from '@/components/AvatarUpload';
 
@@ -42,8 +42,10 @@ export default function Usuarios() {
   const [lojaInfo, setLojaInfo] = useState<{ numero: string; nome: string } | null>(null);
   const { avatars, fetchAvatars } = useAvatar();
 
-  // Verificar se o usuário pode ver todas as lojas
-  const canViewAllStores = user?.tipo && ['admin', 'supervisor', 'compras'].includes(user.tipo);
+  // Verificar permissões do usuário
+  const hasMultiStoreAccess = user?.tipo && canViewAllStores(user.tipo);
+  const canEdit = user?.tipo && canEditUsers(user.tipo);
+  const canEditOwnStore = user?.tipo && canEditUsersOwnStore(user.tipo);
 
   // useEffect must be called before any early returns
   useEffect(() => {
@@ -60,15 +62,15 @@ export default function Usuarios() {
         .select('*')
         .order('nome');
 
-      // Se o usuário pode ver todas as lojas e tem uma loja específica selecionada
-      if (canViewAllStores && selectedLojaId) {
+        // Se o usuário pode ver todas as lojas e tem uma loja específica selecionada
+        if (hasMultiStoreAccess && selectedLojaId) {
         query = query.eq('loja_id', selectedLojaId);
       } 
       // Se o usuário não pode ver todas as lojas, filtrar pela sua loja
       else if (!canViewAllStores) {
         query = query.eq('loja_id', user?.loja_id);
       }
-      // Se canViewAllStores é true e selectedLojaId é null, não adiciona filtro de loja (mostra todas)
+      // Se hasMultiStoreAccess é true e selectedLojaId é null, não adiciona filtro de loja (mostra todas)
 
       const { data, error } = await query;
 
@@ -166,6 +168,27 @@ export default function Usuarios() {
   };
 
   const handleEdit = (userId: number) => {
+    // Verificar se pode editar este usuário
+    if (!canEdit && !canEditOwnStore) {
+      toast.error('Você não tem permissão para editar usuários');
+      return;
+    }
+    
+    // Se só pode editar da própria loja, verificar se é da mesma loja
+    if (canEditOwnStore && !hasMultiStoreAccess) {
+      const usuario = usuarios.find(u => u.id === userId);
+      if (usuario && usuario.loja_id !== user?.loja_id) {
+        toast.error('Você só pode editar usuários da sua loja');
+        return;
+      }
+    }
+    
+    // Verificar se está tentando editar a si mesmo (só admin pode)
+    if (userId === user?.id && !canEditSelf(user.tipo)) {
+      toast.error('Você não pode editar seu próprio perfil');
+      return;
+    }
+    
     navigate(`/usuarios/editar/${userId}`);
   };
 
@@ -183,7 +206,7 @@ export default function Usuarios() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">
-            {canViewAllStores ? 
+            {hasMultiStoreAccess ? 
               (selectedLojaId ? 
                 (lojaInfo ? `Usuários - ${lojaInfo.numero} - ${lojaInfo.nome.toUpperCase()}` : `Usuários da Loja ${selectedLojaId}`) 
                 : 'Usuários de Todas as Lojas') 
@@ -195,7 +218,7 @@ export default function Usuarios() {
           </p>
         </div>
         
-        {canViewAllStores && (
+        {hasMultiStoreAccess && (
           <StoreSelector
             selectedLojaId={selectedLojaId}
             onLojaChange={setSelectedLojaId}
@@ -209,7 +232,8 @@ export default function Usuarios() {
         <CardHeader>
           <CardTitle className="text-lg flex items-center justify-between">
             Filtros
-            <Button size="sm" className="bg-primary hover:bg-primary/90">
+            <Button size="sm" className="bg-primary hover:bg-primary/90" 
+              disabled={!canEdit && !canEditOwnStore}>
               <Plus className="w-4 h-4 mr-2" />
               Novo Usuário
             </Button>
@@ -296,10 +320,12 @@ export default function Usuarios() {
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <Button variant="ghost" size="sm" onClick={() => handleEdit(usuario.id)}>
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        {usuario.status !== 'ativo' && (
+                        {(canEdit || canEditOwnStore) && (
+                          <Button variant="ghost" size="sm" onClick={() => handleEdit(usuario.id)}>
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                        )}
+                        {usuario.status !== 'ativo' && (canEdit || canEditOwnStore) && (
                           <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -374,10 +400,12 @@ export default function Usuarios() {
                         <TableCell>{getStatusBadge(usuario.status)}</TableCell>
                         <TableCell>
                           <div className="flex items-center space-x-2">
-                            <Button variant="ghost" size="sm" onClick={() => handleEdit(usuario.id)}>
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            {usuario.status !== 'ativo' && (
+                            {(canEdit || canEditOwnStore) && (
+                              <Button variant="ghost" size="sm" onClick={() => handleEdit(usuario.id)}>
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                            )}
+                            {usuario.status !== 'ativo' && (canEdit || canEditOwnStore) && (
                               <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
                                 <Trash2 className="w-4 h-4" />
                               </Button>
