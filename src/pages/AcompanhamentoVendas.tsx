@@ -757,7 +757,7 @@ export default function AcompanhamentoVendasNovo() {
       try {
         const { data, error } = await supabase
           .from('usuarios')
-          .select('id, nome, matricula, status, loja_id')
+          .select('id, nome, matricula, tipo, loja_id')
           .eq('loja_id', currentLojaId)
           .eq('ativo', true);
 
