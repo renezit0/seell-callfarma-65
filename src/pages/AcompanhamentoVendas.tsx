@@ -827,66 +827,48 @@ export default function AcompanhamentoVendasNovo() {
 
       console.log(`🔍 Buscando dados API: ${dataInicio} a ${dataFim}`);
 
-      // Buscar dados por categorias de comissão (usando grupos corretos)
-      const promises = [];
+      // NOVA ESTRATÉGIA: UMA requisição só, filtrar localmente
+      console.log(`🔍 Buscando TODOS os dados da API de uma vez...`);
       
-      // Similar (inclui rentáveis E goodlife): grupos 2, 21, 20, 25, 22
-      promises.push(callfarmaAPI.buscarVendasFuncionarios({
+      // Fazer apenas UMA requisição sem filtro de grupos
+      const todasVendas = await callfarmaAPI.buscarVendasFuncionarios({
         dataInicio,
-        dataFim,
-        filtroGrupos: '2,21,20,25,22'
-      }));
+        dataFim
+        // SEM filtroGrupos para garantir que vem o CDGRUPO
+      });
       
-      // Genérico: grupos 47, 5, 6
-      promises.push(callfarmaAPI.buscarVendasFuncionarios({
-        dataInicio,
-        dataFim,
-        filtroGrupos: '47,5,6'
-      }));
+      console.log(`📊 Total de vendas recebidas: ${todasVendas.length}`);
       
-      // Perfumaria Alta: grupo 46
-      promises.push(callfarmaAPI.buscarVendasFuncionarios({
-        dataInicio,
-        dataFim,
-        filtroGrupos: '46'
-      }));
+      if (todasVendas.length > 0) {
+        console.log('Primeira venda (estrutura completa):', JSON.stringify(todasVendas[0], null, 2));
+        
+        // Ver todos os grupos únicos
+        const todosGrupos = [...new Set(todasVendas.map(v => v.CDGRUPO))].filter(g => g !== undefined).sort();
+        console.log('Todos os grupos encontrados:', todosGrupos);
+      }
       
-      // GoodLife específico: grupo 22
-      promises.push(callfarmaAPI.buscarVendasFuncionarios({
-        dataInicio,
-        dataFim,
-        filtroGrupos: '22'
-      }));
+      // Filtrar por loja
+      const vendasFiltradas = todasVendas.filter(v => {
+        if (!canAccessAllStores && user?.loja_id) {
+          return v.CDFIL === lojaInfo.cdfil;
+        } else if (canAccessAllStores && selectedLojaId) {
+          return v.CDFIL === lojaInfo.cdfil;
+        }
+        return true;
+      });
       
-      // Dermocosmético: grupos 31, 16
-      promises.push(callfarmaAPI.buscarVendasFuncionarios({
-        dataInicio,
-        dataFim,
-        filtroGrupos: '31,16'
-      }));
+      console.log(`Vendas filtradas por loja: ${vendasFiltradas.length}`);
       
-      // Conveniência: grupo 36
-      promises.push(callfarmaAPI.buscarVendasFuncionarios({
-        dataInicio,
-        dataFim,
-        filtroGrupos: '36'
-      }));
+      // Filtrar localmente por grupos para cada categoria
+      const vendasSimilar = vendasFiltradas.filter(v => [2, 21, 20, 25, 22].includes(v.CDGRUPO));
+      const vendasGenerico = vendasFiltradas.filter(v => [47, 5, 6].includes(v.CDGRUPO));
+      const vendasPerfumaria = vendasFiltradas.filter(v => [46].includes(v.CDGRUPO));
+      const vendasGoodlife = vendasFiltradas.filter(v => [22].includes(v.CDGRUPO));
+      const vendasDermo = vendasFiltradas.filter(v => [31, 16].includes(v.CDGRUPO));
+      const vendasConveniencia = vendasFiltradas.filter(v => [36].includes(v.CDGRUPO));
+      const vendasBrinquedo = vendasFiltradas.filter(v => [13].includes(v.CDGRUPO));
       
-      // Brinquedos: grupo 13
-      promises.push(callfarmaAPI.buscarVendasFuncionarios({
-        dataInicio,
-        dataFim,
-        filtroGrupos: '13'
-      }));
-      
-      const results = await Promise.allSettled(promises);
-      
-      // Extrair dados dos resultados, mesmo que algumas requisições falhem
-      const [vendasSimilar, vendasGenerico, vendasPerfumaria, vendasGoodlife, vendasDermo, vendasConveniencia, vendasBrinquedo] = results.map(result => 
-        result.status === 'fulfilled' ? result.value || [] : []
-      );
-      
-      console.log('Dados recebidos por categoria:', {
+      console.log('Vendas por categoria (filtradas localmente):', {
         similar: vendasSimilar.length,
         generico: vendasGenerico.length,
         perfumaria: vendasPerfumaria.length,
@@ -894,48 +876,6 @@ export default function AcompanhamentoVendasNovo() {
         dermocosmetico: vendasDermo.length,
         conveniencia: vendasConveniencia.length,
         brinquedo: vendasBrinquedo.length
-      });
-      
-      // DEBUG: Ver alguns exemplos de vendas genéricas
-      if (vendasGenerico.length > 0) {
-        console.log('Primeiras 3 vendas genéricas COMPLETAS:', JSON.stringify(vendasGenerico.slice(0, 3), null, 2));
-        const gruposGenericos = [...new Set(vendasGenerico.map(v => v.CDGRUPO))];
-        console.log('Grupos encontrados nas vendas genéricas:', gruposGenericos);
-        
-        // Ver se tem vendas do FLAVIO (3794)
-        const vendasFlavio = vendasGenerico.filter(v => v.CDFUN === 3794);
-        console.log(`Vendas genéricas do FLAVIO (3794): ${vendasFlavio.length} vendas`);
-        if (vendasFlavio.length > 0) {
-          console.log('Vendas do Flavio COMPLETAS:', JSON.stringify(vendasFlavio, null, 2));
-        }
-      }
-      
-      // Filtrar por loja
-      const filtrarPorLoja = (vendas: any[]) => {
-        if (!canAccessAllStores && user?.loja_id) {
-          return vendas.filter(v => v.CDFIL === lojaInfo.cdfil);
-        } else if (canAccessAllStores && selectedLojaId) {
-          return vendas.filter(v => v.CDFIL === lojaInfo.cdfil);
-        }
-        return vendas;
-      };
-      
-      const similarFiltradas = filtrarPorLoja(vendasSimilar);
-      const genericoFiltradas = filtrarPorLoja(vendasGenerico);
-      const perfumariaFiltradas = filtrarPorLoja(vendasPerfumaria);
-      const goodlifeFiltradas = filtrarPorLoja(vendasGoodlife);
-      const dermoFiltradas = filtrarPorLoja(vendasDermo);
-      const convenienciaFiltradas = filtrarPorLoja(vendasConveniencia);
-      const brinquedoFiltradas = filtrarPorLoja(vendasBrinquedo);
-      
-      console.log('Dados filtrados por loja:', {
-        similar: similarFiltradas.length,
-        generico: genericoFiltradas.length,
-        perfumaria: perfumariaFiltradas.length,
-        goodlife: goodlifeFiltradas.length,
-        dermocosmetico: dermoFiltradas.length,
-        conveniencia: convenienciaFiltradas.length,
-        brinquedo: brinquedoFiltradas.length
       });
       
       // Buscar CDFUN do usuário se necessário
