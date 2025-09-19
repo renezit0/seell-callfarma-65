@@ -827,55 +827,101 @@ export default function AcompanhamentoVendasNovo() {
 
       console.log(`🔍 Buscando dados API: ${dataInicio} a ${dataFim}`);
 
-      // NOVA ESTRATÉGIA: UMA requisição só, filtrar localmente
-      console.log(`🔍 Buscando TODOS os dados da API de uma vez...`);
+      // COPIANDO EXATAMENTE A LÓGICA DO RANKINGS
+      console.log(`🔍 Buscando dados da API (igual ao Rankings)...`);
       
-      // Fazer apenas UMA requisição sem filtro de grupos
-      const todasVendas = await callfarmaAPI.buscarVendasFuncionarios({
+      const promises = [];
+      
+      // Buscar dados já agregados por categoria (igual Rankings)
+      // Similar (grupos 2, 21, 20, 25, 22)
+      promises.push(callfarmaAPI.buscarVendasFuncionarios({
         dataInicio,
-        dataFim
-        // SEM filtroGrupos para garantir que vem o CDGRUPO
+        dataFim,
+        filtroGrupos: '2,21,20,25,22'
+      }));
+      
+      // Genérico (grupos 47, 5, 6)
+      promises.push(callfarmaAPI.buscarVendasFuncionarios({
+        dataInicio,
+        dataFim,
+        filtroGrupos: '47,5,6'
+      }));
+      
+      // Perfumaria Alta (grupo 46)
+      promises.push(callfarmaAPI.buscarVendasFuncionarios({
+        dataInicio,
+        dataFim,
+        filtroGrupos: '46'
+      }));
+      
+      // GoodLife (grupo 22)
+      promises.push(callfarmaAPI.buscarVendasFuncionarios({
+        dataInicio,
+        dataFim,
+        filtroGrupos: '22'
+      }));
+      
+      // Dermocosmético (grupos 31, 16)
+      promises.push(callfarmaAPI.buscarVendasFuncionarios({
+        dataInicio,
+        dataFim,
+        filtroGrupos: '31,16'
+      }));
+      
+      // Conveniência (grupo 36)
+      promises.push(callfarmaAPI.buscarVendasFuncionarios({
+        dataInicio,
+        dataFim,
+        filtroGrupos: '36'
+      }));
+      
+      // Brinquedos (grupo 13)
+      promises.push(callfarmaAPI.buscarVendasFuncionarios({
+        dataInicio,
+        dataFim,
+        filtroGrupos: '13'
+      }));
+      
+      const resultados = await Promise.all(promises);
+      
+      const [vendasSimilar, vendasGenerico, vendasPerfumaria, vendasGoodlife, vendasDermo, vendasConveniencia, vendasBrinquedo] = resultados;
+      
+      console.log('Dados recebidos (agregados como Rankings):', {
+        similar: vendasSimilar?.length || 0,
+        generico: vendasGenerico?.length || 0,
+        perfumaria: vendasPerfumaria?.length || 0,
+        goodlife: vendasGoodlife?.length || 0,
+        dermocosmetico: vendasDermo?.length || 0,
+        conveniencia: vendasConveniencia?.length || 0,
+        brinquedo: vendasBrinquedo?.length || 0
       });
       
-      console.log(`📊 Total de vendas recebidas: ${todasVendas.length}`);
-      
-      if (todasVendas.length > 0) {
-        console.log('Primeira venda (estrutura completa):', JSON.stringify(todasVendas[0], null, 2));
-        
-        // Ver todos os grupos únicos
-        const todosGrupos = [...new Set(todasVendas.map(v => v.CDGRUPO))].filter(g => g !== undefined).sort();
-        console.log('Todos os grupos encontrados:', todosGrupos);
-      }
-      
-      // Filtrar por loja
-      const vendasFiltradas = todasVendas.filter(v => {
+      // Filtrar por loja (IGUAL AO RANKINGS)
+      const filtrarPorLoja = (vendas: any[]) => {
         if (!canAccessAllStores && user?.loja_id) {
-          return v.CDFIL === lojaInfo.cdfil;
+          return vendas.filter(v => v.CDFIL === lojaInfo.cdfil);
         } else if (canAccessAllStores && selectedLojaId) {
-          return v.CDFIL === lojaInfo.cdfil;
+          return vendas.filter(v => v.CDFIL === lojaInfo.cdfil);
         }
-        return true;
-      });
+        return vendas;
+      };
       
-      console.log(`Vendas filtradas por loja: ${vendasFiltradas.length}`);
+      const similarFiltradas = filtrarPorLoja(vendasSimilar || []);
+      const genericoFiltradas = filtrarPorLoja(vendasGenerico || []);
+      const perfumariaFiltradas = filtrarPorLoja(vendasPerfumaria || []);
+      const goodlifeFiltradas = filtrarPorLoja(vendasGoodlife || []);
+      const dermoFiltradas = filtrarPorLoja(vendasDermo || []);
+      const convenienciaFiltradas = filtrarPorLoja(vendasConveniencia || []);
+      const brinquedoFiltradas = filtrarPorLoja(vendasBrinquedo || []);
       
-      // Filtrar localmente por grupos para cada categoria
-      const vendasSimilar = vendasFiltradas.filter(v => [2, 21, 20, 25, 22].includes(v.CDGRUPO));
-      const vendasGenerico = vendasFiltradas.filter(v => [47, 5, 6].includes(v.CDGRUPO));
-      const vendasPerfumaria = vendasFiltradas.filter(v => [46].includes(v.CDGRUPO));
-      const vendasGoodlife = vendasFiltradas.filter(v => [22].includes(v.CDGRUPO));
-      const vendasDermo = vendasFiltradas.filter(v => [31, 16].includes(v.CDGRUPO));
-      const vendasConveniencia = vendasFiltradas.filter(v => [36].includes(v.CDGRUPO));
-      const vendasBrinquedo = vendasFiltradas.filter(v => [13].includes(v.CDGRUPO));
-      
-      console.log('Vendas por categoria (filtradas localmente):', {
-        similar: vendasSimilar.length,
-        generico: vendasGenerico.length,
-        perfumaria: vendasPerfumaria.length,
-        goodlife: vendasGoodlife.length,
-        dermocosmetico: vendasDermo.length,
-        conveniencia: vendasConveniencia.length,
-        brinquedo: vendasBrinquedo.length
+      console.log('Dados filtrados por loja (igual Rankings):', {
+        similar: similarFiltradas.length,
+        generico: genericoFiltradas.length,
+        perfumaria: perfumariaFiltradas.length,
+        goodlife: goodlifeFiltradas.length,
+        dermocosmetico: dermoFiltradas.length,
+        conveniencia: convenienciaFiltradas.length,
+        brinquedo: brinquedoFiltradas.length
       });
       
       // Buscar CDFUN do usuário se necessário
@@ -918,109 +964,80 @@ export default function AcompanhamentoVendasNovo() {
         }
       }
       
-      // Processar vendas por categoria para o funcionário (COM DEBUG MELHORADO)
-      const processarVendasCategoria = (vendas: any[], funcionarioCdfun?: number) => {
-        console.log(`🔍 Processando categoria com ${vendas.length} vendas para funcionário ${funcionarioCdfun}`);
+      // Processar dados para o funcionário (IGUAL AO RANKINGS)
+      const processarCategoria = (vendas: any[], funcionarioCdfun?: number) => {
+        if (!vendas || vendas.length === 0) return 0;
         
         if (funcionarioCdfun) {
-          // Debug: mostrar os CDFUNs únicos nesta categoria
-          const cdfunsUnicos = [...new Set(vendas.map(v => v.CDFUN))].sort();
-          console.log(`CDFUNs únicos nesta categoria:`, cdfunsUnicos.slice(0, 10)); // Mostrar só os primeiros 10
+          // Buscar funcionário específico nos dados agregados
+          const funcionario = vendas.find(v => v.CDFUN === funcionarioCdfun);
+          const total = funcionario?.TOTAL_VALOR || 0;
           
-          // Tentar várias formas de match
-          const vendasFiltradas = vendas.filter(v => {
-            // Tentar match exato
-            if (v.CDFUN === funcionarioCdfun) return true;
-            
-            // Tentar match como string (caso venha como string da API)
-            if (v.CDFUN?.toString() === funcionarioCdfun.toString()) return true;
-            
-            // Tentar match com zeros à esquerda removidos
-            const cdfunLimpo = v.CDFUN?.toString().replace(/^0+/, '');
-            const funcionarioLimpo = funcionarioCdfun.toString().replace(/^0+/, '');
-            if (cdfunLimpo === funcionarioLimpo) return true;
-            
-            return false;
-          });
-          
-          console.log(`Vendas filtradas para CDFUN ${funcionarioCdfun}:`, vendasFiltradas.length);
-          
-          if (vendasFiltradas.length > 0) {
-            console.log(`Primeira venda encontrada:`, vendasFiltradas[0]);
-            console.log(`Grupos encontrados nesta categoria:`, [...new Set(vendasFiltradas.map(v => v.CDGRUPO))]);
+          if (total > 0) {
+            console.log(`  Funcionário ${funcionarioCdfun} encontrado com R$ ${total.toFixed(2)}`);
           }
           
-          const total = vendasFiltradas.reduce((sum, v) => {
-            const valor = (v.TOTAL_VLR_VE || 0) - (v.TOTAL_VLR_DV || 0);
-            if (valor > 0) {
-              console.log(`  Venda válida: Grupo ${v.CDGRUPO}, Valor: R$ ${valor.toFixed(2)}, Produto: ${v.NOMEPRODU}`);
-            }
-            return sum + valor;
-          }, 0);
-          
-          console.log(`Total calculado para esta categoria: R$ ${total.toFixed(2)}`);
           return total;
         } else {
-          return vendas.reduce((sum, v) => sum + ((v.TOTAL_VLR_VE || 0) - (v.TOTAL_VLR_DV || 0)), 0);
+          // Somar todos os funcionários
+          return vendas.reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
         }
       };
       
-      // Calcular vendas por categoria
+      // Calcular vendas por categoria (usando dados agregados)
       const salesData: SalesData = {};
       
-      // Similar (usado para cargos gerenciais)
-      const totalSimilar = processarVendasCategoria(similarFiltradas, funcionarioSelecionado);
+      // Similar
+      const totalSimilar = processarCategoria(similarFiltradas, funcionarioSelecionado);
       if (totalSimilar > 0) salesData['similar'] = totalSimilar;
       
-      // Genérico
-      const totalGenerico = processarVendasCategoria(genericoFiltradas, funcionarioSelecionado);
+      // Genérico  
+      const totalGenerico = processarCategoria(genericoFiltradas, funcionarioSelecionado);
       if (totalGenerico > 0) salesData['generico'] = totalGenerico;
       
       // Perfumaria Alta
-      const totalPerfumaria = processarVendasCategoria(perfumariaFiltradas, funcionarioSelecionado);
+      const totalPerfumaria = processarCategoria(perfumariaFiltradas, funcionarioSelecionado);
       if (totalPerfumaria > 0) salesData['perfumaria_alta'] = totalPerfumaria;
       
-      // GoodLife específico
-      const totalGoodlife = processarVendasCategoria(goodlifeFiltradas, funcionarioSelecionado);
+      // GoodLife
+      const totalGoodlife = processarCategoria(goodlifeFiltradas, funcionarioSelecionado);
       if (totalGoodlife > 0) salesData['goodlife'] = totalGoodlife;
       
       // Dermocosmético
-      const totalDermo = processarVendasCategoria(dermoFiltradas, funcionarioSelecionado);
+      const totalDermo = processarCategoria(dermoFiltradas, funcionarioSelecionado);
       if (totalDermo > 0) salesData['dermocosmetico'] = totalDermo;
       
       // Conveniência
-      const totalConveniencia = processarVendasCategoria(convenienciaFiltradas, funcionarioSelecionado);
+      const totalConveniencia = processarCategoria(convenienciaFiltradas, funcionarioSelecionado);
       if (totalConveniencia > 0) salesData['conveniencia'] = totalConveniencia;
       
       // Brinquedos
-      const totalBrinquedo = processarVendasCategoria(brinquedoFiltradas, funcionarioSelecionado);
+      const totalBrinquedo = processarCategoria(brinquedoFiltradas, funcionarioSelecionado);
       if (totalBrinquedo > 0) salesData['brinquedo'] = totalBrinquedo;
       
-      console.log('Vendas por categoria calculadas:', salesData);
+      console.log('💰 Vendas calculadas (método Rankings):', salesData);
       
-      // Atualizar estados
-      setSalesData(salesData);
-      
-      // Criar lista única de funcionários
+      // Criar lista de funcionários únicos (igual Rankings)
       const todosFuncionarios = new Map();
       [
-        ...similarFiltradas, 
+        ...similarFiltradas,
         ...genericoFiltradas, 
-        ...perfumariaFiltradas, 
-        ...goodlifeFiltradas, 
-        ...dermoFiltradas, 
-        ...convenienciaFiltradas, 
+        ...perfumariaFiltradas,
+        ...goodlifeFiltradas,
+        ...dermoFiltradas,
+        ...convenienciaFiltradas,
         ...brinquedoFiltradas
       ].forEach(v => {
-        if (v.CDFUN && v.NOMEFUN) {
+        if (v.CDFUN && v.NOME) {
           todosFuncionarios.set(v.CDFUN, {
             id: v.CDFUN,
-            nome: v.NOMEFUN
+            nome: v.NOME
           });
         }
       });
       
       setFuncionarios(Array.from(todosFuncionarios.values()));
+      console.log(`👥 Funcionários encontrados: ${todosFuncionarios.size}`);
       
       // Mock vendas processadas para compatibilidade
       const vendasMock: VendaProcessada[] = [];
