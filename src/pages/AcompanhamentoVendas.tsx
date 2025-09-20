@@ -410,17 +410,17 @@ export function canViewSalesData(role: UserRole, context: 'own' | 'store' | 'all
 }
 
 // Funções de comissão
-export function isBonus(role: UserRole): boolean {
-  return role === 'aux_conveniencia';
+export function roleHasCommissions(role: UserRole): boolean {
+  const rates = getCommissionRates(role);
+  return Object.keys(rates).length > 0;
 }
 
 export function getCommissionRates(role: UserRole): CommissionConfig {
   return COMMISSION_RATES[role] || {};
 }
 
-export function hasCommissions(role: UserRole): boolean {
-  const rates = getCommissionRates(role);
-  return Object.keys(rates).length > 0;
+export function roleIsBonus(role: UserRole): boolean {
+  return role === 'aux_conveniencia';
 }
 
 export function getCategoryDisplayName(category: string): string {
@@ -505,7 +505,7 @@ export function calculateCommissions(role: UserRole, salesData: SalesData): Comm
   return {
     results,
     totalCommission,
-    isBonus: isBonus(role)
+    isBonus: roleHasCommissions(role)
   };
 }
 
@@ -605,12 +605,12 @@ interface UseCommissionsReturn {
 function useCommissions(userRole: UserRole | null): UseCommissionsReturn {
   const userHasCommissions = useMemo(() => {
     if (!userRole) return false;
-    return hasCommissions(userRole);
+    return roleIsBonus(userRole);
   }, [userRole]);
   
   const userIsBonus = useMemo(() => {
     if (!userRole) return false;
-    return isBonus(userRole);
+    return roleHasCommissions(userRole);
   }, [userRole]);
   
   const calculate = useMemo(() => {
@@ -1470,7 +1470,7 @@ export default function AcompanhamentoVendasNovo() {
                       <TableBody>
                         {funcionariosLoja.map((funcionario) => {
                           const funcRole = funcionario.tipo as UserRole;
-                          const funcHasCommissions = hasCommissions(funcRole); // CORREÇÃO: Usando a função utilitária
+                           const funcHasCommissions = roleHasCommissions(funcRole);
                           const rates = getCommissionRates(funcRole);
 
                           // CORREÇÃO: Pega os dados calculados do Map
@@ -1512,9 +1512,9 @@ export default function AcompanhamentoVendasNovo() {
                                       ? formatCommission(dadosFunc.totalComissao) 
                                       : <span className="text-muted-foreground">-</span>}
                                     
-                                    {isBonus(funcRole) && (
-                                      <Badge variant="outline" className="ml-2 text-xs">Bônus</Badge>
-                                    )}
+                                     {roleIsBonus(funcRole) && (
+                                       <Badge variant="outline" className="ml-2 text-xs">Bônus</Badge>
+                                     )}
                                   </>
                                 ) : (
                                   <span className="text-muted-foreground">N/A</span>
