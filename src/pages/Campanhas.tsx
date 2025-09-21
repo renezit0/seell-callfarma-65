@@ -942,7 +942,10 @@ export default function Campanhas() {
                             {campanha.descricao}
                           </p>}
                       </div>
-                      <StatusBadge status={campanha.status === 'ativa' ? 'atingido' : 'pendente'} />
+                      <StatusBadge status={
+                        progresso.percentualRealizado >= 100 ? 'atingido' : 
+                        progresso.percentualRealizado >= 80 ? 'acima' : 'pendente'
+                      } />
                     </div>
                   </CardHeader>
                   
@@ -1012,8 +1015,19 @@ export default function Campanhas() {
               <ArrowLeft size={16} />
               Voltar
             </Button>
-            <h1 className="text-3xl font-bold">{campanhaSelecionada.nome}</h1>
-            <StatusBadge status={campanhaSelecionada.status === 'ativa' ? 'atingido' : 'pendente'} />
+            <h1 className="text-3xl font-bold truncate">{campanhaSelecionada.nome}</h1>
+            <StatusBadge status={
+              (() => {
+                const totalRealizado = campanhaSelecionada.tipo_meta === 'quantidade' 
+                  ? campanhaSelecionada.lojas.reduce((sum, loja) => sum + loja.realizado_quantidade, 0)
+                  : campanhaSelecionada.lojas.reduce((sum, loja) => sum + loja.realizado_valor, 0);
+                const totalMeta = campanhaSelecionada.tipo_meta === 'quantidade'
+                  ? campanhaSelecionada.lojas.reduce((sum, loja) => sum + loja.meta_quantidade, 0)
+                  : campanhaSelecionada.lojas.reduce((sum, loja) => sum + loja.meta_valor, 0);
+                const percentual = totalMeta > 0 ? (totalRealizado / totalMeta) * 100 : 0;
+                return percentual >= 100 ? 'atingido' : percentual >= 80 ? 'acima' : 'pendente';
+              })()
+            } />
           </div>
           <Button onClick={() => buscarVendasApiExterna(campanhaSelecionada)} disabled={loadingApiExterna} className="gap-2">
             <TrendingUp size={16} />
@@ -1085,7 +1099,7 @@ export default function Campanhas() {
                 if (index === 0) medalha = '🥇';else if (index === 1) medalha = '🥈';else if (index === 2) medalha = '🥉';else medalha = `${index + 1}º`;
                 return <div key={loja.id} className="flex items-center justify-between py-1 px-2 bg-muted/30 rounded text-sm">
                         <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <div className="flex items-center justify-center min-w-[24px] h-6 rounded-full text-secondary-foreground font-bold text-xs border border-secondary-foreground/20 bg-gray-200">
+                          <div className="flex items-center justify-center min-w-[24px] h-6 rounded-full text-secondary-foreground font-bold text-xs border border-secondary-foreground/20 bg-gray-200 shrink-0">
                             {index < 3 ? <span className="text-xs">{medalha}</span> : <span className="text-[10px]">{medalha}</span>}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -1094,11 +1108,11 @@ export default function Campanhas() {
                             </p>
                           </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right shrink-0">
                           <div className="text-sm font-bold text-primary leading-tight">
                             {loja.percentual_meta.toFixed(1)}%
                           </div>
-                          <div className="text-[10px] text-muted-foreground leading-tight">
+                          <div className="text-[10px] text-muted-foreground leading-tight truncate">
                             ({formatarValor(valorRealizado, campanhaSelecionada.tipo_meta)}/{formatarValor(valorMeta, campanhaSelecionada.tipo_meta)})
                           </div>
                         </div>
@@ -1297,9 +1311,9 @@ export default function Campanhas() {
                 </div>
 
                 <div className="flex gap-2">
-                  <Button type="button" onClick={adicionarLojaRapido} disabled={!formRapido.numeroLoja || !buscarLojaPorNumero(formRapido.numeroLoja)} className="gap-2">
+                  <Button type="button" onClick={adicionarLojaRapido} disabled={!formRapido.numeroLoja || !buscarLojaPorNumero(formRapido.numeroLoja)} className="gap-2 whitespace-nowrap">
                     <Plus size={16} />
-                    Adicionar
+                    Add
                   </Button>
                   <Button type="button" variant="outline" onClick={resetarFormRapido} size="sm">
                     Limpar
@@ -2150,7 +2164,7 @@ export default function Campanhas() {
                           <div className="text-sm text-muted-foreground">
                             {grupo.totalLojas} lojas • {grupo.totalColaboradores} colaboradores
                           </div>
-                          <div className="text-xs text-muted-foreground">
+                          <div className="text-xs text-muted-foreground truncate">
                             {formatarValorCampanha(grupo.totalVendas, campanhasStatus.find(c => c.id === campanhaStatusSelecionada)?.tipo_meta || 'valor')} de {formatarValorCampanha(grupo.totalMeta, campanhasStatus.find(c => c.id === campanhaStatusSelecionada)?.tipo_meta || 'valor')}
                           </div>
                         </div>
@@ -2173,10 +2187,10 @@ export default function Campanhas() {
                                     <p className="text-xl font-bold text-primary">
                                       {loja.percentualAtingimento.toFixed(1)}%
                                     </p>
-                                    <p className="text-sm text-muted-foreground">
+                                    <p className="text-sm text-muted-foreground truncate">
                                       {formatarValorCampanha(loja.totalVendas, campanhasStatus.find(c => c.id === campanhaStatusSelecionada)?.tipo_meta || 'valor')} de {formatarValorCampanha(loja.meta, campanhasStatus.find(c => c.id === campanhaStatusSelecionada)?.tipo_meta || 'valor')}
                                     </p>
-                                    <p className="text-xs text-muted-foreground">
+                                    <p className="text-xs text-muted-foreground truncate">
                                       Média: {formatarValorCampanha(loja.mediaVendasPorColaborador, campanhasStatus.find(c => c.id === campanhaStatusSelecionada)?.tipo_meta || 'valor')}
                                     </p>
                                   </div>
@@ -2216,7 +2230,7 @@ export default function Campanhas() {
                             <span className="text-lg font-bold">#{grupoIndex + 1}</span>
                             <span className="text-lg font-semibold">{grupo.nome_grupo}</span>
                           </div>
-                          <div className="text-xl font-bold text-primary">
+                          <div className="text-xl font-bold text-primary truncate">
                             {formatarValorCampanha(grupo.totalVendas, campanhasStatus.find(c => c.id === campanhaStatusSelecionada)?.tipo_meta || 'valor')}
                           </div>
                           <div className="text-xs text-muted-foreground">
@@ -2237,7 +2251,7 @@ export default function Campanhas() {
                                 </div>
                               </div>
                               <div className="text-right flex-shrink-0 ml-2">
-                                <div className="text-sm font-bold text-primary">
+                                <div className="text-sm font-bold text-primary truncate">
                                   {formatarValorCampanha(colaborador.totalVendas, campanhasStatus.find(c => c.id === campanhaStatusSelecionada)?.tipo_meta || 'valor')}
                                 </div>
                               </div>
