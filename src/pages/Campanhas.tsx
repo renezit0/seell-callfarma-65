@@ -935,37 +935,35 @@ export default function Campanhas() {
           const progresso = calcularProgresso(realizadoTotal, campanha.meta_total || 0, campanha.data_inicio, campanha.data_fim);
           return <Card key={campanha.id} className="hover:shadow-lg transition-all duration-200 border-l-4 border-l-primary/20 hover:border-l-primary">
                   <CardHeader className="pb-3">
-                    <div className="flex justify-between items-start gap-2">
-                      <div className="space-y-1 min-w-0 flex-1">
-                        <CardTitle className="text-lg leading-tight truncate">{campanha.nome}</CardTitle>
+                    <div className="flex justify-between items-start">
+                      <div className="space-y-1">
+                        <CardTitle className="text-lg leading-tight">{campanha.nome}</CardTitle>
                         {campanha.descricao && <p className="text-sm text-muted-foreground line-clamp-2">
                             {campanha.descricao}
                           </p>}
                       </div>
-                      <div className="shrink-0">
-                        <StatusBadge status={
-                          progresso.percentualRealizado >= 100 ? 'atingido' : 
-                          progresso.percentualRealizado >= 80 ? 'acima' : 'pendente'
-                        } />
-                      </div>
+                      <StatusBadge status={
+                        progresso.percentualRealizado >= 100 ? 'atingido' : 
+                        progresso.percentualRealizado >= 80 ? 'acima' : 'pendente'
+                      } />
                     </div>
                   </CardHeader>
                   
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div className="space-y-1 min-w-0">
+                      <div className="space-y-1">
                         <span className="text-muted-foreground">Período:</span>
-                        <div className="font-medium text-xs">
+                        <div className="font-medium">
                           {formatarData(campanha.data_inicio)}
                         </div>
                         <div className="text-xs text-muted-foreground">
                           até {formatarData(campanha.data_fim)}
                         </div>
                       </div>
-                      <div className="space-y-1 min-w-0">
+                      <div className="space-y-1">
                         <span className="text-muted-foreground">Tipo:</span>
                         <div className="font-medium capitalize flex items-center gap-1">
-                          {campanha.tipo_meta === 'quantidade' ? <><Target size={12} /> Qtd</> : <><TrendingUp size={12} /> Valor</>}
+                          {campanha.tipo_meta === 'quantidade' ? <><Target size={12} /> Quantidade</> : <><TrendingUp size={12} /> Valor</>}
                         </div>
                       </div>
                     </div>
@@ -977,8 +975,8 @@ export default function Campanhas() {
                         </div>
                         <Progress value={progresso.percentualRealizado} className="h-2" />
                         <div className="flex justify-between text-xs text-muted-foreground">
-                          <span className="truncate">{formatarValor(progresso.realizado, campanha.tipo_meta)} realizado</span>
-                          <span className="truncate ml-2">Meta: {formatarValor(progresso.meta, campanha.tipo_meta)}</span>
+                          <span>{formatarValor(progresso.realizado, campanha.tipo_meta)} realizado</span>
+                          <span>Meta: {formatarValor(progresso.meta, campanha.tipo_meta)}</span>
                         </div>
                       </div>}
 
@@ -986,14 +984,13 @@ export default function Campanhas() {
                       <Button variant="secondary" size="sm" onClick={async () => {
                   await buscarDetalheCampanha(campanha.id);
                   setView('detalhes');
-                }} className="flex-1 gap-1 min-w-0">
+                }} className="flex-1 gap-1">
                         <Eye size={14} />
-                        <span className="hidden sm:inline">Detalhes</span>
-                        <span className="sm:hidden">Ver</span>
+                        Detalhes
                       </Button>
-                      <Button size="sm" variant="outline" className="gap-1 shrink-0" onClick={() => iniciarEdicaoCampanha(campanha)}>
+                      <Button size="sm" variant="outline" className="gap-1" onClick={() => iniciarEdicaoCampanha(campanha)}>
                         <Edit size={14} />
-                        <span className="hidden sm:inline">Editar</span>
+                        Editar
                       </Button>
                     </div>
                   </CardContent>
@@ -1032,10 +1029,9 @@ export default function Campanhas() {
               })()
             } />
           </div>
-          <Button onClick={() => buscarVendasApiExterna(campanhaSelecionada)} disabled={loadingApiExterna} className="gap-2 shrink-0">
+          <Button onClick={() => buscarVendasApiExterna(campanhaSelecionada)} disabled={loadingApiExterna} className="gap-2">
             <TrendingUp size={16} />
-            <span className="hidden sm:inline">{loadingApiExterna ? 'Atualizando...' : 'Atualizar API Externa'}</span>
-            <span className="sm:hidden">{loadingApiExterna ? 'Atualizando...' : 'Atualizar'}</span>
+            {loadingApiExterna ? 'Atualizando...' : 'Atualizar API Externa'}
           </Button>
         </div>
 
@@ -1077,7 +1073,7 @@ export default function Campanhas() {
           </Card>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {/* Renderizar cada grupo separadamente */}
           {[1, 2, 3].map(grupoNumero => {
           const lojasDoGrupo = campanhaSelecionada.lojas.filter(loja => loja.grupo_nome === grupoNumero.toString()).sort((a, b) => {
@@ -1085,12 +1081,12 @@ export default function Campanhas() {
             return b.percentual_meta - a.percentual_meta;
           });
           if (lojasDoGrupo.length === 0) return null;
-          return <Card key={grupoNumero} className="min-w-0">
+          return <Card key={grupoNumero}>
                 <CardHeader className="pb-4">
                   <CardTitle className="flex items-center gap-2 text-lg">
-                    <Trophy className="h-5 w-5 shrink-0" />
-                    <span className="truncate">Grupo {grupoNumero}</span>
-                    <Badge variant="secondary" className="shrink-0">{lojasDoGrupo.length}</Badge>
+                    <Trophy className="h-5 w-5" />
+                    Grupo {grupoNumero}
+                    <Badge variant="secondary">{lojasDoGrupo.length}</Badge>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-1">
@@ -1101,7 +1097,7 @@ export default function Campanhas() {
                 // Emoji de medalha baseado na posição
                 let medalha = '';
                 if (index === 0) medalha = '🥇';else if (index === 1) medalha = '🥈';else if (index === 2) medalha = '🥉';else medalha = `${index + 1}º`;
-                return <div key={loja.id} className="flex items-center justify-between py-1 px-2 bg-muted/30 rounded text-sm min-w-0">
+                return <div key={loja.id} className="flex items-center justify-between py-1 px-2 bg-muted/30 rounded text-sm">
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                           <div className="flex items-center justify-center min-w-[24px] h-6 rounded-full text-secondary-foreground font-bold text-xs border border-secondary-foreground/20 bg-gray-200 shrink-0">
                             {index < 3 ? <span className="text-xs">{medalha}</span> : <span className="text-[10px]">{medalha}</span>}
@@ -1112,7 +1108,7 @@ export default function Campanhas() {
                             </p>
                           </div>
                         </div>
-                        <div className="text-right shrink-0 min-w-[80px]">
+                        <div className="text-right shrink-0">
                           <div className="text-sm font-bold text-primary leading-tight">
                             {loja.percentual_meta.toFixed(1)}%
                           </div>
@@ -1258,7 +1254,7 @@ export default function Campanhas() {
               <CardDescription>Digite apenas o número da loja para adicionar rapidamente</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 items-end">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
                 <div className="space-y-2">
                   <Label htmlFor="numeroLoja">Número da Loja *</Label>
                   <Input id="numeroLoja" type="text" value={formRapido.numeroLoja} onChange={e => setFormRapido(prev => ({
@@ -1273,7 +1269,7 @@ export default function Campanhas() {
                     }
                   }
                 }} />
-                  {formRapido.numeroLoja && buscarLojaPorNumero(formRapido.numeroLoja) && <div className="text-sm text-primary font-medium truncate">
+                  {formRapido.numeroLoja && buscarLojaPorNumero(formRapido.numeroLoja) && <div className="text-sm text-primary font-medium">
                       {buscarLojaPorNumero(formRapido.numeroLoja)?.numero} - {buscarLojaPorNumero(formRapido.numeroLoja)?.nome}
                     </div>}
                   {formRapido.numeroLoja && !buscarLojaPorNumero(formRapido.numeroLoja) && <div className="text-sm text-destructive">
@@ -1314,15 +1310,13 @@ export default function Campanhas() {
                 }))} placeholder="0,00" />
                 </div>
 
-                <div className="flex gap-2 sm:col-span-2 md:col-span-1">
-                  <Button type="button" onClick={adicionarLojaRapido} disabled={!formRapido.numeroLoja || !buscarLojaPorNumero(formRapido.numeroLoja)} className="gap-2 whitespace-nowrap flex-1">
+                <div className="flex gap-2">
+                  <Button type="button" onClick={adicionarLojaRapido} disabled={!formRapido.numeroLoja || !buscarLojaPorNumero(formRapido.numeroLoja)} className="gap-2 whitespace-nowrap">
                     <Plus size={16} />
-                    <span className="hidden sm:inline">Adicionar</span>
-                    <span className="sm:hidden">Add</span>
+                    Add
                   </Button>
-                  <Button type="button" variant="outline" onClick={resetarFormRapido} size="sm" className="shrink-0">
-                    <span className="hidden sm:inline">Limpar</span>
-                    <span className="sm:hidden">×</span>
+                  <Button type="button" variant="outline" onClick={resetarFormRapido} size="sm">
+                    Limpar
                   </Button>
                 </div>
               </div>
