@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAvatar } from '@/hooks/useAvatar';
+import { useMySQLUsuarios } from '@/hooks/useMySQLUsuarios';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,7 +9,9 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Search, Plus, Edit, Trash2 } from 'lucide-react';
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Search, Plus, Edit, Trash2, Database } from 'lucide-react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { getDescricaoTipoUsuario, getCorTipoUsuario, getTiposUsuario, canViewAllStores, canEditUsers, canEditUsersOwnStore, canEditSelf } from '@/utils/userTypes';
@@ -40,7 +43,9 @@ export default function Usuarios() {
   const [tipoFilter, setTipoFilter] = useState<string>('all');
   const [selectedLojaId, setSelectedLojaId] = useState<number | null>(null);
   const [lojaInfo, setLojaInfo] = useState<{ numero: string; nome: string } | null>(null);
+  const [useMySQLDatabase, setUseMySQLDatabase] = useState(false);
   const { avatars, fetchAvatars } = useAvatar();
+  const { usuarios: mysqlUsuarios, loading: mysqlLoading, fetchUsuarios: fetchMySQLUsuarios } = useMySQLUsuarios();
 
   // Verificar permissões do usuário
   const hasMultiStoreAccess = user?.tipo && canViewAllStores(user.tipo);
@@ -50,10 +55,14 @@ export default function Usuarios() {
   // useEffect must be called before any early returns
   useEffect(() => {
     if (user) {
-      fetchUsuarios();
+      if (useMySQLDatabase) {
+        fetchMySQLUsuarios(selectedLojaId || undefined, tipoFilter !== 'all' ? tipoFilter : undefined);
+      } else {
+        fetchUsuarios();
+      }
       fetchLojaInfo();
     }
-  }, [user, selectedLojaId]);
+  }, [user, selectedLojaId, useMySQLDatabase, tipoFilter]);
 
   const fetchUsuarios = async () => {
     try {
@@ -133,7 +142,10 @@ export default function Usuarios() {
     return <Navigate to="/login" replace />;
   }
 
-  const filteredUsuarios = usuarios.filter(usuario => {
+  const currentUsuarios = useMySQLDatabase ? mysqlUsuarios : usuarios;
+  const currentLoading = useMySQLDatabase ? mysqlLoading : loading;
+
+  const filteredUsuarios = currentUsuarios.filter(usuario => {
     const matchesSearch = usuario.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (usuario.matricula && usuario.matricula.toLowerCase().includes(searchTerm.toLowerCase())) ||
                          (usuario.email && usuario.email.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -232,14 +244,38 @@ export default function Usuarios() {
         <CardHeader>
           <CardTitle className="text-lg flex items-center justify-between">
             Filtros
-            <Button size="sm" className="bg-primary hover:bg-primary/90" 
-              disabled={!canEdit && !canEditOwnStore}>
-              <Plus className="w-4 h-4 mr-2" />
-              Novo Usuário
-            </Button>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="mysql-mode"
+                  checked={useMySQLDatabase}
+                  onCheckedChange={setUseMySQLDatabase}
+                />
+                <Label htmlFor="mysql-mode" className="flex items-center gap-2 text-sm">
+                  <Database className="w-4 h-4" />
+                  MySQL Externo
+                </Label>
+              </div>
+              <Button size="sm" className="bg-primary hover:bg-primary/90" 
+                disabled={(!canEdit && !canEditOwnStore) || useMySQLDatabase}>
+                <Plus className="w-4 h-4 mr-2" />
+                Novo Usuário
+              </Button>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {useMySQLDatabase && (
+            <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
+                <Database className="w-4 h-4" />
+                <span className="text-sm font-medium">Modo MySQL Externo Ativo</span>
+              </div>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                Consultando dados do banco MySQL externo (69.6.213.99). Algumas funcionalidades podem estar limitadas.
+              </p>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
             <div className="relative md:col-span-2 lg:col-span-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
@@ -293,9 +329,10 @@ export default function Usuarios() {
           <CardTitle>Lista de Usuários</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {loading ? (
+          {currentLoading ? (
             <div className="text-center py-8 text-muted-foreground">
-              Carregando usuários...
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+              Carregando usuários{useMySQLDatabase ? ' do MySQL externo' : ''}...
             </div>
           ) : (
             <>
@@ -320,12 +357,12 @@ export default function Usuarios() {
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
-                        {(canEdit || canEditOwnStore) && (
+                        {(canEdit || canEditOwnStore) && !useMySQLDatabase && (
                           <Button variant="ghost" size="sm" onClick={() => handleEdit(usuario.id)}>
                             <Edit className="w-4 h-4" />
                           </Button>
                         )}
-                        {usuario.status !== 'ativo' && (canEdit || canEditOwnStore) && (
+                        {usuario.status !== 'ativo' && (canEdit || canEditOwnStore) && !useMySQLDatabase && (
                           <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -400,12 +437,12 @@ export default function Usuarios() {
                         <TableCell>{getStatusBadge(usuario.status)}</TableCell>
                         <TableCell>
                           <div className="flex items-center space-x-2">
-                            {(canEdit || canEditOwnStore) && (
+                            {(canEdit || canEditOwnStore) && !useMySQLDatabase && (
                               <Button variant="ghost" size="sm" onClick={() => handleEdit(usuario.id)}>
                                 <Edit className="w-4 h-4" />
                               </Button>
                             )}
-                            {usuario.status !== 'ativo' && (canEdit || canEditOwnStore) && (
+                            {usuario.status !== 'ativo' && (canEdit || canEditOwnStore) && !useMySQLDatabase && (
                               <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
                                 <Trash2 className="w-4 h-4" />
                               </Button>

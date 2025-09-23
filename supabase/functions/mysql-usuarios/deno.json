@@ -1,0 +1,6 @@
+{
+  "imports": {
+    "supabase": "https://esm.sh/@supabase/supabase-js@2.57.4",
+    "mysql": "https://deno.land/x/mysql@v2.12.1/mod.ts"
+  }
+}
