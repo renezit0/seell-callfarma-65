@@ -81,12 +81,18 @@ serve(async (req) => {
     }
 
     if (actionParam === 'authenticate') {
+      // Limpar CPF (remover pontos, traços, espaços) para comparação
+      const cleanCpf = (cpf: string) => cpf.replace(/[.\-\s]/g, '');
+      const cleanedLogin = cleanCpf(login);
+      
+      // Buscar por login direto, CPF limpo, ou CPF formatado
       const authQuery = `SELECT u.*, l.nome as loja_nome, l.numero as loja_numero 
                         FROM usuarios u 
                         LEFT JOIN lojas l ON u.loja_id = l.id 
-                        WHERE u.login = ? AND u.senha = ? AND u.status = 'ativo'`;
+                        WHERE (u.login = ? OR u.CPF = ? OR u.CPF = ?) 
+                        AND u.senha = ? AND u.status = 'ativo'`;
       
-      const result = await client.execute(authQuery, [login, senha]);
+      const result = await client.execute(authQuery, [login, cleanedLogin, login, senha]);
       
       if (result.rows && result.rows.length > 0) {
         return new Response(
