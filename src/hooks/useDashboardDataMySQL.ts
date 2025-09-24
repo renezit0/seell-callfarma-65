@@ -32,7 +32,7 @@ export interface MetricData {
   status: 'pendente' | 'atingido' | 'acima';
 }
 
-export function useDashboardData(user: User | null, selectedPeriod?: PeriodOption | null, selectedLojaId?: number | null) {
+export function useDashboardDataMySQL(user: User | null, selectedPeriod?: PeriodOption | null, selectedLojaId?: number | null) {
   const { buscarVendasHojePorCategoria } = useCallfarmaAPI();
   const { fetchMetasLojas } = useMySQLMetas();
   const [metrics, setMetrics] = useState<MetricData[]>([]);
@@ -63,7 +63,7 @@ export function useDashboardData(user: User | null, selectedPeriod?: PeriodOptio
         const { metas_loja: metasLoja, categorias } = await fetchMetasLojas(selectedPeriod.id, currentLojaId);
         console.log('📊 Metas encontradas:', metasLoja?.length, 'para loja_id:', currentLojaId, metasLoja);
 
-        // Buscar vendas da loja atual no período selecionado
+        // Buscar vendas da loja atual no período selecionado (ainda usando Supabase para vendas_loja)
         console.log('💰 Buscando vendas_loja para loja_id:', currentLojaId, 'período:', selectedPeriod.startDate.toISOString().split('T')[0], 'até', selectedPeriod.endDate.toISOString().split('T')[0]);
         const { data: vendasLoja, error: errorVendas } = await supabase
           .from('vendas_loja')
@@ -132,7 +132,7 @@ export function useDashboardData(user: User | null, selectedPeriod?: PeriodOptio
         const processedMetrics: MetricData[] = [];
 
         // Categorias de metas para loja (conforme esclarecimento)
-        const categorias = [
+        const categoriasMapeamento = [
           { id: 'geral', name: 'Geral' },
           { id: 'r_mais', name: 'Rentáveis' },
           { id: 'perfumaria_r_mais', name: 'Perfumaria R+' },
@@ -140,7 +140,7 @@ export function useDashboardData(user: User | null, selectedPeriod?: PeriodOptio
           { id: 'saude', name: 'GoodLife' }
         ];
 
-        for (const categoria of categorias) {
+        for (const categoria of categoriasMapeamento) {
           let metaValor = 0;
           
           if (categoria.id === 'geral') {

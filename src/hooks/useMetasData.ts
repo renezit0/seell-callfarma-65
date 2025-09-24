@@ -1,13 +1,9 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useMySQLMetas, type MySQLPeriodoMeta, type MySQLMetaColaborador, type MySQLMetaLoja, type MySQLMetaLojaCategoria, type MySQLUsuario } from '@/hooks/useMySQLMetas';
+import { supabase } from '@/integrations/supabase/client';
 
-export type MetaColaborador = {
-  id: number;
-  usuario_id: number;
-  categoria: string;
-  meta_mensal: number;
-  periodo_meta_id: number;
+export type MetaColaborador = MySQLMetaColaborador & {
   nome_usuario?: string;
   tipo_usuario?: string;
 };
@@ -20,33 +16,19 @@ export type ColaboradorComMetas = {
   pode_ter_metas: boolean;
 };
 
-export type MetaLoja = {
-  id: number;
-  loja_id: number;
-  meta_valor_total: number;
-  periodo_meta_id: number;
-  observacoes?: string;
+export type MetaLoja = MySQLMetaLoja & {
   nome_loja?: string;
   categorias?: MetaLojaCategoria[];
 };
 
-export type MetaLojaCategoria = {
-  id: number;
-  categoria: string;
-  meta_valor: number;
-  meta_loja_id: number;
-};
+export type MetaLojaCategoria = MySQLMetaLojaCategoria;
 
-export type PeriodoMeta = {
-  id: number;
-  data_inicio: string;
-  data_fim: string;
-  descricao: string;
-  status: string;
-};
+export type PeriodoMeta = MySQLPeriodoMeta;
 
 export function useMetasData() {
   const { user } = useAuth();
+  const { fetchPeriodos: fetchPeriodosMySQL, fetchColaboradoresComMetas: fetchColaboradoresMySQL, fetchMetasLojas: fetchMetasLojasMySQL } = useMySQLMetas();
+  
   const [colaboradoresComMetas, setColaboradoresComMetas] = useState<ColaboradorComMetas[]>([]);
   const [metasLojas, setMetasLojas] = useState<MetaLoja[]>([]);
   const [periodos, setPeriodos] = useState<PeriodoMeta[]>([]);
@@ -81,76 +63,59 @@ export function useMetasData() {
   // Buscar períodos
   const fetchPeriodos = async () => {
     try {
-      const { data, error } = await supabase
-        .from('periodos_meta')
-        .select('*')
-        .eq('status', 'ativo')
-        .order('data_inicio', { ascending: false });
+      setError(null);
+      
+      const { data, error } = await supabase.functions.invoke('mysql-usuarios', {
+        body: { action: 'get_periodos' }
+      });
 
       if (error) throw error;
-      setPeriodos(data || []);
-      
-      // Selecionar o período mais recente por padrão
-      if (data && data.length > 0 && !periodoSelecionado) {
-        setPeriodoSelecionado(data[0].id);
+
+      if (data?.success) {
+        const periodosData = data.data || [];
+        setPeriodos(periodosData);
+        
+        // Selecionar o período mais recente por padrão
+        if (periodosData.length > 0 && !periodoSelecionado) {
+          setPeriodoSelecionado(periodosData[0].id);
+        }
       }
     } catch (err: any) {
       setError(err.message);
+      console.error('Erro ao buscar períodos:', err);
     }
   };
 
   // Buscar colaboradores com suas metas
   const fetchColaboradoresComMetas = async () => {
-    if (!periodoSelecionado) return;
+    if (!periodoSelecionado || !user) return;
 
     try {
-      // Buscar todos os colaboradores da loja (ou todos se admin)
-      let usuariosQuery = supabase
-        .from('usuarios')
-        .select('id, nome, tipo, loja_id')
-        .eq('status', 'ativo')
-        .in('tipo', ['auxiliar', 'consultora', 'farmaceutico', 'lider', 'sublider', 'subgerente', 'gerente']);
+      // Determinar filtros baseados nas permissões
+      let loja_id: number | undefined;
+      let usuario_id: number | undefined;
 
-      // Filtrar por loja se não for admin/supervisor/rh
-      if (!canEditAll && user?.loja_id) {
-        usuariosQuery = usuariosQuery.eq('loja_id', user.loja_id);
+      if (!canEditAll && user.loja_id) {
+        loja_id = user.loja_id;
       }
 
-      // Se usuário restrito, mostrar apenas ele mesmo
-      if (isRestrictedUser && user?.id) {
-        usuariosQuery = usuariosQuery.eq('id', user.id);
+      if (isRestrictedUser && user.id) {
+        usuario_id = user.id;
       }
 
-      const { data: usuariosData, error: usuariosError } = await usuariosQuery.order('nome');
-      
-      if (usuariosError) throw usuariosError;
-
-      // Buscar metas para todos os usuários
-      const usuarioIds = usuariosData?.map(u => u.id) || [];
-      let metasQuery = supabase
-        .from('metas')
-        .select('*')
-        .eq('periodo_meta_id', periodoSelecionado);
-
-      if (usuarioIds.length > 0) {
-        metasQuery = metasQuery.in('usuario_id', usuarioIds);
-      }
-
-      const { data: metasData, error: metasError } = await metasQuery;
-      
-      if (metasError) throw metasError;
+      const { usuarios, metas } = await fetchColaboradoresMySQL(loja_id, periodoSelecionado, usuario_id);
 
       // Agrupar metas por usuário
-      const metasPorUsuario = (metasData || []).reduce((acc, meta) => {
+      const metasPorUsuario = metas.reduce((acc, meta) => {
         if (!acc[meta.usuario_id]) {
           acc[meta.usuario_id] = [];
         }
         acc[meta.usuario_id].push(meta);
         return acc;
-      }, {} as Record<number, MetaColaborador[]>);
+      }, {} as Record<number, MySQLMetaColaborador[]>);
 
       // Criar estrutura final
-      const colaboradoresFormatados: ColaboradorComMetas[] = (usuariosData || []).map(usuario => ({
+      const colaboradoresFormatados: ColaboradorComMetas[] = usuarios.map(usuario => ({
         usuario_id: usuario.id,
         nome_usuario: usuario.nome,
         tipo_usuario: usuario.tipo,
@@ -161,97 +126,63 @@ export function useMetasData() {
       setColaboradoresComMetas(colaboradoresFormatados);
     } catch (err: any) {
       setError(err.message);
+      console.error('Erro ao buscar colaboradores com metas:', err);
     }
   };
 
   // Buscar metas de lojas
   const fetchMetasLojas = async () => {
-    if (!periodoSelecionado) return;
+    if (!periodoSelecionado || !user) return;
 
     try {
-      let query = supabase
-        .from('metas_loja')
-        .select(`
-          *,
-          lojas:loja_id (
-            nome,
-            numero
-          ),
-          metas_loja_categorias (*)
-        `)
-        .eq('periodo_meta_id', periodoSelecionado);
+      // Determinar filtros baseados nas permissões
+      let loja_id: number | undefined;
 
-      // Filtrar por loja se não for admin/supervisor/rh
-      if (!canEditAll && user?.loja_id) {
-        query = query.eq('loja_id', user.loja_id);
+      if (!canEditAll && user.loja_id) {
+        loja_id = user.loja_id;
       }
 
-      const { data, error } = await query.order('loja_id');
+      const { metas_loja, categorias } = await fetchMetasLojasMySQL(periodoSelecionado, loja_id);
 
-      if (error) throw error;
+      // Agrupar categorias por meta_loja_id
+      const categoriasPorMeta = categorias.reduce((acc, categoria) => {
+        if (!acc[categoria.meta_loja_id]) {
+          acc[categoria.meta_loja_id] = [];
+        }
+        acc[categoria.meta_loja_id].push(categoria);
+        return acc;
+      }, {} as Record<number, MySQLMetaLojaCategoria[]>);
 
-      const metasFormatadas = (data || []).map(meta => ({
+      // Formar estrutura final
+      const metasFormatadas: MetaLoja[] = metas_loja.map(meta => ({
         ...meta,
-        nome_loja: `${meta.lojas?.numero} - ${meta.lojas?.nome}`,
-        categorias: meta.metas_loja_categorias || []
+        nome_loja: `${meta.numero} - ${meta.loja_nome}`,
+        categorias: categoriasPorMeta[meta.id] || []
       }));
 
       setMetasLojas(metasFormatadas);
     } catch (err: any) {
       setError(err.message);
+      console.error('Erro ao buscar metas de lojas:', err);
     }
   };
 
-  // Atualizar meta de colaborador
+  // Atualizar meta de colaborador - TODO: Implementar via MySQL
   const updateMetaColaborador = async (id: number, meta_mensal: number) => {
-    try {
-      const { error } = await supabase
-        .from('metas')
-        .update({ meta_mensal })
-        .eq('id', id);
-
-      if (error) throw error;
-      await fetchColaboradoresComMetas();
-    } catch (err: any) {
-      setError(err.message);
-      throw err;
-    }
+    console.warn('updateMetaColaborador não implementado para MySQL ainda');
+    // TODO: Implementar via edge function
   };
 
-  // Criar meta de colaborador
+  // Criar meta de colaborador - TODO: Implementar via MySQL
   const createMetaColaborador = async (usuario_id: number, categoria: string, meta_mensal: number) => {
-    try {
-      const { error } = await supabase
-        .from('metas')
-        .insert({
-          usuario_id,
-          categoria: categoria as any,
-          meta_mensal,
-          periodo_meta_id: periodoSelecionado
-        });
-
-      if (error) throw error;
-      await fetchColaboradoresComMetas();
-    } catch (err: any) {
-      setError(err.message);
-      throw err;
-    }
+    console.warn('createMetaColaborador não implementado para MySQL ainda');
+    // TODO: Implementar via edge function
   };
 
-  // Atualizar meta de loja
+  // Atualizar meta de loja - TODO: Implementar via MySQL
   const updateMetaLoja = async (id: number, meta_valor_total: number) => {
-    try {
-      const { error } = await supabase
-        .from('metas_loja')
-        .update({ meta_valor_total })
-        .eq('id', id);
-
-      if (error) throw error;
-      await fetchMetasLojas();
-    } catch (err: any) {
-      setError(err.message);
-      throw err;
-    }
+    console.warn('updateMetaLoja não implementado para MySQL ainda');
+    // TODO: Implementar via edge function
   };
 
   useEffect(() => {
@@ -266,7 +197,7 @@ export function useMetasData() {
         fetchMetasLojas()
       ]).finally(() => setLoading(false));
     }
-  }, [periodoSelecionado]);
+  }, [periodoSelecionado, user]);
 
   return {
     colaboradoresComMetas,

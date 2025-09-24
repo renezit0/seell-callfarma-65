@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { User } from './useAuth';
 import { type PeriodOption } from '@/contexts/PeriodContext';
+import { useMySQLFolgas } from '@/hooks/useMySQLFolgas';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface ColaboradorProgress {
   id: number;

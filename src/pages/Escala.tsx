@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/useAuth';
 import { usePeriodoAtual } from '@/hooks/usePeriodoAtual';
-import { supabase } from '@/integrations/supabase/client';
+import { useMySQLFolgas } from '@/hooks/useMySQLFolgas';
 import { getDescricaoTipoUsuario } from '@/utils/userTypes';
 import { useToast } from '@/hooks/use-toast';
 import { Users, Eye, Calendar as CalendarIcon } from 'lucide-react';
@@ -49,7 +49,7 @@ export default function Escala() {
   const { toast } = useToast();
   const periodo = usePeriodoAtual();
   
-  const [folgas, setFolgas] = useState<Folga[]>([]);
+  const { folgas, fetchFolgas } = useMySQLFolgas();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [usuarioSelecionado, setUsuarioSelecionado] = useState<number | null>(null);
   const [modoSelecaoMultipla, setModoSelecaoMultipla] = useState(false);
