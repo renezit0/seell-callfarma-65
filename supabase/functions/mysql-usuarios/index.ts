@@ -1,7 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4"
 import { Client } from "https://deno.land/x/mysql@v2.12.1/mod.ts"
-import { compare } from "https://deno.land/x/bcrypt@v0.4.1/mod.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -104,23 +103,8 @@ serve(async (req) => {
         console.log('👤 Usuário encontrado:', user.nome);
         console.log('🔐 Verificando senha...');
         
-        // Verificar se a senha armazenada é um hash bcrypt (começa com $2)
-        let senhaCorreta = false;
-        
-        if (storedPassword && storedPassword.startsWith('$2')) {
-          // Senha com hash bcrypt
-          console.log('🔐 Verificando hash bcrypt...');
-          try {
-            senhaCorreta = await compare(senha, storedPassword);
-          } catch (error) {
-            console.error('❌ Erro ao verificar bcrypt:', error);
-            senhaCorreta = false;
-          }
-        } else {
-          // Senha em texto plano (fallback)
-          console.log('🔐 Verificando senha em texto plano...');
-          senhaCorreta = (senha === storedPassword);
-        }
+        // Por enquanto, usar apenas texto plano até corrigir bcrypt no Deno
+        const senhaCorreta = (senha === storedPassword);
         
         if (senhaCorreta) {
           console.log('✅ Autenticação bem-sucedida!');

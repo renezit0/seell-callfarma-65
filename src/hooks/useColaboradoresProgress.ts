@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { User } from './useAuth';
 import { type PeriodOption } from '@/contexts/PeriodContext';
-import { useMySQLFolgas } from '@/hooks/useMySQLFolgas';
-import { supabase } from '@/integrations/supabase/client';
+import { useMySQLMetas } from '@/hooks/useMySQLMetas';
+import { useMySQLUsuarios } from '@/hooks/useMySQLUsuarios';
 
 export interface ColaboradorProgress {
   id: number;
@@ -32,6 +32,8 @@ export interface ColaboradorProgress {
 }
 
 export function useColaboradoresProgress(user: User | null, selectedPeriod?: PeriodOption | null) {
+  const { fetchColaboradoresComMetas } = useMySQLMetas();
+  const { fetchUsuarios } = useMySQLUsuarios();
   const [colaboradores, setColaboradores] = useState<ColaboradorProgress[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -49,53 +51,27 @@ export function useColaboradoresProgress(user: User | null, selectedPeriod?: Per
       try {
         setLoading(true);
 
-        // Definir quais usuários buscar
-        let usuariosQuery = supabase
-          .from('usuarios')
-          .select('id, nome, tipo')
-          .eq('loja_id', user.loja_id)
-          .eq('status', 'ativo');
+        // Determinar quais usuários buscar
+        let usuario_id: number | undefined;
+        let loja_id: number | undefined = user.loja_id;
 
-        // Se deve mostrar apenas dados próprios
         if (showOnlyOwnData) {
-          usuariosQuery = usuariosQuery.eq('id', user.id);
+          usuario_id = user.id;
         }
 
-        const { data: usuarios, error: usuariosError } = await usuariosQuery;
-
-        if (usuariosError) throw usuariosError;
+        // Buscar colaboradores e metas via MySQL
+        const { usuarios, metas } = await fetchColaboradoresComMetas(loja_id, selectedPeriod.id, usuario_id);
 
         if (!usuarios || usuarios.length === 0) {
           setColaboradores([]);
           return;
         }
 
-        const usuarioIds = usuarios.map(u => u.id);
-
-        // Buscar metas dos usuários para o período
-        const { data: metas, error: metasError } = await supabase
-          .from('metas')
-          .select('*')
-          .in('usuario_id', usuarioIds)
-          .eq('periodo_meta_id', selectedPeriod.id);
-
-        if (metasError) throw metasError;
-
-        // Buscar vendas dos usuários para o período  
-        const { data: vendas, error: vendasError } = await supabase
-          .from('vendas')
-          .select('*')
-          .in('usuario_id', usuarioIds)
-          .gte('data_venda', selectedPeriod.startDate.toISOString().split('T')[0])
-          .lte('data_venda', selectedPeriod.endDate.toISOString().split('T')[0]);
-
-        if (vendasError) throw vendasError;
-
-        // Processar dados - filtrar apenas colaboradores com metas
+        // TODO: Buscar vendas do Supabase ainda (temporário)
+        // Por enquanto retornando dados básicos sem vendas
         const colaboradoresData: ColaboradorProgress[] = usuarios
           .map(usuario => {
             const metasUsuario = metas?.filter(m => m.usuario_id === usuario.id) || [];
-            const vendasUsuario = vendas?.filter(v => v.usuario_id === usuario.id) || [];
 
             // Se não tem metas, não incluir na lista
             if (metasUsuario.length === 0) {
@@ -108,36 +84,14 @@ export function useColaboradoresProgress(user: User | null, selectedPeriod?: Per
               return acc;
             }, {} as Record<string, number>);
 
-            // Somar vendas por categoria
-            const vendasMap = vendasUsuario.reduce((acc, venda) => {
-              const valor = Number(venda.valor_venda) || 0;
-              
-              switch (venda.categoria) {
-                case 'geral':
-                  acc.geral += valor;
-                  break;
-                case 'similar':
-                case 'generico':
-                  acc.generico_similar += valor;
-                  break;
-                case 'goodlife':
-                  acc.goodlife += valor;
-                  break;
-                case 'perfumaria_alta':
-                  acc.perfumaria_alta += valor;
-                  break;
-                case 'dermocosmetico':
-                  acc.dermocosmetico += valor;
-                  break;
-              }
-              return acc;
-            }, {
+            // Por enquanto, vendas zeradas (precisa implementar busca no MySQL)
+            const vendasMap = {
               geral: 0,
               generico_similar: 0,
               goodlife: 0,
               perfumaria_alta: 0,
               dermocosmetico: 0
-            });
+            };
 
             // Calcular progresso (percentual)
             const calcularProgresso = (venda: number, meta?: number) => {
