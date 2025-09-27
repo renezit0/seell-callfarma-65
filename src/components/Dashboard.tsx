@@ -41,14 +41,21 @@ function DashboardContent() {
     if (!user?.loja_id) return;
     
     try {
-      const { data, error } = await supabase
-        .from('lojas')
-        .select('numero, nome')
-        .eq('id', user.loja_id)
-        .single();
+      const { data, error } = await supabase.functions.invoke('mysql-usuarios', {
+        body: {
+          action: 'fetch_loja',
+          loja_id: user.loja_id
+        }
+      });
 
       if (error) throw error;
-      setLojaInfo(data);
+      
+      if (data?.success && data?.data) {
+        setLojaInfo({
+          numero: data.data.numero,
+          nome: data.data.nome
+        });
+      }
     } catch (error) {
       console.error('Erro ao buscar informações da loja:', error);
     }
