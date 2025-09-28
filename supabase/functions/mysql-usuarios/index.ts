@@ -2,6 +2,29 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4"
 import { Client } from "https://deno.land/x/mysql@v2.12.1/mod.ts"
 
+// Função para verificar senha bcrypt usando implementação compatível
+async function verifyBcryptPassword(password: string, hash: string): Promise<boolean> {
+  try {
+    // Usar a biblioteca bcrypt via ESM
+    const bcrypt = await import("https://deno.land/x/bcrypt@v0.4.1/mod.ts");
+    return await bcrypt.compare(password, hash);
+  } catch (error) {
+    console.error('Erro ao verificar senha bcrypt:', error);
+    return false;
+  }
+}
+
+// Função para criar hash bcrypt
+async function createBcryptHash(password: string): Promise<string> {
+  try {
+    const bcrypt = await import("https://deno.land/x/bcrypt@v0.4.1/mod.ts");
+    return await bcrypt.hash(password, await bcrypt.genSalt(12));
+  } catch (error) {
+    console.error('Erro ao criar hash bcrypt:', error);
+    return password; // Fallback para texto plano em caso de erro
+  }
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -85,14 +108,45 @@ serve(async (req) => {
       const cleanCpf = (cpf: string) => cpf.replace(/[.\-\s]/g, '');
       const cleanedLogin = cleanCpf(login);
       
-      // Buscar usuário por login ou CPF (sem validar senha ainda)
-      const authQuery = `SELECT u.*, l.nome as loja_nome, l.numero as loja_numero 
-                        FROM usuarios u 
-                        LEFT JOIN lojas l ON u.loja_id = l.id 
-                        WHERE (u.login = ? OR u.CPF = ? OR u.CPF = ?) 
-                        AND u.status = 'ativo'`;
+      // Construir consulta flexível para CPF como no PHP original
+      let authQuery = `SELECT u.*, l.nome as loja_nome, l.numero as loja_numero 
+                      FROM usuarios u 
+                      LEFT JOIN lojas l ON u.loja_id = l.id 
+                      WHERE u.login = ?`;
+      const queryParams = [login];
       
-      const result = await client.execute(authQuery, [login, cleanedLogin, login]);
+      // Se o input parece ser um CPF (só números)
+      if (cleanedLogin.length > 0 && /^\d+$/.test(cleanedLogin)) {
+        // Buscar por CPF exato
+        authQuery += ` OR u.CPF = ?`;
+        queryParams.push(login);
+        
+        // Se o CPF tem menos de 11 dígitos, buscar também com zeros à esquerda
+        if (cleanedLogin.length < 11) {
+          const cpfComZeros = cleanedLogin.padStart(11, '0');
+          authQuery += ` OR u.CPF = ?`;
+          queryParams.push(cpfComZeros);
+        }
+        
+        // Se o CPF tem 11 dígitos, buscar também sem o zero inicial
+        if (cleanedLogin.length === 11 && cleanedLogin[0] === '0') {
+          const cpfSemZero = cleanedLogin.replace(/^0+/, '');
+          if (cpfSemZero) {
+            authQuery += ` OR u.CPF = ?`;
+            queryParams.push(cpfSemZero);
+          }
+        }
+        
+        // Buscar por CPF apenas com números
+        if (cleanedLogin !== login) {
+          authQuery += ` OR u.CPF = ?`;
+          queryParams.push(cleanedLogin);
+        }
+      }
+      
+      authQuery += ` AND u.status = 'ativo'`;
+      
+      const result = await client.execute(authQuery, queryParams);
       
       if (result.rows && result.rows.length > 0) {
         const usuario = result.rows[0];
@@ -101,12 +155,28 @@ serve(async (req) => {
         
         // Verificar se a senha está em formato hash bcrypt
         if (senhaArmazenada && (senhaArmazenada.startsWith('$2y$') || senhaArmazenada.startsWith('$2a$') || senhaArmazenada.startsWith('$2b$'))) {
-          // Por enquanto, não suportamos bcrypt no Deno - aceitar apenas senhas em texto plano
-          console.log('Senha em formato bcrypt detectada, mas não suportada no momento');
-          autenticado = false;
+          try {
+            // Usar função de verificação bcrypt
+            autenticado = await verifyBcryptPassword(senha, senhaArmazenada);
+          } catch (error) {
+            console.error('Erro ao verificar senha bcrypt:', error);
+            autenticado = false;
+          }
         } else {
           // Senha em texto plano (comparação direta)
           autenticado = (senha === senhaArmazenada);
+          
+          // Se autenticou com texto plano, atualizar para hash
+          if (autenticado) {
+            try {
+              const hashSenha = await createBcryptHash(senha);
+              const updateQuery = `UPDATE usuarios SET senha = ? WHERE id = ?`;
+              await client.execute(updateQuery, [hashSenha, usuario.id]);
+              console.log(`Senha do usuário ${usuario.id} atualizada para bcrypt hash`);
+            } catch (error) {
+              console.error('Erro ao atualizar senha para hash:', error);
+            }
+          }
         }
         
         if (!autenticado) {
