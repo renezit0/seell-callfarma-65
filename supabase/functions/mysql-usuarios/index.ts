@@ -42,10 +42,8 @@ async function verifyPassword(password: string, hashedPassword: string): Promise
         const bcrypt = await import("https://deno.land/x/bcrypt@v0.4.1/mod.ts");
         return await bcrypt.compare(password, hashedPassword);
       } catch (e) {
-        console.log('Erro com bcrypt, comparando diretamente:', e instanceof Error ? e.message : String(e));
-        // Como último recurso, para teste, permitir algumas senhas conhecidas
-        // TEMPORÁRIO - apenas para debug
-        return password === '0549' && hashedPassword.includes('$2y$');
+        console.log('Erro com bcrypt, falha na verificação:', e instanceof Error ? e.message : String(e));
+        return false; // Retornar false se não conseguir verificar bcrypt
       }
     } else {
       // Senha em texto plano
@@ -249,18 +247,21 @@ serve(async (req) => {
       let params: any[] = [];
       
       if (periodo_id) {
-        // Buscar folgas por período
+        // Buscar folgas por período - primeiro pegar as datas do período
         query = `
           SELECT f.folga_id, f.usuario_id, f.data_folga, f.observacao, f.data_registro,
-                 u.nome as nome_usuario, u.tipo as tipo_usuario,
-                 p.data_inicio, p.data_fim
+                 u.nome as nome_usuario, u.tipo as tipo_usuario
           FROM folgas f
           JOIN usuarios u ON f.usuario_id = u.id
-          JOIN periodos_meta p ON ? BETWEEN p.data_inicio AND p.data_fim
-          WHERE f.usuario_id = ? AND f.data_folga BETWEEN p.data_inicio AND p.data_fim
+          WHERE f.usuario_id = ? 
+            AND f.data_folga BETWEEN (
+              SELECT data_inicio FROM periodos_meta WHERE id = ?
+            ) AND (
+              SELECT data_fim FROM periodos_meta WHERE id = ?
+            )
           ORDER BY f.data_folga ASC
         `;
-        params = [periodo_id, usuario_id];
+        params = [usuario_id, periodo_id, periodo_id];
       } else if (data_inicio && data_fim) {
         // Buscar folgas por intervalo de datas
         query = `
