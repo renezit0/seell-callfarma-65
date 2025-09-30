@@ -2,8 +2,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4"
 import { Client } from "https://deno.land/x/mysql@v2.12.1/mod.ts"
 
-// Usar bcryptjs - implementação pura JavaScript que funciona em edge functions
-import * as bcrypt from "https://esm.sh/bcryptjs@2.4.3";
+// Usar bcryptjs - importar corretamente
+import bcryptjs from "https://esm.sh/bcryptjs@2.4.3";
 
 // Função para verificar senha bcrypt
 async function verifyPassword(password: string, hashedPassword: string): Promise<boolean> {
@@ -23,7 +23,7 @@ async function verifyPassword(password: string, hashedPassword: string): Promise
       
       try {
         // bcryptjs usa método síncrono compareSync
-        const isValid = bcrypt.compareSync(password, normalizedHash);
+        const isValid = bcryptjs.compareSync(password, normalizedHash);
         console.log('✅ Verificação bcrypt:', isValid ? 'VÁLIDA ✓' : 'INVÁLIDA ✗');
         return isValid;
       } catch (e) {
