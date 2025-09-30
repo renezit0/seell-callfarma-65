@@ -51,10 +51,12 @@ export default function Usuarios() {
   // useEffect must be called before any early returns
   useEffect(() => {
     if (user) {
-      fetchMySQLUsuarios(selectedLojaId || undefined, tipoFilter !== 'all' ? tipoFilter : undefined);
+      // Se o usuário não pode ver todas as lojas, sempre filtrar pela loja dele
+      const lojaParaFiltrar = hasMultiStoreAccess ? selectedLojaId : user.loja_id;
+      fetchMySQLUsuarios(lojaParaFiltrar || undefined, tipoFilter !== 'all' ? tipoFilter : undefined);
       fetchLojaInfo();
     }
-  }, [user, selectedLojaId, tipoFilter]);
+  }, [user, selectedLojaId, tipoFilter, hasMultiStoreAccess]);
 
   // Função não mais necessária - usando apenas MySQL
 
@@ -180,10 +182,10 @@ export default function Usuarios() {
           <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
             <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
               <Database className="w-4 h-4" />
-              <span className="text-sm font-medium">MySQL Externo (69.6.213.99)</span>
+              <span className="text-sm font-medium">Banco de Dados Externo</span>
             </div>
             <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-              Consultando dados exclusivamente do banco MySQL externo. Funcionalidades de edição desabilitadas.
+              Consultando dados do banco MySQL externo. Funcionalidades de edição desabilitadas.
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">

@@ -2,48 +2,28 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4"
 import { Client } from "https://deno.land/x/mysql@v2.12.1/mod.ts"
 
-// Função simples para verificar senha bcrypt manualmente
-async function verifyBcryptPassword(password: string, hash: string): Promise<boolean> {
-  try {
-    // Usar implementação mais robusta do bcrypt
-    const response = await fetch(`https://api.bcrypt.online/v1/compare`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password, hash })
-    });
-    
-    if (response.ok) {
-      const result = await response.json();
-      return result.match === true;
-    }
-  } catch (error) {
-    console.error('Erro na verificação bcrypt online:', error);
-  }
-  
-  // Fallback: comparação simples se a API não funcionar
-  return false;
-}
+// Importar bcrypt do Deno
+import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 
-// Função alternativa para verificar senha
+// Função para verificar senha
 async function verifyPassword(password: string, hashedPassword: string): Promise<boolean> {
   try {
-    console.log('Verificando senha. Hash:', hashedPassword.substring(0, 20) + '...');
+    console.log('Verificando senha...');
     
-    // Se for bcrypt hash
+    // Se for bcrypt hash ($2y$, $2a$, $2b$)
     if (hashedPassword.startsWith('$2y$') || hashedPassword.startsWith('$2a$') || hashedPassword.startsWith('$2b$')) {
-      console.log('Detectado hash bcrypt, tentando verificar...');
+      console.log('Detectado hash bcrypt');
       
-      // Tentar verificação online primeiro
-      const bcryptResult = await verifyBcryptPassword(password, hashedPassword);
-      if (bcryptResult) return true;
+      // Converter $2y$ para $2a$ (bcrypt do Deno usa $2a$)
+      const normalizedHash = hashedPassword.replace(/^\$2y\$/, '$2a$');
       
-      // Se falhar, tentar importar bcrypt dinamicamente
       try {
-        const bcrypt = await import("https://deno.land/x/bcrypt@v0.4.1/mod.ts");
-        return await bcrypt.compare(password, hashedPassword);
+        const isValid = await bcrypt.compare(password, normalizedHash);
+        console.log('Verificação bcrypt:', isValid ? 'válida' : 'inválida');
+        return isValid;
       } catch (e) {
-        console.log('Erro com bcrypt, falha na verificação:', e instanceof Error ? e.message : String(e));
-        return false; // Retornar false se não conseguir verificar bcrypt
+        console.error('Erro ao verificar bcrypt:', e instanceof Error ? e.message : String(e));
+        return false;
       }
     } else {
       // Senha em texto plano
@@ -83,13 +63,20 @@ serve(async (req) => {
   let client: Client | null = null;
 
   try {
+    // Obter credenciais do banco de dados das variáveis de ambiente
+    const DB_HOST = Deno.env.get('MYSQL_HOST') || '69.6.213.99';
+    const DB_USER = Deno.env.get('MYSQL_USER') || 'flavi071_flavio';
+    const DB_PASS = Deno.env.get('MYSQL_PASS') || 'Fr@286030';
+    const DB_NAME = Deno.env.get('MYSQL_DB') || 'flavi071_farmagestaodb';
+    const DB_PORT = parseInt(Deno.env.get('MYSQL_PORT') || '3306');
+    
     // Conectar ao MySQL
     client = await new Client().connect({
-      hostname: "69.6.213.99",
-      username: "flavi071_flavio",
-      password: "Fr@286030",
-      db: "flavi071_farmagestaodb",
-      port: 3306
+      hostname: DB_HOST,
+      username: DB_USER,
+      password: DB_PASS,
+      db: DB_NAME,
+      port: DB_PORT
     });
 
     const { action, loja_id, user_type, login, senha } = await req.json().catch(() => ({}));
