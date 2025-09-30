@@ -2,32 +2,38 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4"
 import { Client } from "https://deno.land/x/mysql@v2.12.1/mod.ts"
 
-// Importar bcrypt do Deno
-import { compare, hash } from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
+// Usar bcryptjs - implementação pura JavaScript que funciona em edge functions
+import * as bcrypt from "https://esm.sh/bcryptjs@2.4.3";
 
 // Função para verificar senha bcrypt
 async function verifyPassword(password: string, hashedPassword: string): Promise<boolean> {
   try {
-    console.log('Verificando senha. Hash:', hashedPassword.substring(0, 20) + '...');
+    console.log('🔐 Verificando senha. Hash:', hashedPassword.substring(0, 30) + '...');
     
     // Se for bcrypt hash ($2y$, $2a$, $2b$)
     if (hashedPassword.startsWith('$2y$') || hashedPassword.startsWith('$2a$') || hashedPassword.startsWith('$2b$')) {
-      console.log('Detectado hash bcrypt, tentando verificar...');
+      console.log('🔍 Detectado hash bcrypt, tentando verificar...');
       
-      // Converter $2y$ para $2a$ (bcrypt do Deno usa $2a$)
-      const normalizedHash = hashedPassword.replace(/^\$2y\$/, '$2a$');
+      // Converter $2y$ (PHP) para $2a$ (compatível com bcryptjs)
+      let normalizedHash = hashedPassword;
+      if (hashedPassword.startsWith('$2y$')) {
+        normalizedHash = '$2a$' + hashedPassword.substring(4);
+        console.log('🔄 Hash normalizado de $2y$ para $2a$');
+      }
       
       try {
-        const isValid = await compare(password, normalizedHash);
-        console.log('✅ Verificação bcrypt:', isValid ? 'VÁLIDA' : 'INVÁLIDA');
+        // bcryptjs usa método síncrono compareSync
+        const isValid = bcrypt.compareSync(password, normalizedHash);
+        console.log('✅ Verificação bcrypt:', isValid ? 'VÁLIDA ✓' : 'INVÁLIDA ✗');
         return isValid;
       } catch (e) {
         console.error('❌ Erro ao verificar bcrypt:', e instanceof Error ? e.message : String(e));
-        return false;
+        console.log('⚠️ Tentando comparação direta como fallback...');
+        return password === hashedPassword;
       }
     } else {
       // Senha em texto plano
-      console.log('Comparando senha em texto plano');
+      console.log('📝 Comparando senha em texto plano');
       return password === hashedPassword;
     }
   } catch (error) {
