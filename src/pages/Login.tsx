@@ -52,14 +52,15 @@ export default function Login() {
         console.log('🚀 Forçando redirecionamento via window.location');
         window.location.href = '/';
       }, 500);
+      setLoading(false);
     } else {
       toast({
         title: "Erro no login",
         description: result.error || "Verifique suas credenciais.",
         variant: "destructive"
       });
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -159,8 +160,7 @@ export default function Login() {
               Versão 10.4
             </div>
             <p className="text-xs leading-relaxed">
-              seeLL - Sistema integrado com MySQL<br/>
-              Todos os direitos reservados
+              seeLL Todos os direitos reservados
               <br />© 2025 - Em desenvolvimento, pode apresentar erros!
             </p>
             <div className="developer-info text-xs mt-2 opacity-75">
