@@ -64,7 +64,7 @@ serve(async (req) => {
     console.error('Erro na função callfarma-vendas:', error);
     return new Response(
       JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Erro desconhecido',
+        error: error.message,
         details: 'Erro ao buscar dados da API externa'
       }), 
       {
