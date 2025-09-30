@@ -112,35 +112,6 @@ export type Database = {
         }
         Relationships: []
       }
-      campanha_config: {
-        Row: {
-          campanha_id: number
-          chave: string
-          id: number
-          valor: string | null
-        }
-        Insert: {
-          campanha_id: number
-          chave: string
-          id?: number
-          valor?: string | null
-        }
-        Update: {
-          campanha_id?: number
-          chave?: string
-          id?: number
-          valor?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "campanha_config_campanha_id_fkey"
-            columns: ["campanha_id"]
-            isOneToOne: false
-            referencedRelation: "campanhas"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       campanha_historico: {
         Row: {
           alterado_por: number
@@ -179,84 +150,6 @@ export type Database = {
           },
           {
             foreignKeyName: "campanha_historico_loja_id_fkey"
-            columns: ["loja_id"]
-            isOneToOne: false
-            referencedRelation: "lojas"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      campanha_lancamentos: {
-        Row: {
-          campanha_id: number
-          data_lancamento: string | null
-          id: number
-          lancado_por: number
-          loja_id: number
-          valor_realizado: number
-        }
-        Insert: {
-          campanha_id: number
-          data_lancamento?: string | null
-          id?: number
-          lancado_por: number
-          loja_id: number
-          valor_realizado: number
-        }
-        Update: {
-          campanha_id?: number
-          data_lancamento?: string | null
-          id?: number
-          lancado_por?: number
-          loja_id?: number
-          valor_realizado?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "campanha_lancamentos_campanha_id_fkey"
-            columns: ["campanha_id"]
-            isOneToOne: false
-            referencedRelation: "campanhas"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "campanha_lancamentos_loja_id_fkey"
-            columns: ["loja_id"]
-            isOneToOne: false
-            referencedRelation: "lojas"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      campanha_metas: {
-        Row: {
-          campanha_id: number
-          id: number
-          loja_id: number
-          valor_meta: number
-        }
-        Insert: {
-          campanha_id: number
-          id?: number
-          loja_id: number
-          valor_meta: number
-        }
-        Update: {
-          campanha_id?: number
-          id?: number
-          loja_id?: number
-          valor_meta?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "campanha_metas_campanha_id_fkey"
-            columns: ["campanha_id"]
-            isOneToOne: false
-            referencedRelation: "campanhas"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "campanha_metas_loja_id_fkey"
             columns: ["loja_id"]
             isOneToOne: false
             referencedRelation: "lojas"
@@ -311,80 +204,6 @@ export type Database = {
           valor_meta?: number | null
         }
         Relationships: []
-      }
-      campanhas_lojas: {
-        Row: {
-          campanha_id: number
-          id: number
-          loja_id: number
-          realizado: number | null
-          status: Database["public"]["Enums"]["campanha_status"] | null
-        }
-        Insert: {
-          campanha_id: number
-          id?: number
-          loja_id: number
-          realizado?: number | null
-          status?: Database["public"]["Enums"]["campanha_status"] | null
-        }
-        Update: {
-          campanha_id?: number
-          id?: number
-          loja_id?: number
-          realizado?: number | null
-          status?: Database["public"]["Enums"]["campanha_status"] | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "campanhas_lojas_campanha_id_fkey"
-            columns: ["campanha_id"]
-            isOneToOne: false
-            referencedRelation: "campanhas"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "campanhas_lojas_loja_id_fkey"
-            columns: ["loja_id"]
-            isOneToOne: false
-            referencedRelation: "lojas"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      campanhas_lojas_historico: {
-        Row: {
-          campanha_loja_id: number
-          data_registro: string
-          id: number
-          registrado_por: number
-          valor_anterior: number | null
-          valor_novo: number
-        }
-        Insert: {
-          campanha_loja_id: number
-          data_registro: string
-          id?: number
-          registrado_por: number
-          valor_anterior?: number | null
-          valor_novo: number
-        }
-        Update: {
-          campanha_loja_id?: number
-          data_registro?: string
-          id?: number
-          registrado_por?: number
-          valor_anterior?: number | null
-          valor_novo?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "campanhas_lojas_historico_campanha_loja_id_fkey"
-            columns: ["campanha_loja_id"]
-            isOneToOne: false
-            referencedRelation: "campanhas_lojas"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       campanhas_vendas_lojas: {
         Row: {
