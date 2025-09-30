@@ -3,26 +3,26 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4"
 import { Client } from "https://deno.land/x/mysql@v2.12.1/mod.ts"
 
 // Importar bcrypt do Deno
-import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
+import { compare, hash } from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 
-// Função para verificar senha
+// Função para verificar senha bcrypt
 async function verifyPassword(password: string, hashedPassword: string): Promise<boolean> {
   try {
-    console.log('Verificando senha...');
+    console.log('Verificando senha. Hash:', hashedPassword.substring(0, 20) + '...');
     
     // Se for bcrypt hash ($2y$, $2a$, $2b$)
     if (hashedPassword.startsWith('$2y$') || hashedPassword.startsWith('$2a$') || hashedPassword.startsWith('$2b$')) {
-      console.log('Detectado hash bcrypt');
+      console.log('Detectado hash bcrypt, tentando verificar...');
       
       // Converter $2y$ para $2a$ (bcrypt do Deno usa $2a$)
       const normalizedHash = hashedPassword.replace(/^\$2y\$/, '$2a$');
       
       try {
-        const isValid = await bcrypt.compare(password, normalizedHash);
-        console.log('Verificação bcrypt:', isValid ? 'válida' : 'inválida');
+        const isValid = await compare(password, normalizedHash);
+        console.log('✅ Verificação bcrypt:', isValid ? 'VÁLIDA' : 'INVÁLIDA');
         return isValid;
       } catch (e) {
-        console.error('Erro ao verificar bcrypt:', e instanceof Error ? e.message : String(e));
+        console.error('❌ Erro ao verificar bcrypt:', e instanceof Error ? e.message : String(e));
         return false;
       }
     } else {
@@ -31,7 +31,7 @@ async function verifyPassword(password: string, hashedPassword: string): Promise
       return password === hashedPassword;
     }
   } catch (error) {
-    console.error('Erro geral na verificação de senha:', error);
+    console.error('❌ Erro geral na verificação de senha:', error);
     return false;
   }
 }

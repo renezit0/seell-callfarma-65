@@ -22,12 +22,12 @@ interface Usuario {
 }
 
 const tiposAusencia = {
-  folga: { label: 'Folga', color: 'bg-emerald-500' },
-  atestado: { label: 'Atestado', color: 'bg-orange-500' },
-  feriado: { label: 'Feriado', color: 'bg-purple-500' },
-  falta: { label: 'Falta', color: 'bg-red-500' },
-  banco: { label: 'Banco de Horas', color: 'bg-yellow-600' },
-  ferias: { label: 'Férias', color: 'bg-blue-500' }
+  folga: { label: 'Folga', color: 'bg-emerald-500 dark:bg-emerald-600' },
+  atestado: { label: 'Atestado', color: 'bg-orange-500 dark:bg-orange-600' },
+  feriado: { label: 'Feriado', color: 'bg-purple-500 dark:bg-purple-600' },
+  falta: { label: 'Falta', color: 'bg-destructive' },
+  banco: { label: 'Banco de Horas', color: 'bg-yellow-500 dark:bg-yellow-600' },
+  ferias: { label: 'Férias', color: 'bg-primary' }
 };
 
 export default function Escala() {
@@ -131,7 +131,7 @@ export default function Escala() {
               <CalendarIcon className="w-6 h-6" />
               Escala de Trabalho
             </h1>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-muted-foreground">
               Período: {formatDate(dataInicio)} a {formatDate(dataFim)}
             </p>
           </div>
@@ -234,8 +234,8 @@ export default function Escala() {
         <CardContent>
           {folgas.length === 0 ? (
             <div className="text-center py-8">
-              <CalendarIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">
+              <CalendarIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">
                 {selectedUser || !podeGerenciar 
                   ? "Nenhuma folga registrada no período selecionado" 
                   : "Selecione um funcionário para ver suas folgas"
@@ -249,19 +249,19 @@ export default function Escala() {
                 const tipoInfo = tiposAusencia[tipo as keyof typeof tiposAusencia] || tiposAusencia.folga;
                 
                 return (
-                  <div key={folga.folga_id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                  <div key={folga.folga_id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent transition-colors">
                     <div className="flex items-center gap-4">
                       <div className={`w-4 h-4 rounded-full ${tipoInfo.color}`}></div>
                       <div>
                         <p className="font-medium">{formatDate(folga.data_folga)}</p>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-muted-foreground">
                           {tipoInfo.label}
                           {folga.observacao && folga.observacao.replace(/\[.*?\]/g, '').trim() && (
                             <> - {folga.observacao.replace(/\[.*?\]/g, '').trim()}</>
                           )}
                         </p>
                         {folga.nome_usuario && (
-                          <p className="text-xs text-gray-500">
+                          <p className="text-xs text-muted-foreground">
                             Funcionário: {folga.nome_usuario}
                           </p>
                         )}
@@ -286,7 +286,7 @@ export default function Escala() {
               </div>
             ))}
           </div>
-          <p className="text-xs text-gray-500 mt-4">
+          <p className="text-xs text-muted-foreground mt-4">
             * A funcionalidade de registro de ausências será implementada em breve
           </p>
         </CardContent>
