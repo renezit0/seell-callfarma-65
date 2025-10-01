@@ -475,17 +475,21 @@ export default function Vendas() {
       const dataFim = format(hoje, 'yyyy-MM-dd');
       const cdfil = canViewAllStores && !selectedLojaId ? 'all' : lojaInfo.cdfil;
       let dadosChart: any[] = [];
+      let dadosVendasFilial: any[] = [];
+
       if (vendedorFilter !== 'all') {
         // Dados específicos do funcionário
         dadosChart = await callfarmaAPI.buscarVendasFuncionariosDetalhadas(dataInicio, dataFim, lojaInfo.cdfil, parseInt(vendedorFilter));
       } else {
-        // Dados gerais
+        // Dados gerais - buscar tanto funcionários quanto vendas da filial
         const {
+          vendasFilial,
           vendasFuncionarios
         } = await callfarmaAPI.buscarDadosVendasCompletos(dataInicio, dataFim, cdfil);
         dadosChart = vendasFuncionarios;
+        dadosVendasFilial = vendasFilial;
       }
-      console.log('Dados para gráfico:', dadosChart.length, 'registros');
+      console.log('Dados para gráfico:', dadosChart.length, 'registros funcionários,', dadosVendasFilial.length, 'registros filial');
 
       // Agrupar por data
       const chartMap = new Map<string, ChartData>();
@@ -510,14 +514,24 @@ export default function Vendas() {
         });
       });
 
-      // Processar dados do chart
+      // Processar dados de vendas gerais da filial
+      dadosVendasFilial.forEach(item => {
+        const dataKey = item.DATA ? item.DATA.split('T')[0] : null;
+        const existing = dataKey ? chartMap.get(dataKey) : null;
+        if (existing) {
+          const valorVenda = item.valor || 0;
+          existing.geral += valorVenda;
+          existing.value = valorVenda; // value representa o total geral
+        }
+      });
+
+      // Processar dados de indicadores (funcionários)
       dadosChart.forEach(item => {
         const dataKey = item.DATA.split('T')[0];
         const existing = chartMap.get(dataKey);
         if (existing) {
           const valorLiquido = (item.TOTAL_VLR_VE || 0) - (item.TOTAL_VLR_DV || 0);
           const categoria = mapearGrupoParaCategoria(item.CDGRUPO);
-          existing.value += valorLiquido;
           existing.transactions += 1;
           if (categoria === 'goodlife') {
             existing.goodlife += valorLiquido;
