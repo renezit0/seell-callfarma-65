@@ -622,16 +622,17 @@ export default function Graficos() {
           <span className="ml-2">Carregando gráficos...</span>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-          <Card className="lg:col-span-2">
+        <>
+          {/* Gráfico Multi-Linha */}
+          <Card className="mb-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="w-5 h-5" />
-                Evolução das Vendas por Categoria
+                Evolução Multi-Linha - Todas as Categorias
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="h-80">
+              <div className="h-96">
                 <ResponsiveContainer width="100%" height="100%">
                   <RechartsLineChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -643,138 +644,243 @@ export default function Graficos() {
                     />
                     <Legend formatter={(value) => getNomeCategoria(value)} />
                     <Line type="monotone" dataKey="geral" stroke="hsl(221, 83%, 53%)" strokeWidth={3} dot={{ r: 3 }} name="geral" />
-                    <Line type="monotone" dataKey="goodlife" stroke="hsl(142, 76%, 36%)" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3 }} name="goodlife" />
-                    <Line type="monotone" dataKey="perfumaria_r_mais" stroke="hsl(262, 83%, 58%)" strokeWidth={2} strokeDasharray="10 5" dot={{ r: 3 }} name="perfumaria_r_mais" />
-                    <Line type="monotone" dataKey="conveniencia_r_mais" stroke="hsl(32, 95%, 44%)" strokeWidth={2} strokeDasharray="15 5" dot={{ r: 3 }} name="conveniencia_r_mais" />
-                    <Line type="monotone" dataKey="r_mais" stroke="hsl(0, 84%, 60%)" strokeWidth={2} strokeDasharray="3 3" dot={{ r: 3 }} name="r_mais" />
+                    <Line type="monotone" dataKey="goodlife" stroke="hsl(142, 76%, 36%)" strokeWidth={2} dot={{ r: 2 }} name="goodlife" />
+                    <Line type="monotone" dataKey="perfumaria_r_mais" stroke="hsl(262, 83%, 58%)" strokeWidth={2} dot={{ r: 2 }} name="perfumaria_r_mais" />
+                    <Line type="monotone" dataKey="conveniencia_r_mais" stroke="hsl(32, 95%, 44%)" strokeWidth={2} dot={{ r: 2 }} name="conveniencia_r_mais" />
+                    <Line type="monotone" dataKey="r_mais" stroke="hsl(0, 84%, 60%)" strokeWidth={2} dot={{ r: 2 }} name="r_mais" />
                   </RechartsLineChart>
                 </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart className="w-5 h-5" />
-                Vendas Diárias (Geral)
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RechartsBarChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" fontSize={12} tick={{ fontSize: 10 }} />
-                    <YAxis fontSize={12} tick={{ fontSize: 10 }} tickFormatter={(value) => `R$ ${value.toLocaleString('pt-BR')}`} />
-                    <Tooltip formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 'Vendas']} labelFormatter={(label) => `Data: ${label}`} />
-                    <Bar dataKey="value" fill="hsl(221, 83%, 53%)" radius={[4, 4, 0, 0]} />
-                  </RechartsBarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Gráficos Individuais por Indicador */}
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
+              <Activity className="w-5 h-5" />
+              Evolução Individual por Indicador
+            </h2>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+              {/* Venda Geral */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-[hsl(221,83%,53%)]">
+                    <TrendingUp className="w-4 h-4" />
+                    Venda Geral
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RechartsAreaChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="date" fontSize={12} tick={{ fontSize: 10 }} />
+                        <YAxis fontSize={12} tick={{ fontSize: 10 }} tickFormatter={(value) => `R$ ${value.toLocaleString('pt-BR')}`} />
+                        <Tooltip formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 'Venda Geral']} labelFormatter={(label) => `Data: ${label}`} />
+                        <Area type="monotone" dataKey="geral" stroke="hsl(221, 83%, 53%)" fill="hsl(221, 83%, 53%)" fillOpacity={0.3} />
+                      </RechartsAreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <PieChart className="w-5 h-5" />
-                Distribuição por Categoria
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RechartsPieChart>
-                    <Pie
-                      data={pieChartData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {pieChartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 'Total']} />
-                  </RechartsPieChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
+              {/* R+ Mais */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-[hsl(0,84%,60%)]">
+                    <TrendingUp className="w-4 h-4" />
+                    R+ Mais
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RechartsAreaChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="date" fontSize={12} tick={{ fontSize: 10 }} />
+                        <YAxis fontSize={12} tick={{ fontSize: 10 }} tickFormatter={(value) => `R$ ${value.toLocaleString('pt-BR')}`} />
+                        <Tooltip formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 'R+ Mais']} labelFormatter={(label) => `Data: ${label}`} />
+                        <Area type="monotone" dataKey="r_mais" stroke="hsl(0, 84%, 60%)" fill="hsl(0, 84%, 60%)" fillOpacity={0.3} />
+                      </RechartsAreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Activity className="w-5 h-5" />
-                Ticket Médio
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RechartsAreaChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" fontSize={12} tick={{ fontSize: 10 }} />
-                    <YAxis fontSize={12} tick={{ fontSize: 10 }} tickFormatter={(value) => `R$ ${value.toFixed(2)}`} />
-                    <Tooltip formatter={(value: number) => [`R$ ${value.toFixed(2)}`, 'Ticket Médio']} labelFormatter={(label) => `Data: ${label}`} />
-                    <Area type="monotone" dataKey="ticketMedio" stroke="hsl(32, 95%, 44%)" fill="hsl(32, 95%, 44%)" fillOpacity={0.3} />
-                  </RechartsAreaChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
+              {/* Perfumaria R+ Mais */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-[hsl(262,83%,58%)]">
+                    <TrendingUp className="w-4 h-4" />
+                    Perfumaria R+ Mais
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RechartsAreaChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="date" fontSize={12} tick={{ fontSize: 10 }} />
+                        <YAxis fontSize={12} tick={{ fontSize: 10 }} tickFormatter={(value) => `R$ ${value.toLocaleString('pt-BR')}`} />
+                        <Tooltip formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 'Perfumaria R+ Mais']} labelFormatter={(label) => `Data: ${label}`} />
+                        <Area type="monotone" dataKey="perfumaria_r_mais" stroke="hsl(262, 83%, 58%)" fill="hsl(262, 83%, 58%)" fillOpacity={0.3} />
+                      </RechartsAreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Activity className="w-5 h-5" />
-                Quantidade de Clientes
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RechartsBarChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" fontSize={12} tick={{ fontSize: 10 }} />
-                    <YAxis fontSize={12} tick={{ fontSize: 10 }} />
-                    <Tooltip formatter={(value: number) => [value, 'Clientes']} labelFormatter={(label) => `Data: ${label}`} />
-                    <Bar dataKey="clientes" fill="hsl(142, 76%, 36%)" radius={[4, 4, 0, 0]} />
-                  </RechartsBarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
+              {/* Conveniência R+ Mais */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-[hsl(32,95%,44%)]">
+                    <TrendingUp className="w-4 h-4" />
+                    Conveniência R+ Mais
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RechartsAreaChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="date" fontSize={12} tick={{ fontSize: 10 }} />
+                        <YAxis fontSize={12} tick={{ fontSize: 10 }} tickFormatter={(value) => `R$ ${value.toLocaleString('pt-BR')}`} />
+                        <Tooltip formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 'Conveniência R+ Mais']} labelFormatter={(label) => `Data: ${label}`} />
+                        <Area type="monotone" dataKey="conveniencia_r_mais" stroke="hsl(32, 95%, 44%)" fill="hsl(32, 95%, 44%)" fillOpacity={0.3} />
+                      </RechartsAreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart className="w-5 h-5" />
-                Metas vs Realizado
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RechartsBarChart data={metasData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="categoria" fontSize={12} tick={{ fontSize: 10 }} angle={-45} textAnchor="end" height={60} />
-                    <YAxis fontSize={12} tick={{ fontSize: 10 }} tickFormatter={(value) => `R$ ${value.toLocaleString('pt-BR')}`} />
-                    <Tooltip formatter={(value: number, name: string) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, name === 'meta' ? 'Meta' : 'Realizado']} />
-                    <Legend />
-                    <Bar dataKey="meta" fill="hsl(0, 0%, 60%)" radius={[4, 4, 0, 0]} name="Meta" />
-                    <Bar dataKey="realizado" fill="hsl(142, 76%, 36%)" radius={[4, 4, 0, 0]} name="Realizado" />
-                  </RechartsBarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              {/* Goodlife */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-[hsl(142,76%,36%)]">
+                    <TrendingUp className="w-4 h-4" />
+                    Goodlife
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RechartsAreaChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="date" fontSize={12} tick={{ fontSize: 10 }} />
+                        <YAxis fontSize={12} tick={{ fontSize: 10 }} tickFormatter={(value) => `R$ ${value.toLocaleString('pt-BR')}`} />
+                        <Tooltip formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 'Goodlife']} labelFormatter={(label) => `Data: ${label}`} />
+                        <Area type="monotone" dataKey="goodlife" stroke="hsl(142, 76%, 36%)" fill="hsl(142, 76%, 36%)" fillOpacity={0.3} />
+                      </RechartsAreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          {/* Demais Gráficos */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <PieChart className="w-5 h-5" />
+                  Distribuição por Categoria
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsPieChart>
+                      <Pie
+                        data={pieChartData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {pieChartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 'Total']} />
+                    </RechartsPieChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Activity className="w-5 h-5" />
+                  Ticket Médio
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsAreaChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" fontSize={12} tick={{ fontSize: 10 }} />
+                      <YAxis fontSize={12} tick={{ fontSize: 10 }} tickFormatter={(value) => `R$ ${value.toFixed(2)}`} />
+                      <Tooltip formatter={(value: number) => [`R$ ${value.toFixed(2)}`, 'Ticket Médio']} labelFormatter={(label) => `Data: ${label}`} />
+                      <Area type="monotone" dataKey="ticketMedio" stroke="hsl(32, 95%, 44%)" fill="hsl(32, 95%, 44%)" fillOpacity={0.3} />
+                    </RechartsAreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Activity className="w-5 h-5" />
+                  Quantidade de Clientes
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsBarChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" fontSize={12} tick={{ fontSize: 10 }} />
+                      <YAxis fontSize={12} tick={{ fontSize: 10 }} />
+                      <Tooltip formatter={(value: number) => [value, 'Clientes']} labelFormatter={(label) => `Data: ${label}`} />
+                      <Bar dataKey="clientes" fill="hsl(142, 76%, 36%)" radius={[4, 4, 0, 0]} />
+                    </RechartsBarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart className="w-5 h-5" />
+                  Metas vs Realizado
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsBarChart data={metasData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="categoria" fontSize={12} tick={{ fontSize: 10 }} angle={-45} textAnchor="end" height={60} />
+                      <YAxis fontSize={12} tick={{ fontSize: 10 }} tickFormatter={(value) => `R$ ${value.toLocaleString('pt-BR')}`} />
+                      <Tooltip formatter={(value: number, name: string) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, name === 'meta' ? 'Meta' : 'Realizado']} />
+                      <Legend />
+                      <Bar dataKey="meta" fill="hsl(0, 0%, 60%)" radius={[4, 4, 0, 0]} name="Meta" />
+                      <Bar dataKey="realizado" fill="hsl(142, 76%, 36%)" radius={[4, 4, 0, 0]} name="Realizado" />
+                    </RechartsBarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </>
       )}
     </div>
   );
