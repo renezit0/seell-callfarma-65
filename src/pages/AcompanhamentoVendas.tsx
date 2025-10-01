@@ -605,12 +605,12 @@ interface UseCommissionsReturn {
 function useCommissions(userRole: UserRole | null): UseCommissionsReturn {
   const userHasCommissions = useMemo(() => {
     if (!userRole) return false;
-    return roleIsBonus(userRole);
+    return roleHasCommissions(userRole); // CORRIGIDO: estava roleIsBonus
   }, [userRole]);
   
   const userIsBonus = useMemo(() => {
     if (!userRole) return false;
-    return roleHasCommissions(userRole);
+    return roleIsBonus(userRole); // CORRIGIDO: estava roleHasCommissions
   }, [userRole]);
   
   const calculate = useMemo(() => {
@@ -768,7 +768,7 @@ export default function AcompanhamentoVendasNovo() {
           .from('usuarios')
           .select('id, nome, matricula, tipo, loja_id')
           .eq('loja_id', currentLojaId)
-          .eq('status', 'ATIVO'); // CORREÇÃO: Mudou de 'ativo' para 'status' = 'ATIVO'
+          .in('status', ['ATIVO', 'ativo']); // CORRIGIDO: aceita ambos os valores
 
         if (error) {
           console.error('Erro ao buscar funcionários:', error);
@@ -777,6 +777,7 @@ export default function AcompanhamentoVendasNovo() {
         }
 
         if (data) {
+          console.log('Funcionários da loja carregados:', data.length);
           setFuncionariosLoja(data);
         }
       } catch (error) {
@@ -944,7 +945,7 @@ export default function AcompanhamentoVendasNovo() {
         ...brinquedoFiltradas.map(v => ({ ...v, categoria: 'brinquedo' })),
       ];
 
-      console.log('📊 Dados para comparativo:', todasAsVendasAgregadas);
+      console.log('📊 Dados para comparativo:', todasAsVendasAgregadas.slice(0, 10));
       
       // Buscar CDFUN do usuário se necessário
       let funcionarioSelecionado = null;
@@ -1061,25 +1062,27 @@ export default function AcompanhamentoVendasNovo() {
       setFuncionarios(Array.from(todosFuncionarios.values()));
       console.log(`👥 Funcionários encontrados: ${todosFuncionarios.size}`);
       
-      // Mock vendas processadas para compatibilidade
-      const vendasMock: VendaProcessada[] = [];
-      Object.entries(salesData).forEach(([categoria, valor]) => {
-        if (valor > 0) {
-          vendasMock.push({
-            id: `mock-${categoria}`,
-            cdfun: funcionarioSelecionado || 0,
-            nomefun: user?.nome || 'Usuário',
-            cdfil: lojaInfo.cdfil,
+      // CORRIGIDO: Criar vendas processadas reais a partir dos dados agregados
+      const vendasReais: VendaProcessada[] = [];
+      
+      todasAsVendasAgregadas.forEach((venda, index) => {
+        if (venda.TOTAL_VALOR && venda.TOTAL_VALOR > 0) {
+          vendasReais.push({
+            id: `${venda.CDFIL}-${venda.CDFUN}-${venda.categoria}-${index}`,
+            cdfun: venda.CDFUN,
+            nomefun: venda.NOME || 'Funcionário',
+            cdfil: venda.CDFIL,
             data_venda: dataInicio,
-            categoria,
-            valor_venda: valor,
+            categoria: venda.categoria,
+            valor_venda: venda.TOTAL_VALOR,
             valor_devolucao: 0,
-            valor_liquido: valor
+            valor_liquido: venda.TOTAL_VALOR
           });
         }
       });
       
-      setVendasProcessadas(vendasMock);
+      setVendasProcessadas(vendasReais);
+      console.log(`💼 Vendas processadas para comparativo: ${vendasReais.length}`);
       
       console.log('✅ Processamento concluído:', {
         funcionarioSelecionado,
@@ -1127,22 +1130,28 @@ export default function AcompanhamentoVendasNovo() {
     loadData();
   }, [user, lojaInfo, selectedPeriod, selectedFuncionarioId]);
 
-  // NOVO: useEffect para calcular os dados do comparativo
+  // CORRIGIDO: useEffect para calcular os dados do comparativo
   useEffect(() => {
     if (vendasProcessadas.length === 0 || funcionariosLoja.length === 0) {
+      console.log('⚠️ Comparativo vazio: vendas ou funcionários não disponíveis');
       setDadosComparativo(new Map());
       return;
     }
 
     const mapaResultados = new Map<number, { totalVendas: number; totalComissao: number }>();
 
+    console.log('🔄 Calculando comparativo para', funcionariosLoja.length, 'funcionários');
+
     funcionariosLoja.forEach(func => {
       const funcRole = func.tipo as UserRole;
       const rates = getCommissionRates(funcRole);
-      if (Object.keys(rates).length === 0) return; // Pula se não tem comissão
-
+      
+      // Se não tem comissão configurada, ainda assim calcular vendas
       const cdfun = parseInt(func.matricula);
-      if (isNaN(cdfun)) return;
+      if (isNaN(cdfun)) {
+        console.warn(`⚠️ Matrícula inválida para ${func.nome}: ${func.matricula}`);
+        return;
+      }
 
       let totalVendasFunc = 0;
       let totalComissaoFunc = 0;
@@ -1157,18 +1166,44 @@ export default function AcompanhamentoVendasNovo() {
         }
       });
 
+      // Adicionar ao mapa mesmo se não tiver comissão (para mostrar vendas)
+      mapaResultados.set(func.id, { totalVendas: totalVendasFunc, totalComissao: totalComissaoFunc });
+      
       if (totalVendasFunc > 0) {
-        mapaResultados.set(func.id, { totalVendas: totalVendasFunc, totalComissao: totalComissaoFunc });
+        console.log(`✅ ${func.nome}: R$ ${totalVendasFunc.toFixed(2)} vendas, R$ ${totalComissaoFunc.toFixed(2)} comissão`);
       }
     });
 
     setDadosComparativo(mapaResultados);
+    console.log('📊 Comparativo calculado:', mapaResultados.size, 'funcionários');
 
   }, [vendasProcessadas, funcionariosLoja]);
 
-  // Calcular vendas por categoria para comissões
+  // Calcular vendas por categoria para comissões (do usuário selecionado)
   const vendasPorCategoria = useMemo(() => {
-    const grouped = vendasProcessadas.reduce((acc, venda) => {
+    // Filtrar apenas vendas do funcionário selecionado ou usuário logado
+    let vendasFiltradas = vendasProcessadas;
+    
+    if (selectedFuncionarioId !== 'all') {
+      // Buscar CDFUN do funcionário selecionado
+      const funcionarioTarget = selectedFuncionarioId === 'me' ? 
+        user?.id : parseInt(selectedFuncionarioId);
+      
+      if (funcionarioTarget) {
+        const funcData = funcionariosLoja.find(f => 
+          selectedFuncionarioId === 'me' ? f.id === user?.id : f.id === funcionarioTarget
+        );
+        
+        if (funcData) {
+          const cdfun = parseInt(funcData.matricula);
+          if (!isNaN(cdfun)) {
+            vendasFiltradas = vendasProcessadas.filter(v => v.cdfun === cdfun);
+          }
+        }
+      }
+    }
+    
+    const grouped = vendasFiltradas.reduce((acc, venda) => {
       const categoria = venda.categoria;
       
       if (!acc[categoria]) {
@@ -1178,9 +1213,9 @@ export default function AcompanhamentoVendasNovo() {
       return acc;
     }, {} as SalesData);
 
-    console.log('Vendas por categoria:', grouped);
+    console.log('Vendas por categoria (filtradas):', grouped);
     return grouped;
-  }, [vendasProcessadas]);
+  }, [vendasProcessadas, selectedFuncionarioId, funcionariosLoja, user]);
 
   // Atualizar salesData e comissões quando vendasPorCategoria mudar
   useEffect(() => {
