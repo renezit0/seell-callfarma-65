@@ -789,14 +789,21 @@ export default function AcompanhamentoVendasNovo() {
     fetchFuncionarios();
   }, [currentLojaId, canViewAllSales]);
 
-  // Análise do período
+  // Análise do período - CORRIGIDO para usar as datas exatas do selectedPeriod
   const calcularAnalisePeriodo = useMemo(() => {
     if (!selectedPeriod) return { total_dias: 0, dias_trabalhados: 0, dias_uteis_restantes: 0, percentual_tempo: 0 };
 
+    // Usar as datas EXATAS do período selecionado
     const dataInicio = new Date(selectedPeriod.startDate);
     const dataFim = new Date(selectedPeriod.endDate);
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
+
+    console.log('📅 Calculando análise do período:', {
+      inicio: format(dataInicio, 'yyyy-MM-dd'),
+      fim: format(dataFim, 'yyyy-MM-dd'),
+      hoje: format(hoje, 'yyyy-MM-dd')
+    });
 
     let total_dias = differenceInDays(dataFim, dataInicio) + 1;
     let dias_trabalhados = 0;
@@ -804,17 +811,23 @@ export default function AcompanhamentoVendasNovo() {
 
     let dataCorrente = new Date(dataInicio);
     while (dataCorrente <= dataFim) {
-      if (!isWeekend(dataCorrente)) {
-        if (dataCorrente < hoje) {
-          dias_trabalhados++;
-        } else {
-          dias_uteis_restantes++;
-        }
+      // Contar TODOS os dias (não apenas úteis) do período
+      if (dataCorrente < hoje) {
+        dias_trabalhados++;
+      } else {
+        dias_uteis_restantes++;
       }
       dataCorrente = addDays(dataCorrente, 1);
     }
 
-    const percentual_tempo = total_dias > 0 ? (dias_trabalhados / (dias_trabalhados + dias_uteis_restantes)) * 100 : 0;
+    const percentual_tempo = total_dias > 0 ? (dias_trabalhados / total_dias) * 100 : 0;
+
+    console.log('📊 Resultado da análise:', {
+      total_dias,
+      dias_trabalhados,
+      dias_uteis_restantes,
+      percentual_tempo: percentual_tempo.toFixed(1) + '%'
+    });
 
     return {
       total_dias,
