@@ -32,14 +32,12 @@ export function PeriodSelector() {
       }
       const now = new Date();
     const processedPeriods: PeriodOption[] = periodsData.map(period => {
-      // CORRIGIDO: Adicionar horário para evitar problema de timezone
-      // Quando lemos '2025-09-21' sem hora, JS interpreta como UTC meia-noite
-      // No Brasil (UTC-3), isso vira 20/09 às 21h do dia anterior
-      const startDate = new Date(period.data_inicio + 'T12:00:00');
-      const endDate = new Date(period.data_fim + 'T12:00:00');
-      let status: 'current' | 'past' | 'future' = 'current';
-      if (endDate < now) status = 'past';
-      if (startDate > now) status = 'future';
+        // Usar as datas exatas do banco para os cálculos
+        const startDate = new Date(period.data_inicio);
+        const endDate = new Date(period.data_fim);
+        let status: 'current' | 'past' | 'future' = 'current';
+        if (endDate < now) status = 'past';
+        if (startDate > now) status = 'future';
 
         // Se hoje está entre as datas, é o período atual
         const isCurrentPeriod = now >= startDate && now <= endDate;
