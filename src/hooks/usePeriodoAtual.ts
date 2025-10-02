@@ -37,6 +37,14 @@ export function usePeriodoAtual() {
     const dataInicio = new Date(anoInicio, mesInicio, 21);
     const dataFim = new Date(anoFim, mesFim, 20);
 
+    console.log('🔍 usePeriodoAtual DEBUG:', {
+      hoje: `${dia}/${mes + 1}/${ano}`,
+      dataInicio: dataInicio.toISOString().split('T')[0],
+      dataFim: dataFim.toISOString().split('T')[0],
+      mesInicio: mesInicio + 1,
+      mesFim: mesFim + 1
+    });
+
     return {
       dataInicio,
       dataFim,
