@@ -10,14 +10,14 @@ export function usePeriodoAtual() {
     // Período sempre do dia 21 ao dia 20 do mês seguinte
     let mesInicio, anoInicio, mesFim, anoFim;
 
-    if (dia > 20) {
-      // Se estamos após o dia 20 (dia 21 em diante), o período atual começou neste mês
+    if (dia >= 21) {
+      // Se estamos no dia 21 ou depois, o período atual começou neste mês
       mesInicio = mes;
       anoInicio = ano;
       mesFim = mes + 1;
       anoFim = ano;
     } else {
-      // Se estamos no dia 20 ou antes, o período atual começou no mês anterior
+      // Se estamos antes do dia 21 (dias 1-20), o período começou no mês anterior
       mesInicio = mes - 1;
       anoInicio = ano;
       mesFim = mes;
