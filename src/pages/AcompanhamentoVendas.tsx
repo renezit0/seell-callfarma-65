@@ -846,8 +846,10 @@ export default function AcompanhamentoVendasNovo() {
       }
       
       // Usar as datas exatas do período selecionado (já vêm corretas do PeriodSelector)
-      const dataInicio = format(new Date(selectedPeriod.startDate), 'yyyy-MM-dd');
-      const dataFim = format(new Date(selectedPeriod.endDate), 'yyyy-MM-dd');
+      const dataInicioAjustada = new Date(selectedPeriod.startDate);
+dataInicioAjustada.setDate(dataInicioAjustada.getDate() + 1);
+const dataInicio = format(dataInicioAjustada, 'yyyy-MM-dd');
+const dataFim = format(new Date(selectedPeriod.endDate), 'yyyy-MM-dd');
 
       console.log(`🔍 Buscando dados API: ${dataInicio} a ${dataFim}`);
 
