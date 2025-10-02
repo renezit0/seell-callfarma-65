@@ -824,7 +824,7 @@ export default function AcompanhamentoVendasNovo() {
     };
   }, [selectedPeriod]);
 
-  // Buscar vendas (COM GARANTIA DE FINALIZAR LOADING)
+  // Buscar vendas
   const fetchVendas = async () => {
     try {
       if (!selectedPeriod) {
@@ -832,15 +832,9 @@ export default function AcompanhamentoVendasNovo() {
         return;
       }
       
+      // Usar as datas exatas do período selecionado (já vêm corretas do PeriodSelector)
       const dataInicio = format(new Date(selectedPeriod.startDate), 'yyyy-MM-dd');
-      // CORRIGIDO: Usar data atual se estiver antes do fim do período
-      const hoje = new Date();
-      hoje.setHours(0, 0, 0, 0);
-      const fimPeriodo = new Date(selectedPeriod.endDate);
-      fimPeriodo.setHours(0, 0, 0, 0);
-      const dataFim = hoje < fimPeriodo 
-        ? format(hoje, 'yyyy-MM-dd') 
-        : format(fimPeriodo, 'yyyy-MM-dd');
+      const dataFim = format(new Date(selectedPeriod.endDate), 'yyyy-MM-dd');
 
       console.log(`🔍 Buscando dados API: ${dataInicio} a ${dataFim}`);
 
