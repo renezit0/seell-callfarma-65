@@ -180,10 +180,9 @@ export const COMMISSION_RATES: Record<UserRole, CommissionConfig> = {
     goodlife: 0.05
   },
   
-  // Auxiliar conveniência: brinquedos e conveniencia 2% (é bonus, não comissão)
+  // Auxiliar conveniência: brinquedos (grupo 13) + conveniencia (grupo 36) somados = 2% (é bonus, não comissão)
   aux_conveniencia: {
-    brinquedo: 0.02,
-    conveniencia: 0.02
+    aux_conveniencia: 0.02  // Categoria única que soma brinquedos + conveniência
   },
   
   // Cargos administrativos sem comissão
@@ -430,6 +429,7 @@ export function getCategoryDisplayName(category: string): string {
     'perfumaria_alta': 'Perfumaria Alta',
     'goodlife': 'Good Life',
     'dermocosmetico': 'Dermocosmético',
+    'aux_conveniencia': 'Conveniência + Brinquedos',
     'conveniencia': 'Conveniência',
     'brinquedo': 'Brinquedos',
     'r_mais': 'Rentáveis R+',
@@ -833,7 +833,14 @@ export default function AcompanhamentoVendasNovo() {
       }
       
       const dataInicio = format(new Date(selectedPeriod.startDate), 'yyyy-MM-dd');
-      const dataFim = format(new Date(selectedPeriod.endDate), 'yyyy-MM-dd');
+      // CORRIGIDO: Usar data atual se estiver antes do fim do período
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      const fimPeriodo = new Date(selectedPeriod.endDate);
+      fimPeriodo.setHours(0, 0, 0, 0);
+      const dataFim = hoje < fimPeriodo 
+        ? format(hoje, 'yyyy-MM-dd') 
+        : format(fimPeriodo, 'yyyy-MM-dd');
 
       console.log(`🔍 Buscando dados API: ${dataInicio} a ${dataFim}`);
 
@@ -1030,13 +1037,11 @@ export default function AcompanhamentoVendasNovo() {
       const totalDermo = processarCategoria(dermoFiltradas, funcionarioSelecionado);
       if (totalDermo > 0) salesData['dermocosmetico'] = totalDermo;
       
-      // Conveniência
+      // CORRIGIDO: Para aux_conveniencia, somar brinquedos + conveniência
       const totalConveniencia = processarCategoria(convenienciaFiltradas, funcionarioSelecionado);
-      if (totalConveniencia > 0) salesData['conveniencia'] = totalConveniencia;
-      
-      // Brinquedos
       const totalBrinquedo = processarCategoria(brinquedoFiltradas, funcionarioSelecionado);
-      if (totalBrinquedo > 0) salesData['brinquedo'] = totalBrinquedo;
+      const totalAuxConveniencia = totalConveniencia + totalBrinquedo;
+      if (totalAuxConveniencia > 0) salesData['aux_conveniencia'] = totalAuxConveniencia;
       
       console.log('💰 Vendas calculadas (método Rankings):', salesData);
       
