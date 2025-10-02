@@ -43,7 +43,7 @@ export const useMySQLUsuarios = () => {
         throw new Error(data?.message || 'Erro ao buscar usuários');
       }
     } catch (err) {
-      console.error('Erro ao buscar usuários do MySQL:', err);
+      console.error('Erro ao buscar usuários:', err);
       setError(err instanceof Error ? err.message : 'Erro desconhecido');
     } finally {
       setLoading(false);
@@ -70,7 +70,7 @@ export const useMySQLUsuarios = () => {
 
       return null;
     } catch (err) {
-      console.error('Erro na autenticação MySQL:', err);
+      console.error('Erro na autenticação:', err);
       return null;
     }
   };
