@@ -1370,7 +1370,7 @@ const dataFim = format(new Date(selectedPeriod.endDate), 'yyyy-MM-dd');
                 <div>
                   <p className="text-sm text-muted-foreground">Período</p>
                   <p className="font-medium">
-                    {format(addDays(new Date(selectedPeriod.startDate), 1), 'dd/MM/yyyy')} a {format(new Date(selectedPeriod.endDate), 'dd/MM/yyyy')}
+                    {format(addDays(new Date(selectedPeriod.startDate), 1), 'dd/MM/yyyy')} a {format(addDays(new Date(selectedPeriod.endDate), 1), 'dd/MM/yyyy')}
                   </p>
                 </div>
               </div>
