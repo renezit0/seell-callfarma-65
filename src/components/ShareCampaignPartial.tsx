@@ -221,12 +221,11 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                           backgroundColor: bg,
                           border: `2px solid ${border}`,
                           borderRadius: '10px',
-                          height: '56px',
-                          boxSizing: 'border-box'
+                          height: '56px'
                         }}
                       >
                         <span style={{
-                          display: 'inline-flex',
+                          display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           width: '36px',
@@ -235,8 +234,7 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                           borderRadius: '50%',
                           fontSize: '14px',
                           fontWeight: '700',
-                          flexShrink: 0,
-                          lineHeight: 1
+                          flexShrink: 0
                         }}>
                           {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}º`}
                         </span>
@@ -248,38 +246,31 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                           color: '#000000',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          lineHeight: 1,
-                          paddingTop: '2px'
+                          whiteSpace: 'nowrap'
                         }}>
                           {loja.numero} - {loja.nome}
                         </span>
 
-                        <span style={{
-                          display: 'inline-flex',
-                          flexDirection: 'column',
-                          alignItems: 'flex-end',
-                          justifyContent: 'center',
-                          gap: '3px',
+                        <div style={{
+                          textAlign: 'right',
                           flexShrink: 0,
                           minWidth: '80px'
                         }}>
-                          <span style={{
+                          <div style={{
                             fontSize: '18px',
                             fontWeight: '700',
                             color: '#000000',
-                            lineHeight: 1
+                            marginBottom: '2px'
                           }}>
                             {loja.percentual.toFixed(1)}%
-                          </span>
-                          <span style={{
+                          </div>
+                          <div style={{
                             fontSize: '10px',
-                            color: '#6b7280',
-                            lineHeight: 1
+                            color: '#6b7280'
                           }}>
                             ({formatarValor(loja.realizado)}/{formatarValor(loja.meta)})
-                          </span>
-                        </span>
+                          </div>
+                        </div>
                       </div>
                     );
                   })}
