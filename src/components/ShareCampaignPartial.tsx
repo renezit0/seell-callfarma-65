@@ -55,7 +55,7 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
     try {
       const canvas = await html2canvas(targetRef, {
         backgroundColor: '#ffffff',
-        scale: 2,
+        scale: 2.5,
         useCORS: true,
         allowTaint: true,
       });
@@ -83,7 +83,7 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
             title: `Parcial - ${campanha.nome}`,
             files: [file]
           });
-          toast.success('Imagem compartilhada!');
+          toast.success('Compartilhado!');
         } else {
           downloadImage(imageData);
         }
@@ -102,7 +102,7 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success('Imagem baixada!');
+    toast.success('Baixado!');
   };
 
   const formatarValor = (valor: number) => {
@@ -149,26 +149,25 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
         </CardContent>
       </Card>
 
-      {/* Preview (invisível, só para captura) */}
       <div 
         ref={shareRef}
         style={{
           position: 'fixed',
           left: '-9999px',
           top: 0,
-          width: '1200px',
-          padding: '40px',
+          width: '1400px',
+          padding: '30px',
           backgroundColor: '#ffffff',
           fontFamily: 'system-ui, sans-serif'
         }}
       >
         {headerImage && (
-          <div style={{ marginBottom: '40px' }}>
+          <div style={{ marginBottom: '30px' }}>
             <img src={headerImage} style={{ width: '100%', display: 'block' }} />
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '30px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
           {grupos.map((grupo) => {
             const lojasOrdenadas = [...grupo.lojas].sort((a, b) => b.percentual - a.percentual);
             
@@ -178,33 +177,32 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  marginBottom: '20px',
-                  paddingBottom: '12px',
-                  borderBottom: '2px solid #e5e7eb'
+                  marginBottom: '15px'
                 }}>
-                  <span style={{ fontSize: '20px', fontWeight: '700' }}>
-                    🏆 Grupo {grupo.numeroGrupo}
+                  <span style={{ fontSize: '16px' }}>🏆</span>
+                  <span style={{ fontSize: '18px', fontWeight: '700' }}>
+                    Grupo {grupo.numeroGrupo}
                   </span>
                   <span style={{
-                    backgroundColor: '#f3f4f6',
-                    padding: '2px 10px',
+                    backgroundColor: '#fbbf24',
+                    color: '#000',
+                    padding: '3px 10px',
                     borderRadius: '12px',
-                    fontSize: '14px',
+                    fontSize: '13px',
                     fontWeight: '600'
                   }}>
                     {lojasOrdenadas.length}
                   </span>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {lojasOrdenadas.map((loja, index) => {
-                    let medal = '';
                     let bg = '#ffffff';
-                    let border = '#e5e7eb';
+                    let border = '#d1d5db';
                     
-                    if (index === 0) { medal = '🥇'; bg = '#fef3c7'; border = '#fbbf24'; }
-                    else if (index === 1) { medal = '🥈'; bg = '#f3f4f6'; border = '#9ca3af'; }
-                    else if (index === 2) { medal = '🥉'; bg = '#fed7aa'; border = '#fb923c'; }
+                    if (index === 0) { bg = '#fef3c7'; border = '#fbbf24'; }
+                    else if (index === 1) { bg = '#e5e7eb'; border = '#9ca3af'; }
+                    else if (index === 2) { bg = '#fed7aa'; border = '#fb923c'; }
 
                     return (
                       <div
@@ -212,48 +210,68 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '12px',
-                          padding: '12px',
+                          gap: '10px',
+                          padding: '8px 12px',
                           backgroundColor: bg,
                           border: `2px solid ${border}`,
-                          borderRadius: '12px'
+                          borderRadius: '10px',
+                          minHeight: '50px'
                         }}
                       >
                         <div style={{
-                          width: '40px',
-                          height: '40px',
+                          width: '35px',
+                          height: '35px',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          backgroundColor: index > 2 ? '#f3f4f6' : 'transparent',
+                          backgroundColor: index > 2 ? '#e5e7eb' : 'transparent',
                           borderRadius: '50%',
-                          fontSize: '16px',
-                          fontWeight: '700'
+                          fontSize: '13px',
+                          fontWeight: '700',
+                          flexShrink: 0
                         }}>
-                          {medal || `${index + 1}º`}
+                          {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}º`}
                         </div>
 
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{
-                            fontSize: '14px',
+                        <div style={{
+                          flex: 1,
+                          minWidth: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}>
+                          <span style={{ fontSize: '11px', color: '#6b7280' }}>🏪</span>
+                          <span style={{
+                            fontSize: '13px',
                             fontWeight: '700',
+                            color: '#111827',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap'
                           }}>
                             {loja.numero} - {loja.nome}
-                          </div>
+                          </span>
                         </div>
 
-                        <div style={{ textAlign: 'right' }}>
+                        <div style={{
+                          textAlign: 'right',
+                          flexShrink: 0,
+                          minWidth: '70px'
+                        }}>
                           <div style={{
-                            fontSize: '18px',
+                            fontSize: '16px',
                             fontWeight: '700',
-                            color: '#2563eb'
+                            color: '#2563eb',
+                            lineHeight: '1.2'
                           }}>
                             {loja.percentual.toFixed(1)}%
                           </div>
-                          <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '2px' }}>
+                          <div style={{
+                            fontSize: '9px',
+                            color: '#9ca3af',
+                            lineHeight: '1.2',
+                            marginTop: '2px'
+                          }}>
                             ({formatarValor(loja.realizado)}/{formatarValor(loja.meta)})
                           </div>
                         </div>
@@ -267,11 +285,11 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
         </div>
 
         <div style={{
-          marginTop: '40px',
-          paddingTop: '20px',
-          borderTop: '1px solid #e5e7eb',
+          marginTop: '30px',
+          paddingTop: '15px',
+          borderTop: '1px solid #d1d5db',
           textAlign: 'center',
-          fontSize: '12px',
+          fontSize: '11px',
           color: '#9ca3af'
         }}>
           Gerado em {new Date().toLocaleString('pt-BR')}
@@ -302,7 +320,7 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
 
       {!headerImage && (
         <p className="text-sm text-muted-foreground text-center">
-          Faça upload do cabeçalho primeiro
+          Faça upload do cabeçalho
         </p>
       )}
     </div>
