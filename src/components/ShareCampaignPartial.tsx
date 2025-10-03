@@ -155,7 +155,7 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
           position: 'fixed',
           left: '-9999px',
           top: 0,
-          width: '1400px',
+          width: '1600px',
           padding: '30px',
           backgroundColor: '#ffffff',
           fontFamily: 'system-ui, sans-serif'
@@ -242,14 +242,13 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
 
                         <span style={{
                           flex: 1,
-                          fontSize: '13px',
+                          fontSize: '14px',
                           fontWeight: '700',
                           color: '#000000',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
-                          verticalAlign: 'middle',
-                          maxWidth: '180px'
+                          verticalAlign: 'middle'
                         }}>
                           {loja.numero} - {loja.nome}
                         </span>
