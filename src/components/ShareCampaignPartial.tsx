@@ -206,25 +206,27 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '12px',
-                  marginBottom: '20px',
-                  boxSizing: 'border-box'
+                  marginBottom: '20px'
                 }}>
-                  <div style={{
-                    fontSize: '20px',
-                    fontWeight: '700',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px'
+                  <span style={{
+                    fontSize: '22px',
+                    fontWeight: '700'
                   }}>
-                    <span>🏆</span>
-                    <span>Grupo {grupo.numeroGrupo}</span>
-                  </div>
+                    🏆
+                  </span>
+                  <span style={{
+                    fontSize: '22px',
+                    fontWeight: '700',
+                    color: '#000000'
+                  }}>
+                    Grupo {grupo.numeroGrupo}
+                  </span>
                   <div style={{
                     backgroundColor: '#fbbf24',
                     color: '#000',
                     padding: '8px 16px',
                     borderRadius: '16px',
-                    fontSize: '14px',
+                    fontSize: '15px',
                     fontWeight: '600'
                   }}>
                     {lojasOrdenadas.length}
@@ -235,8 +237,7 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                 <div style={{ 
                   display: 'flex', 
                   flexDirection: 'column', 
-                  gap: '10px',
-                  boxSizing: 'border-box'
+                  gap: '12px'
                 }}>
                   {lojasOrdenadas.map((loja, index) => {
                     let bg = '#ffffff';
@@ -260,76 +261,81 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                           backgroundColor: bg,
                           border: `2px solid ${border}`,
                           borderRadius: '12px',
-                          padding: '16px',
+                          padding: '18px 20px',
                           boxSizing: 'border-box',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          minHeight: '60px'
+                          display: 'table',
+                          width: '100%',
+                          tableLayout: 'fixed'
                         }}
                       >
-                        {/* Lado Esquerdo: Medalha + Nome */}
                         <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '14px',
-                          flex: '1',
-                          minWidth: '0',
-                          overflow: 'hidden'
+                          display: 'table-row'
                         }}>
+                          {/* Medalha */}
                           <div style={{
-                            width: '36px',
-                            height: '36px',
-                            backgroundColor: index > 2 ? '#e5e7eb' : 'transparent',
-                            borderRadius: '50%',
-                            fontSize: '16px',
-                            fontWeight: '700',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: '0'
+                            display: 'table-cell',
+                            width: '50px',
+                            verticalAlign: 'middle',
+                            textAlign: 'center'
                           }}>
-                            {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}º`}
+                            <div style={{
+                              width: '40px',
+                              height: '40px',
+                              backgroundColor: index > 2 ? '#e5e7eb' : 'transparent',
+                              borderRadius: '50%',
+                              fontSize: '18px',
+                              fontWeight: '700',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}>
+                              {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}º`}
+                            </div>
                           </div>
 
+                          {/* Nome da Loja */}
                           <div style={{
-                            fontSize: '15px',
-                            fontWeight: '700',
-                            color: '#000000',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            flex: '1'
+                            display: 'table-cell',
+                            verticalAlign: 'middle',
+                            paddingLeft: '12px',
+                            paddingRight: '12px'
                           }}>
-                            {loja.numero} - {loja.nome}
+                            <div style={{
+                              fontSize: '16px',
+                              fontWeight: '700',
+                              color: '#000000',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {loja.numero} - {loja.nome}
+                            </div>
                           </div>
-                        </div>
 
-                        {/* Lado Direito: Percentual */}
-                        <div style={{
-                          textAlign: 'right',
-                          flexShrink: '0',
-                          marginLeft: '16px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'flex-end',
-                          gap: '2px'
-                        }}>
+                          {/* Percentual */}
                           <div style={{
-                            fontSize: '20px',
-                            fontWeight: '700',
-                            color: '#000000',
-                            lineHeight: '1'
+                            display: 'table-cell',
+                            width: '140px',
+                            verticalAlign: 'middle',
+                            textAlign: 'right'
                           }}>
-                            {loja.percentual.toFixed(1)}%
-                          </div>
-                          <div style={{
-                            fontSize: '11px',
-                            color: '#6b7280',
-                            lineHeight: '1',
-                            whiteSpace: 'nowrap'
-                          }}>
-                            ({formatarValor(loja.realizado)}/{formatarValor(loja.meta)})
+                            <div style={{
+                              fontSize: '22px',
+                              fontWeight: '700',
+                              color: '#000000',
+                              lineHeight: '1.2',
+                              marginBottom: '4px'
+                            }}>
+                              {loja.percentual.toFixed(1)}%
+                            </div>
+                            <div style={{
+                              fontSize: '11px',
+                              color: '#6b7280',
+                              lineHeight: '1.2',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              ({formatarValor(loja.realizado)}/{formatarValor(loja.meta)})
+                            </div>
                           </div>
                         </div>
                       </div>
