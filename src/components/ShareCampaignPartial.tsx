@@ -152,158 +152,184 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
       <div 
         ref={shareRef}
         style={{
-          all: 'initial',
           position: 'fixed',
           left: '-9999px',
-          top: 0,
+          top: '0',
           width: '1600px',
-          padding: '30px',
+          padding: '40px',
           backgroundColor: '#ffffff',
           fontFamily: 'Arial, sans-serif',
-          fontSize: '14px',
-          lineHeight: '1',
-          color: '#000000'
+          boxSizing: 'border-box'
         }}
       >
         {headerImage && (
-          <div style={{ marginBottom: '30px' }}>
-            <img src={headerImage} style={{ width: '100%', display: 'block' }} />
+          <div style={{ 
+            marginBottom: '40px',
+            width: '100%',
+            boxSizing: 'border-box'
+          }}>
+            <img 
+              src={headerImage} 
+              alt="Header"
+              style={{ 
+                width: '100%', 
+                height: 'auto',
+                display: 'block',
+                maxWidth: '100%'
+              }} 
+            />
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(3, 1fr)', 
+          gap: '30px',
+          width: '100%',
+          boxSizing: 'border-box'
+        }}>
           {grupos.map((grupo) => {
             const lojasOrdenadas = [...grupo.lojas].sort((a, b) => b.percentual - a.percentual);
             
             return (
-              <div key={grupo.numeroGrupo}>
+              <div 
+                key={grupo.numeroGrupo}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  boxSizing: 'border-box'
+                }}
+              >
+                {/* Header do Grupo */}
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '10px',
-                  marginBottom: '15px',
-                  lineHeight: '1'
+                  justifyContent: 'center',
+                  gap: '12px',
+                  marginBottom: '20px',
+                  boxSizing: 'border-box'
                 }}>
                   <div style={{
-                    fontSize: '18px',
+                    fontSize: '20px',
                     fontWeight: '700',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
-                    lineHeight: '1'
+                    gap: '10px'
                   }}>
-                    <span style={{ lineHeight: '1' }}>🏆</span>
-                    <span style={{ lineHeight: '1' }}>Grupo {grupo.numeroGrupo}</span>
+                    <span>🏆</span>
+                    <span>Grupo {grupo.numeroGrupo}</span>
                   </div>
                   <div style={{
                     backgroundColor: '#fbbf24',
                     color: '#000',
-                    padding: '6px 12px',
-                    borderRadius: '12px',
-                    fontSize: '13px',
-                    fontWeight: '600',
-                    lineHeight: '1'
+                    padding: '8px 16px',
+                    borderRadius: '16px',
+                    fontSize: '14px',
+                    fontWeight: '600'
                   }}>
                     {lojasOrdenadas.length}
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {/* Lista de Lojas */}
+                <div style={{ 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  gap: '10px',
+                  boxSizing: 'border-box'
+                }}>
                   {lojasOrdenadas.map((loja, index) => {
                     let bg = '#ffffff';
                     let border = '#d1d5db';
                     
-                    if (index === 0) { bg = '#fef3c7'; border = '#fbbf24'; }
-                    else if (index === 1) { bg = '#e5e7eb'; border = '#9ca3af'; }
-                    else if (index === 2) { bg = '#fed7aa'; border = '#fb923c'; }
+                    if (index === 0) { 
+                      bg = '#fef3c7'; 
+                      border = '#fbbf24'; 
+                    } else if (index === 1) { 
+                      bg = '#e5e7eb'; 
+                      border = '#9ca3af'; 
+                    } else if (index === 2) { 
+                      bg = '#fed7aa'; 
+                      border = '#fb923c'; 
+                    }
 
                     return (
                       <div
                         key={loja.numero}
                         style={{
-                          all: 'initial',
-                          display: 'block',
-                          width: '100%',
                           backgroundColor: bg,
                           border: `2px solid ${border}`,
-                          borderRadius: '10px',
-                          paddingTop: '16px',
-                          paddingBottom: '16px',
-                          paddingLeft: '16px',
-                          paddingRight: '16px',
+                          borderRadius: '12px',
+                          padding: '16px',
                           boxSizing: 'border-box',
-                          fontFamily: 'Arial, sans-serif',
-                          marginBottom: index < lojasOrdenadas.length - 1 ? '6px' : '0'
-                        }}
-                      >
-                        <div style={{
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
-                          height: '34px'
+                          minHeight: '60px'
+                        }}
+                      >
+                        {/* Lado Esquerdo: Medalha + Nome */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '14px',
+                          flex: '1',
+                          minWidth: '0',
+                          overflow: 'hidden'
                         }}>
                           <div style={{
+                            width: '36px',
+                            height: '36px',
+                            backgroundColor: index > 2 ? '#e5e7eb' : 'transparent',
+                            borderRadius: '50%',
+                            fontSize: '16px',
+                            fontWeight: '700',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '14px',
-                            flex: '1',
-                            minWidth: '0',
-                            height: '34px'
+                            justifyContent: 'center',
+                            flexShrink: '0'
                           }}>
-                            <div style={{
-                              width: '34px',
-                              height: '34px',
-                              backgroundColor: index > 2 ? '#e5e7eb' : 'transparent',
-                              borderRadius: '50%',
-                              fontSize: '14px',
-                              fontWeight: '700',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              flexShrink: '0'
-                            }}>
-                              {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}º`}
-                            </div>
-
-                            <div style={{
-                              fontSize: '14px',
-                              fontWeight: '700',
-                              color: '#000000',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              flex: '1',
-                              lineHeight: '34px',
-                              height: '34px'
-                            }}>
-                              {loja.numero} - {loja.nome}
-                            </div>
+                            {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}º`}
                           </div>
 
                           <div style={{
-                            textAlign: 'right',
-                            flexShrink: '0',
-                            marginLeft: '12px',
-                            height: '34px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            justifyContent: 'center'
+                            fontSize: '15px',
+                            fontWeight: '700',
+                            color: '#000000',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            flex: '1'
                           }}>
-                            <div style={{
-                              fontSize: '18px',
-                              fontWeight: '700',
-                              color: '#000000',
-                              lineHeight: '1.2'
-                            }}>
-                              {loja.percentual.toFixed(1)}%
-                            </div>
-                            <div style={{
-                              fontSize: '10px',
-                              color: '#6b7280',
-                              lineHeight: '1.2'
-                            }}>
-                              ({formatarValor(loja.realizado)}/{formatarValor(loja.meta)})
-                            </div>
+                            {loja.numero} - {loja.nome}
+                          </div>
+                        </div>
+
+                        {/* Lado Direito: Percentual */}
+                        <div style={{
+                          textAlign: 'right',
+                          flexShrink: '0',
+                          marginLeft: '16px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'flex-end',
+                          gap: '2px'
+                        }}>
+                          <div style={{
+                            fontSize: '20px',
+                            fontWeight: '700',
+                            color: '#000000',
+                            lineHeight: '1'
+                          }}>
+                            {loja.percentual.toFixed(1)}%
+                          </div>
+                          <div style={{
+                            fontSize: '11px',
+                            color: '#6b7280',
+                            lineHeight: '1',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            ({formatarValor(loja.realizado)}/{formatarValor(loja.meta)})
                           </div>
                         </div>
                       </div>
@@ -315,14 +341,14 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
           })}
         </div>
 
+        {/* Footer */}
         <div style={{
-          marginTop: '30px',
-          paddingTop: '15px',
+          marginTop: '40px',
+          paddingTop: '20px',
           borderTop: '1px solid #d1d5db',
           textAlign: 'center',
-          fontSize: '11px',
-          color: '#9ca3af',
-          lineHeight: '1'
+          fontSize: '12px',
+          color: '#9ca3af'
         }}>
           Gerado em {new Date().toLocaleString('pt-BR')}
         </div>
@@ -352,7 +378,7 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
 
       {!headerImage && (
         <p className="text-sm text-muted-foreground text-center">
-          Faça upload do cabeçalho
+          Faça upload do cabeçalho da campanha para gerar a imagem
         </p>
       )}
     </div>
