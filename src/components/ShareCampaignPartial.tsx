@@ -258,7 +258,7 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                           backgroundColor: bg,
                           border: `2px solid ${border}`,
                           borderRadius: '12px',
-                          padding: '16px 20px',
+                          padding: '12px 20px',
                           boxSizing: 'border-box',
                           display: 'flex',
                           alignItems: 'center',
@@ -268,23 +268,23 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                           fontFamily: 'Arial, sans-serif',
                           margin: '0',
                           lineHeight: '1',
-                          minHeight: '64px'
+                          minHeight: '60px'
                         }}
                       >
                         {/* Medalha */}
                         <span style={{
                           flexShrink: '0',
-                          width: '44px',
-                          height: '44px',
+                          width: '40px',
+                          height: '40px',
                           backgroundColor: index > 2 ? '#e5e7eb' : 'transparent',
                           borderRadius: '50%',
-                          fontSize: '20px',
+                          fontSize: '18px',
                           fontWeight: '700',
                           display: 'inline-flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           fontFamily: 'Arial, sans-serif',
-                          lineHeight: '44px',
+                          lineHeight: '40px',
                           margin: '0',
                           padding: '0',
                           verticalAlign: 'middle'
@@ -302,7 +302,7 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
-                          lineHeight: '44px',
+                          lineHeight: '40px',
                           fontFamily: 'Arial, sans-serif',
                           margin: '0',
                           padding: '0',
