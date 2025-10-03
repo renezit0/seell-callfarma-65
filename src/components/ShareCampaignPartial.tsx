@@ -222,28 +222,28 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                           backgroundColor: bg,
                           border: `2px solid ${border}`,
                           borderRadius: '10px',
-                          height: '56px',
-                          marginBottom: index < lojasOrdenadas.length - 1 ? '6px' : '0'
+                          height: '60px',
+                          marginBottom: index < lojasOrdenadas.length - 1 ? '6px' : '0',
+                          tableLayout: 'fixed'
                         }}
                       >
-                        <div style={{ display: 'table-row' }}>
+                        <div style={{ display: 'table-row', height: '60px' }}>
                           <div style={{
                             display: 'table-cell',
-                            width: '50px',
+                            width: '60px',
                             verticalAlign: 'middle',
-                            textAlign: 'center',
-                            paddingLeft: '12px'
+                            textAlign: 'center'
                           }}>
                             <span style={{
                               display: 'inline-block',
-                              width: '32px',
-                              height: '32px',
-                              lineHeight: '32px',
-                              textAlign: 'center',
+                              width: '34px',
+                              height: '34px',
+                              lineHeight: '34px',
                               backgroundColor: index > 2 ? '#e5e7eb' : 'transparent',
                               borderRadius: '50%',
-                              fontSize: '13px',
-                              fontWeight: '700'
+                              fontSize: '14px',
+                              fontWeight: '700',
+                              textAlign: 'center'
                             }}>
                               {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}º`}
                             </span>
@@ -252,44 +252,43 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                           <div style={{
                             display: 'table-cell',
                             verticalAlign: 'middle',
-                            paddingLeft: '10px',
-                            paddingRight: '10px'
+                            paddingLeft: '4px',
+                            paddingRight: '8px'
                           }}>
-                            <span style={{
+                            <div style={{
                               fontSize: '14px',
                               fontWeight: '700',
                               color: '#000000',
                               whiteSpace: 'nowrap',
                               overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              display: 'block'
+                              textOverflow: 'ellipsis'
                             }}>
                               {loja.numero} - {loja.nome}
-                            </span>
+                            </div>
                           </div>
 
                           <div style={{
                             display: 'table-cell',
-                            width: '110px',
+                            width: '120px',
                             verticalAlign: 'middle',
-                            textAlign: 'right',
                             paddingRight: '14px'
                           }}>
-                            <div style={{
-                              fontSize: '17px',
-                              fontWeight: '700',
-                              color: '#000000',
-                              lineHeight: '1.2'
-                            }}>
-                              {loja.percentual.toFixed(1)}%
-                            </div>
-                            <div style={{
-                              fontSize: '9px',
-                              color: '#6b7280',
-                              lineHeight: '1.2',
-                              marginTop: '2px'
-                            }}>
-                              ({formatarValor(loja.realizado)}/{formatarValor(loja.meta)})
+                            <div style={{ textAlign: 'right' }}>
+                              <div style={{
+                                fontSize: '18px',
+                                fontWeight: '700',
+                                color: '#000000',
+                                lineHeight: '1.3'
+                              }}>
+                                {loja.percentual.toFixed(1)}%
+                              </div>
+                              <div style={{
+                                fontSize: '10px',
+                                color: '#6b7280',
+                                lineHeight: '1.3'
+                              }}>
+                                ({formatarValor(loja.realizado)}/{formatarValor(loja.meta)})
+                              </div>
                             </div>
                           </div>
                         </div>
