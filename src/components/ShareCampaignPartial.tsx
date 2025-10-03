@@ -211,19 +211,19 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                           display: 'flex',
                           alignItems: 'center',
                           gap: '12px',
-                          padding: '12px 14px',
+                          padding: '0 14px',
                           backgroundColor: bg,
                           border: `2px solid ${border}`,
                           borderRadius: '10px',
-                          height: '60px'
+                          height: '56px'
                         }}
                       >
-                        <div style={{
-                          width: '36px',
-                          height: '36px',
-                          display: 'flex',
+                        <span style={{
+                          display: 'inline-flex',
                           alignItems: 'center',
                           justifyContent: 'center',
+                          width: '36px',
+                          height: '36px',
                           backgroundColor: index > 2 ? '#e5e7eb' : 'transparent',
                           borderRadius: '50%',
                           fontSize: '14px',
@@ -231,7 +231,7 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                           flexShrink: 0
                         }}>
                           {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}º`}
-                        </div>
+                        </span>
 
                         <span style={{
                           flex: 1,
@@ -240,33 +240,33 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                           color: '#000000',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          lineHeight: '1.4'
+                          whiteSpace: 'nowrap'
                         }}>
                           {loja.numero} - {loja.nome}
                         </span>
 
-                        <div style={{
-                          textAlign: 'right',
+                        <span style={{
+                          display: 'inline-flex',
+                          flexDirection: 'column',
+                          alignItems: 'flex-end',
+                          gap: '2px',
                           flexShrink: 0,
                           minWidth: '80px'
                         }}>
-                          <div style={{
+                          <span style={{
                             fontSize: '18px',
                             fontWeight: '700',
-                            color: '#000000',
-                            lineHeight: '1.3'
+                            color: '#000000'
                           }}>
                             {loja.percentual.toFixed(1)}%
-                          </div>
-                          <div style={{
+                          </span>
+                          <span style={{
                             fontSize: '10px',
-                            color: '#6b7280',
-                            lineHeight: '1.2'
+                            color: '#6b7280'
                           }}>
                             ({formatarValor(loja.realizado)}/{formatarValor(loja.meta)})
-                          </div>
-                        </div>
+                          </span>
+                        </span>
                       </div>
                     );
                   })}
