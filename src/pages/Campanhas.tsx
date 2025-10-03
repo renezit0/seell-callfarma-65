@@ -12,6 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ChartLine, Plus, Eye, Edit, Trophy, Store, Calendar, Target, Users, TrendingUp, ArrowLeft, Info, CheckCircle, Clock, Award, Medal, Crown, AlertCircle, X } from 'lucide-react';
 import { StatusBadge } from '@/components/StatusBadge';
 import { VendasFuncionarios } from '@/components/VendasFuncionarios';
+import { ShareCampaignPartial } from '@/components/ShareCampaignPartial';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useCallfarmaAPI } from '@/hooks/useCallfarmaAPI';
@@ -1072,6 +1073,54 @@ export default function Campanhas() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Compartilhar Parcial */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Compartilhar Parcial de Campanha</CardTitle>
+            <CardDescription>
+              Gere uma imagem otimizada para celular com os resultados parciais da campanha
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ShareCampaignPartial
+              campanha={{
+                nome: campanhaSelecionada.nome,
+                data_inicio: campanhaSelecionada.data_inicio,
+                data_fim: campanhaSelecionada.data_fim,
+                tipo_meta: campanhaSelecionada.tipo_meta
+              }}
+              dadosParciais={{
+                totalRealizado: campanhaSelecionada.tipo_meta === 'quantidade'
+                  ? campanhaSelecionada.lojas.reduce((sum, loja) => sum + loja.realizado_quantidade, 0)
+                  : campanhaSelecionada.lojas.reduce((sum, loja) => sum + loja.realizado_valor, 0),
+                metaTotal: campanhaSelecionada.tipo_meta === 'quantidade'
+                  ? campanhaSelecionada.lojas.reduce((sum, loja) => sum + loja.meta_quantidade, 0)
+                  : campanhaSelecionada.lojas.reduce((sum, loja) => sum + loja.meta_valor, 0),
+                percentual: (() => {
+                  const totalRealizado = campanhaSelecionada.tipo_meta === 'quantidade'
+                    ? campanhaSelecionada.lojas.reduce((sum, loja) => sum + loja.realizado_quantidade, 0)
+                    : campanhaSelecionada.lojas.reduce((sum, loja) => sum + loja.realizado_valor, 0);
+                  const totalMeta = campanhaSelecionada.tipo_meta === 'quantidade'
+                    ? campanhaSelecionada.lojas.reduce((sum, loja) => sum + loja.meta_quantidade, 0)
+                    : campanhaSelecionada.lojas.reduce((sum, loja) => sum + loja.meta_valor, 0);
+                  return totalMeta > 0 ? (totalRealizado / totalMeta) * 100 : 0;
+                })(),
+                lojas: campanhaSelecionada.lojas.map(loja => ({
+                  numero: loja.loja_numero || String(loja.codigo_loja),
+                  nome: loja.loja_nome || 'Sem nome',
+                  realizado: campanhaSelecionada.tipo_meta === 'quantidade' 
+                    ? loja.realizado_quantidade 
+                    : loja.realizado_valor,
+                  meta: campanhaSelecionada.tipo_meta === 'quantidade'
+                    ? loja.meta_quantidade
+                    : loja.meta_valor,
+                  percentual: loja.percentual_meta
+                }))
+              }}
+            />
+          </CardContent>
+        </Card>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {/* Renderizar cada grupo separadamente */}
