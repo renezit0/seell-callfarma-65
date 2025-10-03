@@ -235,19 +235,16 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
 
                         <div style={{
                           flex: 1,
-                          minWidth: 0,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px'
+                          minWidth: 0
                         }}>
-                          <span style={{ fontSize: '11px', color: '#6b7280' }}>🏪</span>
                           <span style={{
-                            fontSize: '13px',
+                            fontSize: '14px',
                             fontWeight: '700',
-                            color: '#111827',
+                            color: '#000000',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
+                            whiteSpace: 'nowrap',
+                            display: 'block'
                           }}>
                             {loja.numero} - {loja.nome}
                           </span>
@@ -256,19 +253,19 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                         <div style={{
                           textAlign: 'right',
                           flexShrink: 0,
-                          minWidth: '70px'
+                          minWidth: '75px'
                         }}>
                           <div style={{
-                            fontSize: '16px',
+                            fontSize: '18px',
                             fontWeight: '700',
-                            color: '#2563eb',
+                            color: '#000000',
                             lineHeight: '1.2'
                           }}>
                             {loja.percentual.toFixed(1)}%
                           </div>
                           <div style={{
-                            fontSize: '9px',
-                            color: '#9ca3af',
+                            fontSize: '10px',
+                            color: '#6b7280',
                             lineHeight: '1.2',
                             marginTop: '2px'
                           }}>
