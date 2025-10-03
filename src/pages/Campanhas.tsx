@@ -1090,34 +1090,22 @@ export default function Campanhas() {
                 data_fim: campanhaSelecionada.data_fim,
                 tipo_meta: campanhaSelecionada.tipo_meta
               }}
-              dadosParciais={{
-                totalRealizado: campanhaSelecionada.tipo_meta === 'quantidade'
-                  ? campanhaSelecionada.lojas.reduce((sum, loja) => sum + loja.realizado_quantidade, 0)
-                  : campanhaSelecionada.lojas.reduce((sum, loja) => sum + loja.realizado_valor, 0),
-                metaTotal: campanhaSelecionada.tipo_meta === 'quantidade'
-                  ? campanhaSelecionada.lojas.reduce((sum, loja) => sum + loja.meta_quantidade, 0)
-                  : campanhaSelecionada.lojas.reduce((sum, loja) => sum + loja.meta_valor, 0),
-                percentual: (() => {
-                  const totalRealizado = campanhaSelecionada.tipo_meta === 'quantidade'
-                    ? campanhaSelecionada.lojas.reduce((sum, loja) => sum + loja.realizado_quantidade, 0)
-                    : campanhaSelecionada.lojas.reduce((sum, loja) => sum + loja.realizado_valor, 0);
-                  const totalMeta = campanhaSelecionada.tipo_meta === 'quantidade'
-                    ? campanhaSelecionada.lojas.reduce((sum, loja) => sum + loja.meta_quantidade, 0)
-                    : campanhaSelecionada.lojas.reduce((sum, loja) => sum + loja.meta_valor, 0);
-                  return totalMeta > 0 ? (totalRealizado / totalMeta) * 100 : 0;
-                })(),
-                lojas: campanhaSelecionada.lojas.map(loja => ({
-                  numero: loja.loja_numero || String(loja.codigo_loja),
-                  nome: loja.loja_nome || 'Sem nome',
-                  realizado: campanhaSelecionada.tipo_meta === 'quantidade' 
-                    ? loja.realizado_quantidade 
-                    : loja.realizado_valor,
-                  meta: campanhaSelecionada.tipo_meta === 'quantidade'
-                    ? loja.meta_quantidade
-                    : loja.meta_valor,
-                  percentual: loja.percentual_meta
-                }))
-              }}
+              grupos={[1, 2, 3].map(numeroGrupo => ({
+                numeroGrupo,
+                lojas: campanhaSelecionada.lojas
+                  .filter(loja => loja.grupo_nome === numeroGrupo.toString())
+                  .map(loja => ({
+                    numero: loja.loja_numero || String(loja.codigo_loja),
+                    nome: loja.loja_nome || 'Sem nome',
+                    realizado: campanhaSelecionada.tipo_meta === 'quantidade' 
+                      ? loja.realizado_quantidade 
+                      : loja.realizado_valor,
+                    meta: campanhaSelecionada.tipo_meta === 'quantidade'
+                      ? loja.meta_quantidade
+                      : loja.meta_valor,
+                    percentual: loja.percentual_meta
+                  }))
+              })).filter(grupo => grupo.lojas.length > 0)}
             />
           </CardContent>
         </Card>
