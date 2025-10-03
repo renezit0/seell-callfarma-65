@@ -225,16 +225,17 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                         }}
                       >
                         <span style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
+                          display: 'inline-block',
                           width: '36px',
                           height: '36px',
+                          lineHeight: '36px',
+                          textAlign: 'center',
                           backgroundColor: index > 2 ? '#e5e7eb' : 'transparent',
                           borderRadius: '50%',
                           fontSize: '14px',
                           fontWeight: '700',
-                          flexShrink: 0
+                          flexShrink: 0,
+                          verticalAlign: 'middle'
                         }}>
                           {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}º`}
                         </span>
@@ -246,7 +247,8 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                           color: '#000000',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap'
+                          whiteSpace: 'nowrap',
+                          verticalAlign: 'middle'
                         }}>
                           {loja.numero} - {loja.nome}
                         </span>
