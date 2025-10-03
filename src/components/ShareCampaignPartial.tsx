@@ -228,16 +228,6 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                   }}>
                     Grupo {grupo.numeroGrupo}
                   </span>
-                  <div style={{
-                    backgroundColor: '#fbbf24',
-                    color: '#000',
-                    padding: '8px 16px',
-                    borderRadius: '16px',
-                    fontSize: '15px',
-                    fontWeight: '600'
-                  }}>
-                    {lojasOrdenadas.length}
-                  </div>
                 </div>
 
                 {/* Lista de Lojas */}
