@@ -210,12 +210,13 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                         style={{
                           display: 'flex',
                           alignItems: 'center',
+                          justifyContent: 'space-between',
                           gap: '10px',
-                          padding: '8px 12px',
+                          padding: '10px 14px',
                           backgroundColor: bg,
                           border: `2px solid ${border}`,
                           borderRadius: '10px',
-                          minHeight: '50px'
+                          height: '55px'
                         }}
                       >
                         <div style={{
