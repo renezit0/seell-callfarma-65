@@ -152,6 +152,7 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
       <div 
         ref={shareRef}
         style={{
+          all: 'initial',
           position: 'fixed',
           left: '-9999px',
           top: '0',
@@ -159,7 +160,13 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
           padding: '40px',
           backgroundColor: '#ffffff',
           fontFamily: 'Arial, sans-serif',
-          boxSizing: 'border-box'
+          fontSize: '14px',
+          lineHeight: '1',
+          color: '#000000',
+          boxSizing: 'border-box',
+          margin: '0',
+          border: 'none',
+          outline: 'none'
         }}
       >
         {headerImage && (
@@ -258,6 +265,7 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                       <div
                         key={loja.numero}
                         style={{
+                          all: 'initial',
                           backgroundColor: bg,
                           border: `2px solid ${border}`,
                           borderRadius: '12px',
@@ -268,11 +276,14 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                           justifyContent: 'space-between',
                           gap: '16px',
                           width: '100%',
-                          minHeight: '70px'
+                          minHeight: '70px',
+                          fontFamily: 'Arial, sans-serif',
+                          margin: '0'
                         }}
                       >
                         {/* Medalha */}
                         <div style={{
+                          all: 'initial',
                           flexShrink: '0',
                           width: '44px',
                           height: '44px',
@@ -282,27 +293,40 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                           fontWeight: '700',
                           display: 'flex',
                           alignItems: 'center',
-                          justifyContent: 'center'
+                          justifyContent: 'center',
+                          fontFamily: 'Arial, sans-serif',
+                          lineHeight: '1',
+                          margin: '0',
+                          padding: '0'
                         }}>
                           {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}º`}
                         </div>
 
                         {/* Nome da Loja */}
                         <div style={{
+                          all: 'initial',
                           flex: '1',
                           minWidth: '0',
                           display: 'flex',
                           alignItems: 'center',
-                          height: '100%'
+                          fontFamily: 'Arial, sans-serif',
+                          margin: '0',
+                          padding: '0'
                         }}>
                           <div style={{
+                            all: 'initial',
                             fontSize: '17px',
                             fontWeight: '700',
                             color: '#000000',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap',
-                            lineHeight: '1'
+                            lineHeight: '1',
+                            fontFamily: 'Arial, sans-serif',
+                            display: 'block',
+                            margin: '0',
+                            padding: '0',
+                            border: 'none'
                           }}>
                             {loja.numero} - {loja.nome}
                           </div>
@@ -310,27 +334,43 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
 
                         {/* Percentual */}
                         <div style={{
+                          all: 'initial',
                           flexShrink: '0',
                           textAlign: 'right',
                           display: 'flex',
                           flexDirection: 'column',
                           alignItems: 'flex-end',
                           justifyContent: 'center',
-                          gap: '4px'
+                          gap: '4px',
+                          fontFamily: 'Arial, sans-serif',
+                          margin: '0',
+                          padding: '0'
                         }}>
                           <div style={{
+                            all: 'initial',
                             fontSize: '24px',
                             fontWeight: '700',
                             color: '#000000',
-                            lineHeight: '1'
+                            lineHeight: '1',
+                            fontFamily: 'Arial, sans-serif',
+                            display: 'block',
+                            margin: '0',
+                            padding: '0',
+                            border: 'none'
                           }}>
                             {loja.percentual.toFixed(1)}%
                           </div>
                           <div style={{
+                            all: 'initial',
                             fontSize: '11px',
                             color: '#6b7280',
                             lineHeight: '1',
-                            whiteSpace: 'nowrap'
+                            whiteSpace: 'nowrap',
+                            fontFamily: 'Arial, sans-serif',
+                            display: 'block',
+                            margin: '0',
+                            padding: '0',
+                            border: 'none'
                           }}>
                             ({formatarValor(loja.realizado)}/{formatarValor(loja.meta)})
                           </div>
