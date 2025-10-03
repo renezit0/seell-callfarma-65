@@ -222,82 +222,88 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                         key={loja.numero}
                         style={{
                           all: 'initial',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
+                          display: 'block',
                           width: '100%',
                           backgroundColor: bg,
                           border: `2px solid ${border}`,
                           borderRadius: '10px',
-                          paddingTop: '18px',
-                          paddingBottom: '18px',
+                          paddingTop: '16px',
+                          paddingBottom: '16px',
                           paddingLeft: '16px',
                           paddingRight: '16px',
                           boxSizing: 'border-box',
                           fontFamily: 'Arial, sans-serif',
-                          lineHeight: '1'
+                          marginBottom: index < lojasOrdenadas.length - 1 ? '6px' : '0'
                         }}
                       >
                         <div style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '14px',
-                          flex: '1',
-                          minWidth: '0',
-                          lineHeight: '1'
+                          justifyContent: 'space-between',
+                          height: '34px'
                         }}>
                           <div style={{
-                            width: '34px',
-                            height: '34px',
-                            backgroundColor: index > 2 ? '#e5e7eb' : 'transparent',
-                            borderRadius: '50%',
-                            fontSize: '14px',
-                            fontWeight: '700',
-                            textAlign: 'center',
                             display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: '0',
-                            lineHeight: '1'
-                          }}>
-                            {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}º`}
-                          </div>
-
-                          <div style={{
-                            fontSize: '14px',
-                            fontWeight: '700',
-                            color: '#000000',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
+                            gap: '14px',
                             flex: '1',
-                            lineHeight: '1'
+                            minWidth: '0',
+                            height: '34px'
                           }}>
-                            {loja.numero} - {loja.nome}
-                          </div>
-                        </div>
+                            <div style={{
+                              width: '34px',
+                              height: '34px',
+                              backgroundColor: index > 2 ? '#e5e7eb' : 'transparent',
+                              borderRadius: '50%',
+                              fontSize: '14px',
+                              fontWeight: '700',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: '0'
+                            }}>
+                              {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}º`}
+                            </div>
 
-                        <div style={{
-                          textAlign: 'right',
-                          flexShrink: '0',
-                          marginLeft: '12px',
-                          lineHeight: '1'
-                        }}>
-                          <div style={{
-                            fontSize: '18px',
-                            fontWeight: '700',
-                            color: '#000000',
-                            lineHeight: '1',
-                            marginBottom: '4px'
-                          }}>
-                            {loja.percentual.toFixed(1)}%
+                            <div style={{
+                              fontSize: '14px',
+                              fontWeight: '700',
+                              color: '#000000',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              flex: '1',
+                              lineHeight: '34px',
+                              height: '34px'
+                            }}>
+                              {loja.numero} - {loja.nome}
+                            </div>
                           </div>
+
                           <div style={{
-                            fontSize: '10px',
-                            color: '#6b7280',
-                            lineHeight: '1'
+                            textAlign: 'right',
+                            flexShrink: '0',
+                            marginLeft: '12px',
+                            height: '34px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'center'
                           }}>
-                            ({formatarValor(loja.realizado)}/{formatarValor(loja.meta)})
+                            <div style={{
+                              fontSize: '18px',
+                              fontWeight: '700',
+                              color: '#000000',
+                              lineHeight: '1.2'
+                            }}>
+                              {loja.percentual.toFixed(1)}%
+                            </div>
+                            <div style={{
+                              fontSize: '10px',
+                              color: '#6b7280',
+                              lineHeight: '1.2'
+                            }}>
+                              ({formatarValor(loja.realizado)}/{formatarValor(loja.meta)})
+                            </div>
                           </div>
                         </div>
                       </div>
