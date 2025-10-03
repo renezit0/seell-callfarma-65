@@ -176,17 +176,23 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px',
+                  gap: '10px',
                   marginBottom: '15px'
                 }}>
-                  <span style={{ fontSize: '16px' }}>🏆</span>
-                  <span style={{ fontSize: '18px', fontWeight: '700' }}>
-                    Grupo {grupo.numeroGrupo}
+                  <span style={{
+                    fontSize: '18px',
+                    fontWeight: '700',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <span>🏆</span>
+                    <span>Grupo {grupo.numeroGrupo}</span>
                   </span>
                   <span style={{
                     backgroundColor: '#fbbf24',
                     color: '#000',
-                    padding: '3px 10px',
+                    padding: '4px 12px',
                     borderRadius: '12px',
                     fontSize: '13px',
                     fontWeight: '600'
