@@ -217,79 +217,73 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                       <div
                         key={loja.numero}
                         style={{
-                          display: 'table',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
                           width: '100%',
                           backgroundColor: bg,
                           border: `2px solid ${border}`,
                           borderRadius: '10px',
                           height: '60px',
+                          paddingLeft: '16px',
+                          paddingRight: '16px',
                           marginBottom: index < lojasOrdenadas.length - 1 ? '6px' : '0',
-                          tableLayout: 'fixed'
+                          boxSizing: 'border-box'
                         }}
                       >
-                        <div style={{ display: 'table-row', height: '60px' }}>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '14px',
+                          flex: 1,
+                          minWidth: 0
+                        }}>
                           <div style={{
-                            display: 'table-cell',
-                            width: '60px',
-                            verticalAlign: 'middle',
-                            textAlign: 'center'
+                            width: '34px',
+                            height: '34px',
+                            lineHeight: '34px',
+                            backgroundColor: index > 2 ? '#e5e7eb' : 'transparent',
+                            borderRadius: '50%',
+                            fontSize: '14px',
+                            fontWeight: '700',
+                            textAlign: 'center',
+                            flexShrink: 0
                           }}>
-                            <span style={{
-                              display: 'inline-block',
-                              width: '34px',
-                              height: '34px',
-                              lineHeight: '34px',
-                              backgroundColor: index > 2 ? '#e5e7eb' : 'transparent',
-                              borderRadius: '50%',
-                              fontSize: '14px',
-                              fontWeight: '700',
-                              textAlign: 'center'
-                            }}>
-                              {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}º`}
-                            </span>
+                            {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}º`}
                           </div>
 
                           <div style={{
-                            display: 'table-cell',
-                            verticalAlign: 'middle',
-                            paddingLeft: '4px',
-                            paddingRight: '8px'
+                            fontSize: '14px',
+                            fontWeight: '700',
+                            color: '#000000',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            flex: 1
                           }}>
-                            <div style={{
-                              fontSize: '14px',
-                              fontWeight: '700',
-                              color: '#000000',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis'
-                            }}>
-                              {loja.numero} - {loja.nome}
-                            </div>
+                            {loja.numero} - {loja.nome}
                           </div>
+                        </div>
 
+                        <div style={{
+                          textAlign: 'right',
+                          flexShrink: 0,
+                          marginLeft: '12px'
+                        }}>
                           <div style={{
-                            display: 'table-cell',
-                            width: '120px',
-                            verticalAlign: 'middle',
-                            paddingRight: '14px'
+                            fontSize: '18px',
+                            fontWeight: '700',
+                            color: '#000000',
+                            lineHeight: '1.4'
                           }}>
-                            <div style={{ textAlign: 'right' }}>
-                              <div style={{
-                                fontSize: '18px',
-                                fontWeight: '700',
-                                color: '#000000',
-                                lineHeight: '1.3'
-                              }}>
-                                {loja.percentual.toFixed(1)}%
-                              </div>
-                              <div style={{
-                                fontSize: '10px',
-                                color: '#6b7280',
-                                lineHeight: '1.3'
-                              }}>
-                                ({formatarValor(loja.realizado)}/{formatarValor(loja.meta)})
-                              </div>
-                            </div>
+                            {loja.percentual.toFixed(1)}%
+                          </div>
+                          <div style={{
+                            fontSize: '10px',
+                            color: '#6b7280',
+                            lineHeight: '1.2'
+                          }}>
+                            ({formatarValor(loja.realizado)}/{formatarValor(loja.meta)})
                           </div>
                         </div>
                       </div>
