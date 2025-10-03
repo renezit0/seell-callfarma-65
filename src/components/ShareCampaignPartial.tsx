@@ -228,7 +228,8 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                           paddingLeft: '16px',
                           paddingRight: '16px',
                           marginBottom: index < lojasOrdenadas.length - 1 ? '6px' : '0',
-                          boxSizing: 'border-box'
+                          boxSizing: 'border-box',
+                          lineHeight: 1
                         }}
                       >
                         <div style={{
@@ -236,7 +237,8 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                           alignItems: 'center',
                           gap: '14px',
                           flex: 1,
-                          minWidth: 0
+                          minWidth: 0,
+                          lineHeight: 1
                         }}>
                           <div style={{
                             width: '34px',
@@ -247,8 +249,7 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                             fontSize: '14px',
                             fontWeight: '700',
                             textAlign: 'center',
-                            flexShrink: 0,
-                            transform: 'translateY(-2px)'
+                            flexShrink: 0
                           }}>
                             {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}º`}
                           </div>
@@ -261,7 +262,7 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             flex: 1,
-                            transform: 'translateY(-1px)'
+                            lineHeight: 1
                           }}>
                             {loja.numero} - {loja.nome}
                           </div>
@@ -271,20 +272,21 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                           textAlign: 'right',
                           flexShrink: 0,
                           marginLeft: '12px',
-                          transform: 'translateY(-1px)'
+                          lineHeight: 1
                         }}>
                           <div style={{
                             fontSize: '18px',
                             fontWeight: '700',
                             color: '#000000',
-                            lineHeight: '1.4'
+                            lineHeight: 1,
+                            marginBottom: '4px'
                           }}>
                             {loja.percentual.toFixed(1)}%
                           </div>
                           <div style={{
                             fontSize: '10px',
                             color: '#6b7280',
-                            lineHeight: '1.2'
+                            lineHeight: 1
                           }}>
                             ({formatarValor(loja.realizado)}/{formatarValor(loja.meta)})
                           </div>
