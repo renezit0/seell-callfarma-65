@@ -265,25 +265,23 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                       <div
                         key={loja.numero}
                         style={{
-                          all: 'initial',
                           backgroundColor: bg,
                           border: `2px solid ${border}`,
                           borderRadius: '12px',
-                          padding: '20px',
+                          padding: '22px 20px',
                           boxSizing: 'border-box',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
                           gap: '16px',
                           width: '100%',
-                          minHeight: '70px',
                           fontFamily: 'Arial, sans-serif',
-                          margin: '0'
+                          margin: '0',
+                          lineHeight: '1'
                         }}
                       >
                         {/* Medalha */}
-                        <div style={{
-                          all: 'initial',
+                        <span style={{
                           flexShrink: '0',
                           width: '44px',
                           height: '44px',
@@ -291,77 +289,62 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                           borderRadius: '50%',
                           fontSize: '20px',
                           fontWeight: '700',
-                          display: 'flex',
+                          display: 'inline-flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           fontFamily: 'Arial, sans-serif',
-                          lineHeight: '1',
+                          lineHeight: '44px',
                           margin: '0',
-                          padding: '0'
+                          padding: '0',
+                          verticalAlign: 'middle'
                         }}>
                           {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}º`}
-                        </div>
+                        </span>
 
                         {/* Nome da Loja */}
-                        <div style={{
-                          all: 'initial',
+                        <span style={{
                           flex: '1',
                           minWidth: '0',
-                          display: 'flex',
-                          alignItems: 'center',
+                          fontSize: '17px',
+                          fontWeight: '700',
+                          color: '#000000',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          lineHeight: '44px',
                           fontFamily: 'Arial, sans-serif',
                           margin: '0',
-                          padding: '0'
+                          padding: '0',
+                          display: 'inline-block',
+                          verticalAlign: 'middle'
                         }}>
-                          <div style={{
-                            all: 'initial',
-                            fontSize: '17px',
-                            fontWeight: '700',
-                            color: '#000000',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            lineHeight: '1',
-                            fontFamily: 'Arial, sans-serif',
-                            display: 'block',
-                            margin: '0',
-                            padding: '0',
-                            border: 'none'
-                          }}>
-                            {loja.numero} - {loja.nome}
-                          </div>
-                        </div>
+                          {loja.numero} - {loja.nome}
+                        </span>
 
                         {/* Percentual */}
-                        <div style={{
-                          all: 'initial',
+                        <span style={{
                           flexShrink: '0',
                           textAlign: 'right',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'flex-end',
-                          justifyContent: 'center',
-                          gap: '4px',
                           fontFamily: 'Arial, sans-serif',
                           margin: '0',
-                          padding: '0'
+                          padding: '0',
+                          display: 'inline-block',
+                          verticalAlign: 'middle',
+                          lineHeight: '1'
                         }}>
-                          <div style={{
-                            all: 'initial',
+                          <span style={{
                             fontSize: '24px',
                             fontWeight: '700',
                             color: '#000000',
-                            lineHeight: '1',
+                            lineHeight: '1.2',
                             fontFamily: 'Arial, sans-serif',
                             display: 'block',
-                            margin: '0',
-                            padding: '0',
-                            border: 'none'
+                            margin: '0 0 4px 0',
+                            padding: '0'
                           }}>
                             {loja.percentual.toFixed(1)}%
-                          </div>
-                          <div style={{
-                            all: 'initial',
+                          </span>
+                          <span style={{
                             fontSize: '11px',
                             color: '#6b7280',
                             lineHeight: '1',
@@ -369,12 +352,11 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                             fontFamily: 'Arial, sans-serif',
                             display: 'block',
                             margin: '0',
-                            padding: '0',
-                            border: 'none'
+                            padding: '0'
                           }}>
                             ({formatarValor(loja.realizado)}/{formatarValor(loja.meta)})
-                          </div>
-                        </div>
+                          </span>
+                        </span>
                       </div>
                     );
                   })}
