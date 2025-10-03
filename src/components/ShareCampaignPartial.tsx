@@ -268,7 +268,7 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                           backgroundColor: bg,
                           border: `2px solid ${border}`,
                           borderRadius: '12px',
-                          padding: '22px 20px',
+                          padding: '16px 20px',
                           boxSizing: 'border-box',
                           display: 'flex',
                           alignItems: 'center',
@@ -277,7 +277,8 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                           width: '100%',
                           fontFamily: 'Arial, sans-serif',
                           margin: '0',
-                          lineHeight: '1'
+                          lineHeight: '1',
+                          minHeight: '64px'
                         }}
                       >
                         {/* Medalha */}
