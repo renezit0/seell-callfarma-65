@@ -184,18 +184,21 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                     fontWeight: '700',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px'
+                    gap: '8px',
+                    lineHeight: '1'
                   }}>
-                    <span>🏆</span>
-                    <span>Grupo {grupo.numeroGrupo}</span>
+                    <span style={{ display: 'inline-block', transform: 'translateY(0)' }}>🏆</span>
+                    <span style={{ display: 'inline-block', transform: 'translateY(0)' }}>Grupo {grupo.numeroGrupo}</span>
                   </span>
                   <span style={{
                     backgroundColor: '#fbbf24',
                     color: '#000',
-                    padding: '4px 12px',
+                    padding: '6px 12px',
                     borderRadius: '12px',
                     fontSize: '13px',
-                    fontWeight: '600'
+                    fontWeight: '600',
+                    lineHeight: '1',
+                    display: 'inline-block'
                   }}>
                     {lojasOrdenadas.length}
                   </span>
@@ -214,63 +217,80 @@ export function ShareCampaignPartial({ campanha, grupos }: ShareCampaignPartialP
                       <div
                         key={loja.numero}
                         style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '10px',
-                          padding: '0 12px',
+                          display: 'table',
+                          width: '100%',
                           backgroundColor: bg,
                           border: `2px solid ${border}`,
                           borderRadius: '10px',
-                          height: '56px'
+                          height: '56px',
+                          marginBottom: index < lojasOrdenadas.length - 1 ? '6px' : '0'
                         }}
                       >
-                        <span style={{
-                          display: 'inline-block',
-                          width: '32px',
-                          height: '32px',
-                          lineHeight: '32px',
-                          textAlign: 'center',
-                          backgroundColor: index > 2 ? '#e5e7eb' : 'transparent',
-                          borderRadius: '50%',
-                          fontSize: '13px',
-                          fontWeight: '700',
-                          flexShrink: 0,
-                          verticalAlign: 'middle'
-                        }}>
-                          {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}º`}
-                        </span>
-
-                        <span style={{
-                          flex: 1,
-                          fontSize: '14px',
-                          fontWeight: '700',
-                          color: '#000000',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          verticalAlign: 'middle'
-                        }}>
-                          {loja.numero} - {loja.nome}
-                        </span>
-
-                        <div style={{
-                          textAlign: 'right',
-                          flexShrink: 0,
-                          minWidth: '90px'
-                        }}>
+                        <div style={{ display: 'table-row' }}>
                           <div style={{
-                            fontSize: '17px',
-                            fontWeight: '700',
-                            color: '#000000',
-                            marginBottom: '2px'
+                            display: 'table-cell',
+                            width: '50px',
+                            verticalAlign: 'middle',
+                            textAlign: 'center',
+                            paddingLeft: '12px'
                           }}>
-                            {loja.percentual.toFixed(1)}%
+                            <span style={{
+                              display: 'inline-block',
+                              width: '32px',
+                              height: '32px',
+                              lineHeight: '32px',
+                              textAlign: 'center',
+                              backgroundColor: index > 2 ? '#e5e7eb' : 'transparent',
+                              borderRadius: '50%',
+                              fontSize: '13px',
+                              fontWeight: '700'
+                            }}>
+                              {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}º`}
+                            </span>
                           </div>
+
                           <div style={{
-                            fontSize: '9px',
-                            color: '#6b7280'
+                            display: 'table-cell',
+                            verticalAlign: 'middle',
+                            paddingLeft: '10px',
+                            paddingRight: '10px'
                           }}>
-                            ({formatarValor(loja.realizado)}/{formatarValor(loja.meta)})
+                            <span style={{
+                              fontSize: '14px',
+                              fontWeight: '700',
+                              color: '#000000',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              display: 'block'
+                            }}>
+                              {loja.numero} - {loja.nome}
+                            </span>
+                          </div>
+
+                          <div style={{
+                            display: 'table-cell',
+                            width: '110px',
+                            verticalAlign: 'middle',
+                            textAlign: 'right',
+                            paddingRight: '14px'
+                          }}>
+                            <div style={{
+                              fontSize: '17px',
+                              fontWeight: '700',
+                              color: '#000000',
+                              lineHeight: '1.2'
+                            }}>
+                              {loja.percentual.toFixed(1)}%
+                            </div>
+                            <div style={{
+                              fontSize: '9px',
+                              color: '#6b7280',
+                              lineHeight: '1.2',
+                              marginTop: '2px'
+                            }}>
+                              ({formatarValor(loja.realizado)}/{formatarValor(loja.meta)})
+                            </div>
                           </div>
                         </div>
                       </div>
