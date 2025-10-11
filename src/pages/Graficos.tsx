@@ -67,8 +67,23 @@ export default function Graficos() {
   
   // Filtros de data
   const hoje = new Date();
-  const primeiroDiaMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-  const [dataInicio, setDataInicio] = useState(format(primeiroDiaMes, 'yyyy-MM-dd'));
+  const diaAtual = hoje.getDate();
+  
+  // Se hoje é antes do dia 20, usar dia 21 do mês anterior
+  // Se hoje é dia 20 ou depois, usar dia 21 do mês atual
+  const getDataInicioDefault = () => {
+    if (diaAtual < 20) {
+      // Dia 21 do mês anterior
+      const mesAnterior = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 21);
+      return format(mesAnterior, 'yyyy-MM-dd');
+    } else {
+      // Dia 21 do mês atual
+      const mesAtual = new Date(hoje.getFullYear(), hoje.getMonth(), 21);
+      return format(mesAtual, 'yyyy-MM-dd');
+    }
+  };
+  
+  const [dataInicio, setDataInicio] = useState(getDataInicioDefault());
   const [dataFim, setDataFim] = useState(format(hoje, 'yyyy-MM-dd'));
 
   const canViewAllStores = user?.tipo && ['admin', 'supervisor', 'compras'].includes(user.tipo);
@@ -156,8 +171,9 @@ export default function Graficos() {
     try {
       setLoading(true);
       
-      const startDate = new Date(dataInicio);
-      const endDate = new Date(dataFim);
+      // Criar datas no timezone local para evitar problemas de fuso horário
+      const startDate = new Date(dataInicio + 'T00:00:00');
+      const endDate = new Date(dataFim + 'T23:59:59');
 
       // MODIFICAÇÃO: Só passar currentLojaId se não for "todas as lojas"
       const lojaIdParaFiltro = (canViewAllStores && !selectedLojaId) ? undefined : currentLojaId;
@@ -227,11 +243,28 @@ export default function Graficos() {
 
       // Inicializar com todos os dias do período
       const chartMap = new Map<string, ChartData>();
-      const allDays = eachDayOfInterval({ start: startDate, end: endDate });
+      
+      // Garantir que usamos apenas os dias dentro do período especificado
+      const allDays = eachDayOfInterval({ 
+        start: startDate, 
+        end: endDate 
+      });
+
+      console.log('Período dos gráficos:', {
+        inicio: format(startDate, 'dd/MM/yyyy'),
+        fim: format(endDate, 'dd/MM/yyyy'),
+        totalDias: allDays.length
+      });
 
       allDays.forEach(day => {
         const dayOfWeek = getDay(day);
         const dateStr = format(day, 'yyyy-MM-dd');
+        
+        // Verificar se a data está realmente dentro do período
+        if (dateStr < dataInicio || dateStr > dataFim) {
+          console.log('Pulando data fora do período:', dateStr);
+          return;
+        }
         
         // Só excluir domingo se for loja específica da região centro
         if (shouldExcludeSundays && dayOfWeek === 0) {
