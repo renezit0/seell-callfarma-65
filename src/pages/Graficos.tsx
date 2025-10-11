@@ -7,10 +7,11 @@ import { BarChart, TrendingUp, PieChart, Activity, Calendar } from 'lucide-react
 import { getNomeCategoria, getCorCategoria } from '@/utils/categories';
 import { Navigate } from 'react-router-dom';
 import { format, startOfMonth, subMonths, eachDayOfInterval, getDay } from 'date-fns';
-import { PeriodSelector } from '@/components/PeriodSelector';
 import { StoreSelector } from '@/components/StoreSelector';
-import { usePeriodContext } from '@/contexts/PeriodContext';
 import { useCallfarmaAPI } from '@/hooks/useCallfarmaAPI';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 import { 
   LineChart as RechartsLineChart, 
   Line, 
@@ -56,7 +57,6 @@ interface MetasData {
 
 export default function Graficos() {
   const { user, loading: authLoading } = useAuth();
-  const { selectedPeriod } = usePeriodContext();
   const { buscarTodasVendasConsolidadas } = useCallfarmaAPI();
   const [loading, setLoading] = useState(true);
   const [selectedLojaId, setSelectedLojaId] = useState<number | null>(null);
@@ -64,7 +64,12 @@ export default function Graficos() {
   const [pieChartData, setPieChartData] = useState<PieChartData[]>([]);
   const [metasData, setMetasData] = useState<MetasData[]>([]);
   const [lojaInfo, setLojaInfo] = useState<{ regiao: string; numero: string; nome: string } | null>(null);
-  const [periodRange, setPeriodRange] = useState<'periodo_atual' | '1_mes' | '3_meses' | '6_meses' | '12_meses'>('periodo_atual');
+  
+  // Filtros de data
+  const hoje = new Date();
+  const primeiroDiaMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+  const [dataInicio, setDataInicio] = useState(format(primeiroDiaMes, 'yyyy-MM-dd'));
+  const [dataFim, setDataFim] = useState(format(hoje, 'yyyy-MM-dd'));
 
   const canViewAllStores = user?.tipo && ['admin', 'supervisor', 'compras'].includes(user.tipo);
   const currentLojaId = canViewAllStores ? selectedLojaId : (user?.loja_id || null);
@@ -112,21 +117,21 @@ export default function Graficos() {
 
   useEffect(() => {
     // Só buscar info da loja se for uma loja específica
-    if (user && selectedPeriod && currentLojaId) {
+    if (user && currentLojaId) {
       fetchLojaInfo();
     } else if (canViewAllStores && !selectedLojaId) {
       // Limpar info da loja quando for "todas as lojas"
       setLojaInfo(null);
     }
-  }, [user, selectedPeriod, currentLojaId]);
+  }, [user, currentLojaId]);
 
   useEffect(() => {
     // Buscar dados do gráfico sempre que as dependências mudarem
-    if (user && selectedPeriod) {
+    if (user && dataInicio && dataFim) {
       fetchChartData();
       fetchMetasComparison();
     }
-  }, [user, selectedPeriod, currentLojaId, periodRange, lojaInfo]);
+  }, [user, currentLojaId, dataInicio, dataFim, lojaInfo]);
 
   const fetchLojaInfo = async () => {
     if (!currentLojaId) return;
@@ -151,21 +156,8 @@ export default function Graficos() {
     try {
       setLoading(true);
       
-      let startDate: Date;
-      let endDate: Date;
-
-      if (periodRange === 'periodo_atual' && selectedPeriod) {
-        startDate = selectedPeriod.startDate;
-        endDate = selectedPeriod.endDate;
-      } else {
-        const hoje = new Date();
-        const mesesAtras = periodRange === '1_mes' ? 1 : periodRange === '3_meses' ? 3 : periodRange === '6_meses' ? 6 : 12;
-        startDate = startOfMonth(subMonths(hoje, mesesAtras - 1));
-        endDate = hoje;
-      }
-
-      const dataInicio = format(startDate, 'yyyy-MM-dd');
-      const dataFim = format(endDate, 'yyyy-MM-dd');
+      const startDate = new Date(dataInicio);
+      const endDate = new Date(dataFim);
 
       // MODIFICAÇÃO: Só passar currentLojaId se não for "todas as lojas"
       const lojaIdParaFiltro = (canViewAllStores && !selectedLojaId) ? undefined : currentLojaId;
@@ -421,7 +413,7 @@ export default function Graficos() {
   };
 
   const fetchMetasComparison = async () => {
-    if (!selectedPeriod) return;
+    if (!dataInicio || !dataFim) return;
     
     // MODIFICAÇÃO: Só buscar metas se for uma loja específica
     if (canViewAllStores && !selectedLojaId) {
@@ -431,104 +423,10 @@ export default function Graficos() {
     }
 
     try {
-      const { data: metasLoja } = await supabase
-        .from('metas_loja')
-        .select('*, metas_loja_categorias(*)')
-        .eq('loja_id', currentLojaId)
-        .eq('periodo_meta_id', selectedPeriod.id);
-
-      // Buscar dados da API externa para o período da meta usando as categorias
-      const dataInicio = selectedPeriod.startDate.toISOString().split('T')[0];
-      const dataFim = selectedPeriod.endDate.toISOString().split('T')[0];
-      
-      // Buscar dados das metas usando a mesma função otimizada
-      const todosDadosMetas = await buscarTodasVendasConsolidadas(dataInicio, dataFim, currentLojaId!);
-      
-      const {
-        geral: dadosGeralMeta,
-        rentaveis: dadosRentaveisMeta,
-        perfumaria_alta: dadosPerfumariaAltaMeta,
-        conveniencia_alta: dadosConvenienciaAltaMeta,
-        goodlife: dadosGoodlifeMeta
-      } = todosDadosMetas;
-
-      // Buscar informações da loja para filtrar por CDFIL
-      const { data: lojaData } = await supabase
-        .from('lojas')
-        .select('numero')
-        .eq('id', currentLojaId!)
-        .single();
-
-      const numeroLoja = parseInt(lojaData?.numero || '0');
-
-      // Função para calcular total de uma categoria
-      const calcularTotalCategoria = (dados: any[]): number => {
-        let total = 0;
-        dados.forEach((item: any) => {
-          try {
-            const cdfil = parseInt(item.CDFIL) || 0;
-            const valorLiquido = parseFloat(item.VALOR_LIQUIDO) || 0; // Usar VALOR_LIQUIDO já calculado
-
-            // Filtrar apenas pela loja atual
-            if (numeroLoja && cdfil !== numeroLoja) {
-              return;
-            }
-
-            // Usar valor líquido já calculado pela API
-            if (valorLiquido > 0) {
-              total += valorLiquido;
-            }
-          } catch (error) {
-            console.warn('Erro ao processar registro da API para metas:', error);
-          }
-        });
-        return total;
-      };
-
-      // Calcular totais por categoria
-      const vendasPorCategoria = {
-        geral: calcularTotalCategoria(dadosGeralMeta),
-        r_mais: calcularTotalCategoria(dadosRentaveisMeta),
-        perfumaria_r_mais: calcularTotalCategoria(dadosPerfumariaAltaMeta),
-        conveniencia_r_mais: calcularTotalCategoria(dadosConvenienciaAltaMeta),
-        goodlife: calcularTotalCategoria(dadosGoodlifeMeta)
-      };
-
-      const categorias = ['geral', 'r_mais', 'perfumaria_r_mais', 'conveniencia_r_mais', 'goodlife'];
-      const metasComparison: MetasData[] = [];
-
-      categorias.forEach(categoria => {
-        let metaValor = 0;
-        
-        if (categoria === 'geral') {
-          metaValor = metasLoja?.[0]?.meta_valor_total || 0;
-        } else {
-          const metaCategoria = metasLoja?.[0]?.metas_loja_categorias?.find(
-            (m: any) => m.categoria === categoria
-          );
-          metaValor = metaCategoria?.meta_valor || 0;
-        }
-
-        // Usar dados da API externa
-        const realizado = vendasPorCategoria[categoria as keyof typeof vendasPorCategoria] || 0;
-
-        if (metaValor > 0) {
-          metasComparison.push({
-            categoria: getNomeCategoria(categoria),
-            meta: metaValor,
-            realizado: realizado,
-            percentual: (realizado / metaValor) * 100
-          });
-        }
-      });
-
-      setMetasData(metasComparison);
-      
-      console.log('Metas processadas com dados da API:', {
-        registrosGeral: dadosGeralMeta.length,
-        totalGeral: vendasPorCategoria.geral,
-        metasEncontradas: metasComparison.length
-      });
+      // Como não temos mais o período selecionado, vamos desabilitar a comparação de metas
+      // que requer um periodo_meta_id específico
+      console.log('Comparação de metas desabilitada nesta visualização');
+      setMetasData([]);
       
     } catch (error) {
       console.error('Erro ao buscar comparação de metas:', error);
@@ -569,11 +467,6 @@ export default function Graficos() {
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
             Visualize dados de vendas em diferentes formatos
-            {selectedPeriod && (
-              <span className="block text-xs text-muted-foreground/70 mt-1">
-                Período: {selectedPeriod.label}
-              </span>
-            )}
             {lojaInfo?.regiao === 'centro' && (
               <span className="block text-xs text-amber-600 mt-1 font-medium">
                 Lojas da região Centro não abrem aos domingos
@@ -589,29 +482,41 @@ export default function Graficos() {
               userLojaId={user.loja_id} 
             />
           )}
-          <PeriodSelector />
         </div>
       </div>
 
       <Card>
         <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-4 items-center">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Período dos Gráficos:</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="dataInicio">Data Início</Label>
+              <Input
+                id="dataInicio"
+                type="date"
+                value={dataInicio}
+                onChange={(e) => setDataInicio(e.target.value)}
+              />
             </div>
-            <Select value={periodRange} onValueChange={(value: 'periodo_atual' | '1_mes' | '3_meses' | '6_meses' | '12_meses') => setPeriodRange(value)}>
-              <SelectTrigger className="w-48">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="periodo_atual">Período Atual</SelectItem>
-                <SelectItem value="1_mes">Último Mês</SelectItem>
-                <SelectItem value="3_meses">Últimos 3 Meses</SelectItem>
-                <SelectItem value="6_meses">Últimos 6 Meses</SelectItem>
-                <SelectItem value="12_meses">Último Ano</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="space-y-2">
+              <Label htmlFor="dataFim">Data Fim</Label>
+              <Input
+                id="dataFim"
+                type="date"
+                value={dataFim}
+                onChange={(e) => setDataFim(e.target.value)}
+              />
+            </div>
+            <div className="flex items-end">
+              <Button 
+                onClick={() => {
+                  fetchChartData();
+                  fetchMetasComparison();
+                }}
+                className="w-full"
+              >
+                Atualizar Gráficos
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
