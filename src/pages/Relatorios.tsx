@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BarChart3, List, AlertCircle, Search, TrendingUp } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
@@ -34,15 +35,21 @@ export default function Relatorios() {
   const { buscarVendasCampanha, loading: apiLoading } = useCallfarmaAPI();
   const { toast } = useToast();
 
+  const [comparativo, setComparativo] = useState(false);
+  
   const [filtros, setFiltros] = useState({
     dataInicio: periodoAtual.dataInicio.toISOString().split('T')[0],
     dataFim: periodoAtual.dataFim.toISOString().split('T')[0],
+    dataInicio2: periodoAtual.dataInicio.toISOString().split('T')[0],
+    dataFim2: periodoAtual.dataFim.toISOString().split('T')[0],
     grupos: '',
     produtos: '',
-    familias: ''
+    familias: '',
+    fornecedores: ''
   });
 
   const [dados, setDados] = useState<DadosVenda[]>([]);
+  const [dados2, setDados2] = useState<DadosVenda[]>([]);
   const [todasLojas, setTodasLojas] = useState<Loja[]>([]);
   const [modoVisualizacao, setModoVisualizacao] = useState<'grafico' | 'lista' | 'zeros'>('grafico');
   const [tipoGrafico, setTipoGrafico] = useState<'valor' | 'quantidade'>('valor');
@@ -69,10 +76,10 @@ export default function Relatorios() {
 
   const buscarDados = async () => {
     try {
-      if (!filtros.grupos && !filtros.produtos && !filtros.familias) {
+      if (!filtros.grupos && !filtros.produtos && !filtros.familias && !filtros.fornecedores) {
         toast({
           title: 'Atenção',
-          description: 'Informe ao menos um filtro: grupos, produtos ou famílias',
+          description: 'Informe ao menos um filtro: grupos, produtos, famílias ou fornecedores',
           variant: 'destructive'
         });
         return;
@@ -83,14 +90,29 @@ export default function Relatorios() {
         dataFim: filtros.dataFim,
         filtroGrupos: filtros.grupos || undefined,
         filtroProduto: filtros.produtos || undefined,
-        filtroFamilias: filtros.familias || undefined
+        filtroFamilias: filtros.familias || undefined,
+        filtroFornecedores: filtros.fornecedores || undefined
       });
 
       setDados(resultado);
 
+      if (comparativo) {
+        const resultado2 = await buscarVendasCampanha({
+          dataInicio: filtros.dataInicio2,
+          dataFim: filtros.dataFim2,
+          filtroGrupos: filtros.grupos || undefined,
+          filtroProduto: filtros.produtos || undefined,
+          filtroFamilias: filtros.familias || undefined,
+          filtroFornecedores: filtros.fornecedores || undefined
+        });
+        setDados2(resultado2);
+      }
+
       toast({
         title: 'Sucesso',
-        description: `${resultado.length} lojas encontradas`
+        description: comparativo 
+          ? `Período 1: ${resultado.length} lojas | Período 2: ${dados2.length} lojas`
+          : `${resultado.length} lojas encontradas`
       });
 
     } catch (error) {
@@ -105,7 +127,9 @@ export default function Relatorios() {
 
   const getLojasComZeroVendas = () => {
     const lojasComVendas = new Set(dados.map(d => d.CDFIL));
-    return todasLojas.filter(loja => !lojasComVendas.has(parseInt(loja.numero)));
+    return todasLojas.filter(loja => 
+      !lojasComVendas.has(parseInt(loja.numero)) && loja.numero !== '00'
+    );
   };
 
   const formatCurrency = (value: number) => {
@@ -135,11 +159,16 @@ export default function Relatorios() {
 
   const dadosGrafico = dados
     .sort((a, b) => tipoGrafico === 'valor' ? b.TOTAL_VALOR - a.TOTAL_VALOR : b.TOTAL_QUANTIDADE - a.TOTAL_QUANTIDADE)
-    .map(d => ({
-      loja: d.NOMEFIL,
-      valor: d.TOTAL_VALOR,
-      quantidade: d.TOTAL_QUANTIDADE
-    }));
+    .map(d => {
+      const periodo2 = comparativo ? dados2.find(d2 => d2.CDFIL === d.CDFIL) : null;
+      return {
+        loja: d.NOMEFIL,
+        valor: d.TOTAL_VALOR,
+        quantidade: d.TOTAL_QUANTIDADE,
+        valor2: periodo2?.TOTAL_VALOR || 0,
+        quantidade2: periodo2?.TOTAL_QUANTIDADE || 0
+      };
+    });
 
   return (
     <div className="p-6 space-y-6">
@@ -159,9 +188,20 @@ export default function Relatorios() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="flex items-center gap-2 mb-4">
+            <Switch
+              id="comparativo"
+              checked={comparativo}
+              onCheckedChange={setComparativo}
+            />
+            <Label htmlFor="comparativo" className="cursor-pointer">
+              Análise Comparativa (dois períodos)
+            </Label>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="dataInicio">Data Início</Label>
+              <Label htmlFor="dataInicio">Data Início {comparativo && '(Período 1)'}</Label>
               <Input
                 id="dataInicio"
                 type="date"
@@ -170,7 +210,7 @@ export default function Relatorios() {
               />
             </div>
             <div>
-              <Label htmlFor="dataFim">Data Fim</Label>
+              <Label htmlFor="dataFim">Data Fim {comparativo && '(Período 1)'}</Label>
               <Input
                 id="dataFim"
                 type="date"
@@ -179,6 +219,29 @@ export default function Relatorios() {
               />
             </div>
           </div>
+
+          {comparativo && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
+              <div>
+                <Label htmlFor="dataInicio2">Data Início (Período 2)</Label>
+                <Input
+                  id="dataInicio2"
+                  type="date"
+                  value={filtros.dataInicio2}
+                  onChange={(e) => setFiltros(prev => ({ ...prev, dataInicio2: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="dataFim2">Data Fim (Período 2)</Label>
+                <Input
+                  id="dataFim2"
+                  type="date"
+                  value={filtros.dataFim2}
+                  onChange={(e) => setFiltros(prev => ({ ...prev, dataFim2: e.target.value }))}
+                />
+              </div>
+            </div>
+          )}
 
           <div className="space-y-4">
             <div>
@@ -206,6 +269,15 @@ export default function Relatorios() {
                 placeholder="Ex: 10,15,20"
                 value={filtros.familias}
                 onChange={(e) => setFiltros(prev => ({ ...prev, familias: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label htmlFor="fornecedores">Fornecedores (separados por vírgula)</Label>
+              <Input
+                id="fornecedores"
+                placeholder="Ex: 123,456,789"
+                value={filtros.fornecedores}
+                onChange={(e) => setFiltros(prev => ({ ...prev, fornecedores: e.target.value }))}
               />
             </div>
           </div>
@@ -309,8 +381,15 @@ export default function Relatorios() {
                       <Bar 
                         dataKey={tipoGrafico === 'valor' ? 'valor' : 'quantidade'} 
                         fill="hsl(var(--primary))" 
-                        name={tipoGrafico === 'valor' ? 'Valor (R$)' : 'Quantidade'}
+                        name={comparativo ? (tipoGrafico === 'valor' ? 'Valor P1 (R$)' : 'Quantidade P1') : (tipoGrafico === 'valor' ? 'Valor (R$)' : 'Quantidade')}
                       />
+                      {comparativo && (
+                        <Bar 
+                          dataKey={tipoGrafico === 'valor' ? 'valor2' : 'quantidade2'} 
+                          fill="hsl(var(--secondary))" 
+                          name={tipoGrafico === 'valor' ? 'Valor P2 (R$)' : 'Quantidade P2'}
+                        />
+                      )}
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
