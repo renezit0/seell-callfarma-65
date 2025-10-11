@@ -141,12 +141,12 @@ export default function Graficos() {
   }, [user, currentLojaId]);
 
   useEffect(() => {
-    // Buscar dados do gráfico sempre que as dependências mudarem
-    if (user && dataInicio && dataFim) {
+    // Buscar dados do gráfico apenas ao mudar loja ou usuário
+    if (user) {
       fetchChartData();
       fetchMetasComparison();
     }
-  }, [user, currentLojaId, dataInicio, dataFim, lojaInfo]);
+  }, [user, currentLojaId]);
 
   const fetchLojaInfo = async () => {
     if (!currentLojaId) return;
