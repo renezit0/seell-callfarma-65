@@ -54,11 +54,21 @@ export default function Usuarios() {
   // useEffect must be called before any early returns
   useEffect(() => {
     if (user) {
-      // Sempre usar banco externo
-      fetchMySQLUsuarios(selectedLojaId || undefined, tipoFilter !== 'all' ? tipoFilter : undefined);
+      // Determinar qual loja buscar
+      let lojaParaBuscar: number | undefined;
+      
+      if (hasMultiStoreAccess) {
+        // Se tem acesso multi-loja, usar a selecionada (ou undefined para todas)
+        lojaParaBuscar = selectedLojaId || undefined;
+      } else {
+        // Se não tem acesso multi-loja, sempre filtrar pela loja do usuário
+        lojaParaBuscar = user.loja_id;
+      }
+      
+      fetchMySQLUsuarios(lojaParaBuscar, tipoFilter !== 'all' ? tipoFilter : undefined);
       fetchLojaInfo();
     }
-  }, [user, selectedLojaId, tipoFilter]);
+  }, [user, selectedLojaId, tipoFilter, hasMultiStoreAccess]);
 
   const fetchUsuarios = async () => {
     try {
