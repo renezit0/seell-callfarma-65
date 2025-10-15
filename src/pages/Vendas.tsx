@@ -238,23 +238,24 @@ export default function Vendas() {
     };
   }, [vendasPorCategoria, metasData]);
 
-  // ✅ useEffect principal consolidado - Não recarrega automaticamente ao mudar datas
+  // ✅ useEffect principal consolidado
   useEffect(() => {
     if (!user || isLoadingData) return;
-    const initializeData = async () => {
+    
+    // Só carregar lojaInfo na primeira vez
+    if (!lojaInfo) {
       setIsLoadingData(true);
-      try {
-        if (!lojaInfo) {
-          await fetchLojaInfo();
-        } else {
-          await fetchVendas();
-        }
-      } finally {
-        setIsLoadingData(false);
-      }
-    };
-    initializeData();
+      fetchLojaInfo().finally(() => setIsLoadingData(false));
+    }
   }, [user, currentLojaId, selectedLojaId]);
+
+  // Carregar vendas quando lojaInfo estiver disponível
+  useEffect(() => {
+    if (user && lojaInfo && !isLoadingData) {
+      setIsLoadingData(true);
+      fetchVendas().finally(() => setIsLoadingData(false));
+    }
+  }, [lojaInfo]);
 
   // Quando selecionar um colaborador
   useEffect(() => {
@@ -710,7 +711,10 @@ export default function Vendas() {
             </div>
             <div className="flex items-end">
               <Button 
-                onClick={fetchVendas} 
+                onClick={() => {
+                  setIsLoadingData(true);
+                  fetchVendas().finally(() => setIsLoadingData(false));
+                }}
                 disabled={isLoadingData}
                 className="w-full"
               >
