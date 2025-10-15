@@ -35,15 +35,26 @@ export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculo
     const calcular = async () => {
       setLoading(true);
       try {
-        // 1. Buscar vendas da API externa (callfarma-vendas)
+        // 1. Buscar informações da loja (número e região)
+        const { data: lojaInfo } = await supabase
+          .from('lojas')
+          .select('numero, regiao')
+          .eq('id', lojaId)
+          .single();
+
+        const numeroLoja = lojaInfo?.numero?.toString().padStart(2, '0');
+        const regiao = lojaInfo?.regiao || 'outros';
+
+        // 2. Buscar vendas da API externa usando o endpoint correto
         const { data: vendasData, error: vendasError } = await supabase.functions.invoke('callfarma-vendas', {
           body: {
-            endpoint: '/vendas',
+            endpoint: '/financeiro/vendas-por-funcionario',
             params: {
-              loja_id: lojaId,
-              data_inicio: periodo.data_inicio,
-              data_fim: periodo.data_fim,
-              usuario_id: funcionario.id
+              dataIni: periodo.data_inicio,
+              dataFim: periodo.data_fim,
+              filtroFiliais: numeroLoja,
+              groupBy: 'scefun.CDFUN,scefilial.CDFIL,scekarde.DATA,sceprodu.CDGRUPO',
+              orderBy: 'scefun.NOME asc'
             }
           }
         });
@@ -53,7 +64,10 @@ export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculo
           throw vendasError;
         }
 
-        // 2. Buscar metas do funcionário
+        const rawData = vendasData?.msg || [];
+        console.log('Dados brutos da API:', rawData);
+
+        // Buscar metas do funcionário
         const { data: metasUsuario, error: metasError } = await supabase
           .from('metas')
           .select('categoria, meta_mensal')
@@ -68,7 +82,7 @@ export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculo
           metasObj[m.categoria] = m.meta_mensal;
         });
 
-        // 3. Buscar metas da loja (para cargos de apoio)
+        // Buscar metas da loja (para cargos de apoio)
         const { data: metasLojaData, error: metasLojaError } = await supabase
           .from('metas_loja_categorias')
           .select('categoria, meta_valor, metas_loja!inner(loja_id, periodo_meta_id)')
@@ -82,7 +96,7 @@ export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculo
           metasLojaObj[m.categoria] = m.meta_valor;
         });
 
-        // 4. Buscar folgas do usuário
+        // Buscar folgas do usuário
         const { data: folgasData } = await supabase
           .from('folgas')
           .select('data_folga')
@@ -91,20 +105,11 @@ export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculo
 
         const folgas = folgasData?.map(f => f.data_folga) || [];
 
-        // 5. Buscar dados da loja (região)
-        const { data: lojaData } = await supabase
-          .from('lojas')
-          .select('regiao')
-          .eq('id', lojaId)
-          .single();
-
-        const regiao = lojaData?.regiao || 'outros';
-
-        // 6. Verificar se há vendas hoje
+        // Verificar se há vendas hoje
         const hoje = new Date().toISOString().split('T')[0];
-        const temVendasHoje = vendasData?.vendas_usuario?.some((v: any) => v.data_venda === hoje) || false;
+        const temVendasHoje = rawData.some((v: any) => v.DATA === hoje);
 
-        // 7. Calcular dias úteis
+        // Calcular dias úteis
         const diasUteis = calcularDiasUteis(
           periodo.data_inicio,
           periodo.data_fim,
@@ -113,25 +118,81 @@ export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculo
           folgas
         );
 
-        // 8. Organizar vendas por categoria
-        const vendasPorCategoria: Record<string, VendasCategoria> = {};
-        vendasData?.vendas_usuario?.forEach((v: any) => {
-          if (!vendasPorCategoria[v.categoria]) {
-            vendasPorCategoria[v.categoria] = { valor: 0, quantidade: 0 };
+        // Organizar vendas por categoria baseado nos CDGRUPO da API
+        // Grupos: 20,25=Rentáveis | 36=Perfumaria Alta | 13=GoodLife | etc
+        const vendasPorCategoria: Record<string, VendasCategoria> = {
+          geral: { valor: 0, quantidade: 0 },
+          generico: { valor: 0, quantidade: 0 },
+          similar: { valor: 0, quantidade: 0 },
+          rentaveis20: { valor: 0, quantidade: 0 },
+          rentaveis25: { valor: 0, quantidade: 0 },
+          perfumaria_alta: { valor: 0, quantidade: 0 },
+          dermocosmetico: { valor: 0, quantidade: 0 },
+          goodlife: { valor: 0, quantidade: 0 },
+          conveniencia: { valor: 0, quantidade: 0 },
+          brinquedo: { valor: 0, quantidade: 0 }
+        };
+
+        // Filtrar vendas do funcionário específico (CDFUN)
+        const vendasDoUsuario = rawData.filter((v: any) => v.CDFUN === parseInt(funcionario.matricula || '0'));
+        
+        vendasDoUsuario.forEach((v: any) => {
+          const valor = parseFloat(v.TOTAL_VLR_VE || 0);
+          const qtd = parseInt(v.TOTAL_QTD_VE || 0);
+          const grupo = parseInt(v.CDGRUPO || 0);
+
+          // Sempre adiciona ao geral
+          vendasPorCategoria.geral.valor += valor;
+          vendasPorCategoria.geral.quantidade += qtd;
+
+          // Mapear por grupo
+          if (grupo === 20) {
+            vendasPorCategoria.rentaveis20.valor += valor;
+            vendasPorCategoria.rentaveis20.quantidade += qtd;
+          } else if (grupo === 25) {
+            vendasPorCategoria.rentaveis25.valor += valor;
+            vendasPorCategoria.rentaveis25.quantidade += qtd;
+          } else if (grupo === 36) {
+            vendasPorCategoria.perfumaria_alta.valor += valor;
+            vendasPorCategoria.perfumaria_alta.quantidade += qtd;
+          } else if (grupo === 13) {
+            vendasPorCategoria.goodlife.valor += valor;
+            vendasPorCategoria.goodlife.quantidade += qtd;
           }
-          vendasPorCategoria[v.categoria].valor += parseFloat(v.valor_venda || 0);
-          vendasPorCategoria[v.categoria].quantidade += 1;
+          // TODO: Adicionar outros grupos conforme necessário
         });
 
-        // Vendas da loja
-        const vendasLojaPorCategoria: Record<string, VendasCategoria> = {};
-        vendasData?.vendas_loja?.forEach((v: any) => {
-          if (!vendasLojaPorCategoria[v.categoria]) {
-            vendasLojaPorCategoria[v.categoria] = { valor: 0, quantidade: 0 };
+        // Vendas da loja (todos os funcionários)
+        const vendasLojaPorCategoria: Record<string, VendasCategoria> = {
+          geral: { valor: 0, quantidade: 0 },
+          r_mais: { valor: 0, quantidade: 0 },
+          perfumaria_r_mais: { valor: 0, quantidade: 0 },
+          conveniencia_r_mais: { valor: 0, quantidade: 0 },
+          saude: { valor: 0, quantidade: 0 }
+        };
+
+        rawData.forEach((v: any) => {
+          const valor = parseFloat(v.TOTAL_VLR_VE || 0);
+          const qtd = parseInt(v.TOTAL_QTD_VE || 0);
+          const grupo = parseInt(v.CDGRUPO || 0);
+
+          vendasLojaPorCategoria.geral.valor += valor;
+          vendasLojaPorCategoria.geral.quantidade += qtd;
+
+          if (grupo === 20 || grupo === 25) {
+            vendasLojaPorCategoria.r_mais.valor += valor;
+            vendasLojaPorCategoria.r_mais.quantidade += qtd;
+          } else if (grupo === 36) {
+            vendasLojaPorCategoria.perfumaria_r_mais.valor += valor;
+            vendasLojaPorCategoria.perfumaria_r_mais.quantidade += qtd;
+          } else if (grupo === 13) {
+            vendasLojaPorCategoria.saude.valor += valor;
+            vendasLojaPorCategoria.saude.quantidade += qtd;
           }
-          vendasLojaPorCategoria[v.categoria].valor += parseFloat(v.valor_venda || 0);
-          vendasLojaPorCategoria[v.categoria].quantidade += 1;
         });
+
+        console.log('Vendas do usuário por categoria:', vendasPorCategoria);
+        console.log('Vendas da loja por categoria:', vendasLojaPorCategoria);
 
         // 9. Calcular projeções
         const projecoesCalculadas = calcularProjecoes(vendasPorCategoria, metasObj, diasUteis);

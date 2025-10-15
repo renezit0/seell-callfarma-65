@@ -54,21 +54,12 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    console.log(`Dados recebidos:`, data);
+    console.log(`Dados recebidos - Status: ${response.status}`);
+    console.log(`Tipo de dado: ${Array.isArray(data) ? 'array' : typeof data}`);
+    console.log(`Registros: ${data?.msg?.length || 0}`);
 
-    // Separar vendas por usuário e por loja
-    const vendasUsuario = data.filter((v: any) => v.usuario_id && v.usuario_id === params.usuario_id) || [];
-    const vendasLoja = data.filter((v: any) => v.loja_id && v.loja_id === params.loja_id) || [];
-
-    const resultado = {
-      vendas_usuario: vendasUsuario,
-      vendas_loja: vendasLoja,
-      total_registros: data?.length || 0
-    };
-
-    console.log(`Processado: ${vendasUsuario.length} vendas do usuário, ${vendasLoja.length} vendas da loja`);
-
-    return new Response(JSON.stringify(resultado), {
+    // Retornar dados conforme formato da API
+    return new Response(JSON.stringify(data), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
