@@ -595,13 +595,19 @@ export default function Vendas() {
             </div>
             <div className="flex items-end">
               <Button 
-                onClick={() => {
+                onClick={async () => {
                   const hoje = new Date();
-                  setDataInicio(format(hoje, 'yyyy-MM-dd'));
-                  setDataFim(format(hoje, 'yyyy-MM-dd'));
+                  const dataStr = format(hoje, 'yyyy-MM-dd');
+                  setDataInicio(dataStr);
+                  setDataFim(dataStr);
+                  // Buscar automaticamente
+                  setIsLoadingData(true);
+                  await fetchVendas();
+                  setIsLoadingData(false);
                 }}
                 variant="outline"
                 className="w-full"
+                disabled={isLoadingData}
               >
                 <Calendar className="w-4 h-4 mr-2" />
                 Hoje
@@ -609,14 +615,20 @@ export default function Vendas() {
             </div>
             <div className="flex items-end">
               <Button 
-                onClick={() => {
+                onClick={async () => {
                   const ontem = new Date();
                   ontem.setDate(ontem.getDate() - 1);
-                  setDataInicio(format(ontem, 'yyyy-MM-dd'));
-                  setDataFim(format(ontem, 'yyyy-MM-dd'));
+                  const dataStr = format(ontem, 'yyyy-MM-dd');
+                  setDataInicio(dataStr);
+                  setDataFim(dataStr);
+                  // Buscar automaticamente
+                  setIsLoadingData(true);
+                  await fetchVendas();
+                  setIsLoadingData(false);
                 }}
                 variant="outline"
                 className="w-full"
+                disabled={isLoadingData}
               >
                 <Calendar className="w-4 h-4 mr-2" />
                 Ontem
