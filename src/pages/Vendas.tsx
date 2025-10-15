@@ -82,8 +82,6 @@ export default function Vendas() {
   const [vendedorFilter, setVendedorFilter] = useState<string>('all');
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [chartCategoriaFilter, setChartCategoriaFilter] = useState<string>('geral');
-  const [filtroAdicional, setFiltroAdicional] = useState<string>('periodo');
-  const [dataEspecifica, setDataEspecifica] = useState<string>('');
   const [selectedLojaId, setSelectedLojaId] = useState<number | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(false);
 
@@ -91,14 +89,6 @@ export default function Vendas() {
   const canViewAllStores = user?.tipo && ['admin', 'supervisor', 'compras'].includes(user.tipo);
   const currentLojaId = selectedLojaId || user?.loja_id || null;
 
-  // Verificar parâmetro de filtro na URL
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const filtroParam = urlParams.get('filtro');
-    if (filtroParam === 'ontem') {
-      setFiltroAdicional('ontem');
-    }
-  }, []);
 
   // Mapeamento de grupos para categorias
   const mapearGrupoParaCategoria = (cdgrupo: number): string => {
@@ -253,7 +243,7 @@ export default function Vendas() {
       }
     };
     initializeData();
-  }, [user, selectedPeriod, filtroAdicional, dataEspecifica, currentLojaId, selectedLojaId]);
+  }, [user, selectedPeriod, currentLojaId, selectedLojaId]);
 
   // ✅ Fetch vendas quando loja info é atualizada
   useEffect(() => {
@@ -309,42 +299,11 @@ export default function Vendas() {
     }
   };
   const fetchVendas = async () => {
-    if (!lojaInfo || isLoadingData) return;
+    if (!lojaInfo || isLoadingData || !selectedPeriod) return;
     try {
-      // Calcular período baseado no filtro
-      let dataInicio: string;
-      let dataFim: string;
-      const hoje = new Date();
-      if (filtroAdicional === 'data_especifica' && dataEspecifica) {
-        dataInicio = dataEspecifica;
-        dataFim = dataEspecifica;
-      } else if (filtroAdicional === 'hoje') {
-        const hojeStr = format(hoje, 'yyyy-MM-dd');
-        dataInicio = hojeStr;
-        dataFim = hojeStr;
-      } else if (filtroAdicional === 'ontem') {
-        const ontem = new Date(hoje);
-        ontem.setDate(hoje.getDate() - 1);
-        const ontemStr = format(ontem, 'yyyy-MM-dd');
-        dataInicio = ontemStr;
-        dataFim = ontemStr;
-      } else if (filtroAdicional === 'ultima_semana') {
-        const inicioSemana = new Date(hoje);
-        inicioSemana.setDate(hoje.getDate() - 7);
-        dataInicio = format(inicioSemana, 'yyyy-MM-dd');
-        dataFim = format(hoje, 'yyyy-MM-dd');
-      } else if (filtroAdicional === 'ultimo_mes') {
-        const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-        dataInicio = format(inicioMes, 'yyyy-MM-dd');
-        dataFim = format(hoje, 'yyyy-MM-dd');
-      } else if (filtroAdicional === 'periodo' && selectedPeriod) {
-        const dataInicioAjustada = new Date(selectedPeriod.startDate);
-        dataInicioAjustada.setDate(dataInicioAjustada.getDate() + 1);
-        dataInicio = format(dataInicioAjustada, 'yyyy-MM-dd');
-        dataFim = format(selectedPeriod.endDate, 'yyyy-MM-dd');
-      } else {
-        return;
-      }
+      // Usar período selecionado do context
+      const dataInicio = format(selectedPeriod.startDate, 'yyyy-MM-dd');
+      const dataFim = format(selectedPeriod.endDate, 'yyyy-MM-dd');
       console.log(`Buscando dados API: ${dataInicio} a ${dataFim} para loja CDFIL ${lojaInfo.cdfil}`);
       if (vendedorFilter !== 'all') {
         // Buscar dados específicos do funcionário
@@ -727,27 +686,11 @@ export default function Vendas() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
               <Input placeholder="Buscar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
             </div>
-            
-            <Select value={filtroAdicional} onValueChange={setFiltroAdicional}>
-              <SelectTrigger>
-                <SelectValue placeholder="Período" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="periodo">Período Selecionado</SelectItem>
-                <SelectItem value="hoje">Hoje</SelectItem>
-                <SelectItem value="ontem">Ontem</SelectItem>
-                <SelectItem value="ultima_semana">Última Semana</SelectItem>
-                <SelectItem value="ultimo_mes">Último Mês</SelectItem>
-                <SelectItem value="data_especifica">Data Específica</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {filtroAdicional === 'data_especifica' && <Input type="date" value={dataEspecifica} onChange={e => setDataEspecifica(e.target.value)} className="w-full" />}
 
             <Select value={vendedorFilter} onValueChange={setVendedorFilter}>
               <SelectTrigger>
