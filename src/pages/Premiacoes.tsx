@@ -68,10 +68,10 @@ export default function Premiacoes() {
           setPeriodoSelecionado(periodosFormatados[0]);
         }
 
-        // Buscar funcionários da loja do usuário
+        // Buscar funcionários da loja do usuário (incluindo matricula para calcular premiação)
         const { data: funcionariosData, error: funcionariosError } = await supabase
           .from('usuarios')
-          .select('id, nome, tipo, data_contratacao, loja_id, status')
+          .select('id, nome, tipo, data_contratacao, loja_id, status, matricula')
           .eq('loja_id', user.loja_id)
           .eq('status', 'ativo')
           .order('nome');

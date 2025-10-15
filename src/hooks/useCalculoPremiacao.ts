@@ -67,6 +67,8 @@ export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculo
 
         const rawData = vendasData?.msg || [];
         console.log('Dados brutos da API:', rawData);
+        console.log('Matrícula do funcionário:', funcionario.matricula);
+        console.log('Buscando vendas do CDFUN:', parseInt(funcionario.matricula || '0'));
 
         // Buscar metas do funcionário
         const { data: metasUsuario, error: metasError } = await supabase
@@ -135,7 +137,22 @@ export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculo
         };
 
         // Filtrar vendas do funcionário específico (CDFUN)
-        const vendasDoUsuario = rawData.filter((v: any) => v.CDFUN === parseInt(funcionario.matricula || '0'));
+        // IMPORTANTE: Se não tiver matrícula, não conseguimos filtrar as vendas do funcionário
+        if (!funcionario.matricula) {
+          console.warn('Funcionário sem matrícula cadastrada! Não é possível calcular vendas individuais.');
+          toast({
+            title: 'Matrícula não cadastrada',
+            description: 'Este funcionário não possui matrícula cadastrada no sistema. Entre em contato com o RH.',
+            variant: 'destructive'
+          });
+        }
+        
+        const vendasDoUsuario = rawData.filter((v: any) => {
+          const matriculaFuncionario = parseInt(funcionario.matricula || '0');
+          return v.CDFUN === matriculaFuncionario;
+        });
+        
+        console.log(`Encontradas ${vendasDoUsuario.length} vendas para o funcionário (CDFUN: ${funcionario.matricula})`);
         
         vendasDoUsuario.forEach((v: any) => {
           const valor = parseFloat(v.TOTAL_VLR_VE || 0);
