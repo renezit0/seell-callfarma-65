@@ -125,8 +125,7 @@ export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculo
         // Grupos: 2,21=Similar | 5,6,47=Genérico | 20,25=Rentáveis | 36=Perfumaria Alta | 46=Dermocosméticos | 13,22=GoodLife
         const vendasPorCategoria: Record<string, VendasCategoria> = {
           geral: { valor: 0, quantidade: 0 },
-          generico: { valor: 0, quantidade: 0 },
-          similar: { valor: 0, quantidade: 0 },
+          generico_similar: { valor: 0, quantidade: 0 }, // Categoria unificada para genérico e similar
           rentaveis20: { valor: 0, quantidade: 0 },
           rentaveis25: { valor: 0, quantidade: 0 },
           perfumaria_alta: { valor: 0, quantidade: 0 },
@@ -164,14 +163,10 @@ export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculo
           vendasPorCategoria.geral.quantidade += qtd;
 
           // Mapear por grupo conforme documentação da API
-          if (grupo === 2 || grupo === 21) {
-            // Similar
-            vendasPorCategoria.similar.valor += valor;
-            vendasPorCategoria.similar.quantidade += qtd;
-          } else if (grupo === 5 || grupo === 6 || grupo === 47) {
-            // Genérico
-            vendasPorCategoria.generico.valor += valor;
-            vendasPorCategoria.generico.quantidade += qtd;
+          if (grupo === 2 || grupo === 21 || grupo === 5 || grupo === 6 || grupo === 47) {
+            // Genérico e Similar unificados em uma categoria
+            vendasPorCategoria.generico_similar.valor += valor;
+            vendasPorCategoria.generico_similar.quantidade += qtd;
           } else if (grupo === 20) {
             vendasPorCategoria.rentaveis20.valor += valor;
             vendasPorCategoria.rentaveis20.quantidade += qtd;
@@ -277,8 +272,8 @@ export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculo
 
           case 'farmaceutico':
             const vendasUsuarioFarm: VendasUsuario = {
-              generico: vendasPorCategoria.generico || { valor: 0, quantidade: 0 },
-              similar: vendasPorCategoria.similar || { valor: 0, quantidade: 0 },
+              generico: vendasPorCategoria.generico_similar || { valor: 0, quantidade: 0 }, // Usar categoria unificada
+              similar: { valor: 0, quantidade: 0 }, // Manter para compatibilidade, mas zerado
               goodlife: vendasPorCategoria.goodlife || { valor: 0, quantidade: 0 },
               perfumaria_alta: vendasPorCategoria.perfumaria_alta || { valor: 0, quantidade: 0 },
               dermocosmetico: vendasPorCategoria.dermocosmetico || { valor: 0, quantidade: 0 },
@@ -297,8 +292,8 @@ export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculo
 
           case 'auxiliar':
             const vendasUsuarioAux: VendasUsuario = {
-              generico: vendasPorCategoria.generico || { valor: 0, quantidade: 0 },
-              similar: vendasPorCategoria.similar || { valor: 0, quantidade: 0 },
+              generico: vendasPorCategoria.generico_similar || { valor: 0, quantidade: 0 }, // Usar categoria unificada
+              similar: { valor: 0, quantidade: 0 }, // Manter para compatibilidade, mas zerado
               goodlife: vendasPorCategoria.goodlife || { valor: 0, quantidade: 0 },
               perfumaria_alta: vendasPorCategoria.perfumaria_alta || { valor: 0, quantidade: 0 },
               dermocosmetico: vendasPorCategoria.dermocosmetico || { valor: 0, quantidade: 0 },
