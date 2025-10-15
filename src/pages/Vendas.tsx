@@ -245,12 +245,16 @@ export default function Vendas() {
     const loadInitialData = async () => {
       setIsLoadingData(true);
       try {
-        // Buscar info da loja se não existir
+        // Primeiro, buscar info da loja e AGUARDAR terminar
         if (!lojaInfo) {
           await fetchLojaInfo();
+          // Aguardar um ciclo para lojaInfo ser atualizado no state
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
-        // Buscar vendas
-        await fetchVendas();
+        // Depois buscar vendas (que depende de lojaInfo)
+        if (lojaInfo) {
+          await fetchVendas();
+        }
       } catch (error) {
         console.error('Erro ao carregar dados iniciais:', error);
       } finally {
@@ -260,6 +264,14 @@ export default function Vendas() {
     
     loadInitialData();
   }, [user, currentLojaId, selectedLojaId]);
+
+  // Quando lojaInfo for atualizada pela primeira vez, buscar vendas
+  useEffect(() => {
+    if (lojaInfo && !vendasProcessadas.length && !isLoadingData) {
+      setIsLoadingData(true);
+      fetchVendas().finally(() => setIsLoadingData(false));
+    }
+  }, [lojaInfo]);
 
   // Quando selecionar um colaborador
   useEffect(() => {
@@ -308,7 +320,7 @@ export default function Vendas() {
     }
   };
   const fetchVendas = async () => {
-    if (!lojaInfo || isLoadingData) return;
+    if (!lojaInfo) return;
     try {
       // Validar se as datas estão preenchidas
       if (!dataInicio || !dataFim) {
