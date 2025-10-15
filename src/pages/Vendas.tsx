@@ -84,7 +84,6 @@ export default function Vendas() {
   const [chartCategoriaFilter, setChartCategoriaFilter] = useState<string>('geral');
   const [selectedLojaId, setSelectedLojaId] = useState<number | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(false);
-  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   // Check if user can view all stores
   const canViewAllStores = user?.tipo && ['admin', 'supervisor', 'compras'].includes(user.tipo);
@@ -239,34 +238,28 @@ export default function Vendas() {
     };
   }, [vendasPorCategoria, metasData]);
 
-  // ✅ useEffect principal consolidado
+  // ✅ useEffect principal - carrega dados automaticamente ao entrar
   useEffect(() => {
-    if (!user || initialLoadDone) return;
+    if (!user) return;
     
-    const initializeData = async () => {
+    const loadInitialData = async () => {
       setIsLoadingData(true);
       try {
+        // Buscar info da loja se não existir
         if (!lojaInfo) {
           await fetchLojaInfo();
         }
-        // fetchVendas será chamado automaticamente pelo próximo useEffect
+        // Buscar vendas
+        await fetchVendas();
+      } catch (error) {
+        console.error('Erro ao carregar dados iniciais:', error);
       } finally {
-        // Não desligar loading aqui, esperar o fetchVendas terminar
+        setIsLoadingData(false);
       }
     };
     
-    initializeData();
+    loadInitialData();
   }, [user, currentLojaId, selectedLojaId]);
-
-  // Carregar vendas quando lojaInfo estiver disponível (apenas uma vez no load inicial)
-  useEffect(() => {
-    if (user && lojaInfo && !initialLoadDone) {
-      fetchVendas().finally(() => {
-        setIsLoadingData(false);
-        setInitialLoadDone(true);
-      });
-    }
-  }, [lojaInfo]);
 
   // Quando selecionar um colaborador
   useEffect(() => {
