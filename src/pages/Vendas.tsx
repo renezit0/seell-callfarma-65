@@ -256,13 +256,6 @@ export default function Vendas() {
     initializeData();
   }, [user, currentLojaId, selectedLojaId]);
 
-  // ✅ Fetch vendas quando loja info é atualizada
-  useEffect(() => {
-    if (user && lojaInfo && !isLoadingData) {
-      fetchVendas();
-    }
-  }, [lojaInfo]);
-
   // Quando selecionar um colaborador
   useEffect(() => {
     if (vendedorFilter !== 'all') {
