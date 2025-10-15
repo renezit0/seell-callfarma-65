@@ -38,14 +38,20 @@ export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculo
         // 1. Buscar vendas da API externa (callfarma-vendas)
         const { data: vendasData, error: vendasError } = await supabase.functions.invoke('callfarma-vendas', {
           body: {
-            loja_id: lojaId,
-            data_inicio: periodo.data_inicio,
-            data_fim: periodo.data_fim,
-            usuario_id: funcionario.id
+            endpoint: '/vendas',
+            params: {
+              loja_id: lojaId,
+              data_inicio: periodo.data_inicio,
+              data_fim: periodo.data_fim,
+              usuario_id: funcionario.id
+            }
           }
         });
 
-        if (vendasError) throw vendasError;
+        if (vendasError) {
+          console.error('Erro ao buscar vendas:', vendasError);
+          throw vendasError;
+        }
 
         // 2. Buscar metas do funcionário
         const { data: metasUsuario, error: metasError } = await supabase

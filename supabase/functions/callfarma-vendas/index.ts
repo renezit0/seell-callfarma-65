@@ -54,9 +54,21 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    console.log(`Dados recebidos: ${data?.length || 'N/A'} registros`);
+    console.log(`Dados recebidos:`, data);
 
-    return new Response(JSON.stringify(data), {
+    // Separar vendas por usuário e por loja
+    const vendasUsuario = data.filter((v: any) => v.usuario_id && v.usuario_id === params.usuario_id) || [];
+    const vendasLoja = data.filter((v: any) => v.loja_id && v.loja_id === params.loja_id) || [];
+
+    const resultado = {
+      vendas_usuario: vendasUsuario,
+      vendas_loja: vendasLoja,
+      total_registros: data?.length || 0
+    };
+
+    console.log(`Processado: ${vendasUsuario.length} vendas do usuário, ${vendasLoja.length} vendas da loja`);
+
+    return new Response(JSON.stringify(resultado), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
