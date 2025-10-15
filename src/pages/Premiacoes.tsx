@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Trophy, TrendingUp, Target, Calendar, DollarSign, Users } from 'lucide-react';
 import { formatCurrency, formatPercentage } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/hooks/use-toast';
 import { 
   calcularDiasUteis,
   calcularProjecoes,
@@ -31,41 +33,70 @@ export default function Premiacoes() {
   useEffect(() => {
     // Carregar dados iniciais
     const carregarDados = async () => {
+      if (!user) return;
+      
       setLoading(true);
       try {
-        // TODO: Buscar períodos do Supabase
-        // TODO: Buscar funcionários do Supabase
-        // TODO: Buscar metas
-        
-        // Mock para desenvolvimento
-        setPeriodos([
-          { 
-            id: 1, 
-            descricao: '01/2025 - 02/2025', 
-            data_inicio: '2025-01-21', 
-            data_fim: '2025-02-20',
-            status: 'ativo'
+        // Buscar períodos ativos
+        const { data: periodosData, error: periodosError } = await supabase
+          .from('periodos_meta')
+          .select('*')
+          .eq('status', 'ativo')
+          .order('data_inicio', { ascending: false });
+
+        if (periodosError) throw periodosError;
+
+        // Formatar períodos
+        const periodosFormatados = periodosData?.map(p => ({
+          id: p.id,
+          descricao: p.descricao || `${new Date(p.data_inicio).toLocaleDateString('pt-BR')} - ${new Date(p.data_fim).toLocaleDateString('pt-BR')}`,
+          data_inicio: p.data_inicio,
+          data_fim: p.data_fim,
+          status: p.status
+        })) || [];
+
+        setPeriodos(periodosFormatados);
+
+        // Selecionar primeiro período automaticamente
+        if (periodosFormatados.length > 0) {
+          setPeriodoSelecionado(periodosFormatados[0]);
+        }
+
+        // Buscar funcionários da loja do usuário
+        const { data: funcionariosData, error: funcionariosError } = await supabase
+          .from('usuarios')
+          .select('id, nome, tipo, data_contratacao, loja_id, status')
+          .eq('loja_id', user.loja_id)
+          .eq('status', 'ativo')
+          .order('nome');
+
+        if (funcionariosError) throw funcionariosError;
+
+        setFuncionarios(funcionariosData || []);
+
+        // Se o usuário não for gerente/líder, selecionar ele mesmo automaticamente
+        const isGestor = ['gerente', 'lider', 'sublider', 'subgerente', 'admin', 'supervisor'].includes(user.tipo);
+        if (!isGestor) {
+          const usuarioAtual = funcionariosData?.find(f => f.id === user.id);
+          if (usuarioAtual) {
+            setFuncionarioSelecionado(usuarioAtual);
           }
-        ]);
-        
-        setFuncionarios([
-          { 
-            id: 1, 
-            nome: 'João Silva', 
-            tipo: 'farmaceutico',
-            data_contratacao: '2020-01-15',
-            loja_id: 1
-          }
-        ]);
-      } catch (error) {
+        }
+
+      } catch (error: any) {
         console.error('Erro ao carregar dados:', error);
+        toast({
+          title: 'Erro ao carregar dados',
+          description: error.message || 'Não foi possível carregar os períodos e funcionários',
+          variant: 'destructive'
+        });
       } finally {
         setLoading(false);
       }
     };
 
     carregarDados();
-  }, []);
+  }, [user]);
 
   if (loading) {
     return (
