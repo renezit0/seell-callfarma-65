@@ -1,23 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useCalculoPremiacao } from '@/hooks/useCalculoPremiacao';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Trophy, TrendingUp, Target, Calendar, DollarSign, Users } from 'lucide-react';
+import { Trophy, TrendingUp, Target, Calendar, DollarSign, Users, AlertCircle, CheckCircle2, Lightbulb } from 'lucide-react';
 import { formatCurrency, formatPercentage } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { 
-  calcularDiasUteis,
-  calcularProjecoes,
-  calcularPremiacaoGerencial,
-  calcularPremiacaoFarmaceutico,
-  calcularPremiacaoConsultora,
-  calcularPremiacaoApoio,
-  calcularPremiacaoAuxConveniencia,
   calcularTempoEmpresa,
   formatarTempoEmpresa
 } from '@/utils/calculosPremiacao';
@@ -29,6 +23,18 @@ export default function Premiacoes() {
   const [funcionarioSelecionado, setFuncionarioSelecionado] = useState<any>(null);
   const [funcionarios, setFuncionarios] = useState<any[]>([]);
   const [periodos, setPeriodos] = useState<any[]>([]);
+
+  // Hook de cálculo de premiação
+  const { 
+    loading: calculando, 
+    resultado, 
+    projecoes,
+    insights 
+  } = useCalculoPremiacao({
+    funcionario: funcionarioSelecionado,
+    periodo: periodoSelecionado,
+    lojaId: user?.loja_id || 0
+  });
 
   useEffect(() => {
     // Carregar dados iniciais
@@ -134,7 +140,7 @@ export default function Premiacoes() {
           </CardHeader>
           <CardContent>
             <Select 
-              value={periodoSelecionado?.id?.toString()} 
+              value={periodoSelecionado?.id?.toString() || ''} 
               onValueChange={(value) => {
                 const periodo = periodos.find(p => p.id.toString() === value);
                 setPeriodoSelecionado(periodo);
@@ -163,7 +169,7 @@ export default function Premiacoes() {
           </CardHeader>
           <CardContent>
             <Select 
-              value={funcionarioSelecionado?.id?.toString()} 
+              value={funcionarioSelecionado?.id?.toString() || ''} 
               onValueChange={(value) => {
                 const func = funcionarios.find(f => f.id.toString() === value);
                 setFuncionarioSelecionado(func);
@@ -191,19 +197,25 @@ export default function Premiacoes() {
             Selecione um período e um funcionário para visualizar o cálculo de premiação.
           </AlertDescription>
         </Alert>
+      ) : calculando ? (
+        <div className="space-y-4">
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-64 w-full" />
+        </div>
       ) : (
         <>
           {/* Cards de Resumo */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card>
+            <Card className="border-l-4 border-l-primary">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <DollarSign className="w-4 h-4" />
                   Premiação Atual
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-primary">
-                  {formatCurrency(0)}
+                  {formatCurrency(resultado?.premiacao_total || 0)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   Baseado nas vendas até agora
@@ -211,15 +223,16 @@ export default function Premiacoes() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-l-4 border-l-green-500">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4" />
                   Premiação Projetada
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-green-600">
-                  {formatCurrency(0)}
+                  {formatCurrency(resultado?.premiacao_total_projetada || resultado?.premiacao_total || 0)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   Projeção para o fim do período
@@ -227,15 +240,16 @@ export default function Premiacoes() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-l-4 border-l-orange-500">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Trophy className="w-4 h-4" />
                   Premiação Máxima
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-orange-600">
-                  {formatCurrency(0)}
+                  {formatCurrency(resultado?.premiacao_total_maxima || resultado?.premiacao_maxima || 0)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   Potencial com 100% das metas
@@ -243,6 +257,35 @@ export default function Premiacoes() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Insights */}
+          {insights && insights.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Lightbulb className="w-5 h-5 text-yellow-500" />
+                  Insights e Recomendações
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {insights.map((insight, idx) => (
+                    <Alert key={idx} className="border-l-4" style={{ borderLeftColor: insight.cor }}>
+                      <AlertDescription>
+                        <div className="flex items-start gap-2">
+                          <i className={`fas fa-${insight.icone} mt-1`} style={{ color: insight.cor }}></i>
+                          <div>
+                            <p className="font-semibold">{insight.titulo}</p>
+                            <p className="text-sm text-muted-foreground">{insight.descricao}</p>
+                          </div>
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Detalhes por Categoria */}
           <Card>
@@ -254,30 +297,37 @@ export default function Premiacoes() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <Alert>
-                  <AlertDescription>
-                    Esta seção mostrará o desempenho detalhado em cada categoria.
-                    Integração com API de vendas em desenvolvimento.
-                  </AlertDescription>
-                </Alert>
+                {projecoes && Object.entries(projecoes).map(([categoria, proj]: [string, any]) => (
+                  <div key={categoria} className="border rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-semibold capitalize">{categoria.replace(/_/g, ' ')}</h4>
+                      <Badge variant={proj.status === 'atingido' ? 'default' : proj.status === 'próximo' ? 'secondary' : 'destructive'}>
+                        {proj.status}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <p className="text-muted-foreground">Atual</p>
+                        <p className="font-medium">{formatCurrency(proj.valor_atual)}</p>
+                        <p className="text-xs text-muted-foreground">{proj.percentual_atual.toFixed(1)}%</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Projetado</p>
+                        <p className="font-medium text-green-600">{formatCurrency(proj.valor_projetado)}</p>
+                        <p className="text-xs text-green-600">{proj.percentual_projetado.toFixed(1)}%</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Meta</p>
+                        <p className="font-medium">{formatCurrency(proj.meta)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Ritmo Diário</p>
+                        <p className="font-medium">{formatCurrency(proj.ritmo_diario)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Projeções e Insights */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="w-5 h-5" />
-                Projeções e Insights
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Alert>
-                <AlertDescription>
-                  Análises de ritmo de vendas e sugestões para maximizar sua premiação.
-                </AlertDescription>
-              </Alert>
             </CardContent>
           </Card>
 
@@ -285,7 +335,7 @@ export default function Premiacoes() {
           {funcionarioSelecionado && (
             <Card>
               <CardHeader>
-                <CardTitle>Informações</CardTitle>
+                <CardTitle>Informações do Colaborador</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
