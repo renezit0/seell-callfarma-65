@@ -240,18 +240,18 @@ export default function Vendas() {
 
   // ✅ useEffect principal consolidado
   useEffect(() => {
-    if (!user || isLoadingData) return;
+    if (!user) return;
     
     // Só carregar lojaInfo na primeira vez
-    if (!lojaInfo) {
+    if (!lojaInfo && !isLoadingData) {
       setIsLoadingData(true);
       fetchLojaInfo().finally(() => setIsLoadingData(false));
     }
   }, [user, currentLojaId, selectedLojaId]);
 
-  // Carregar vendas quando lojaInfo estiver disponível
+  // Carregar vendas quando lojaInfo estiver disponível (apenas uma vez)
   useEffect(() => {
-    if (user && lojaInfo && !isLoadingData) {
+    if (user && lojaInfo && !isLoadingData && vendasProcessadas.length === 0) {
       setIsLoadingData(true);
       fetchVendas().finally(() => setIsLoadingData(false));
     }
