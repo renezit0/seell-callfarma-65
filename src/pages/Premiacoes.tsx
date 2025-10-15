@@ -300,7 +300,15 @@ export default function Premiacoes() {
             <CardContent>
               <div className="space-y-4">
                 {projecoes && Object.entries(projecoes)
-                  .filter(([categoria]) => categoria !== 'geral') // Não exibir "geral" pois é só a soma total
+                  .filter(([categoria]) => {
+                    // Para gerentes/líderes: mostrar categorias da loja (geral, r_mais, etc)
+                    // Para outros: não mostrar "geral" pois é só a soma
+                    if (funcionarioSelecionado?.tipo === 'gerente' || funcionarioSelecionado?.tipo === 'lider') {
+                      return true; // Mostrar todas, incluindo geral
+                    } else {
+                      return categoria !== 'geral'; // Ocultar geral para funcionários
+                    }
+                  })
                   .map(([categoria, proj]: [string, any]) => (
                   <div key={categoria} className="border rounded-lg p-4">
                     <div className="flex items-center justify-between mb-2">

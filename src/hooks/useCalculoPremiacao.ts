@@ -219,7 +219,16 @@ export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculo
         console.log('Vendas da loja por categoria:', vendasLojaPorCategoria);
 
         // 9. Calcular projeções
-        const projecoesCalculadas = calcularProjecoes(vendasPorCategoria, metasObj, diasUteis);
+        // Para gerentes/líderes, calcular projeções da LOJA
+        // Para outros cargos, calcular projeções INDIVIDUAIS
+        let projecoesCalculadas;
+        if (funcionario.tipo === 'gerente' || funcionario.tipo === 'lider') {
+          // Projeções baseadas nas vendas DA LOJA
+          projecoesCalculadas = calcularProjecoes(vendasLojaPorCategoria, metasLojaObj, diasUteis);
+        } else {
+          // Projeções baseadas nas vendas DO FUNCIONÁRIO
+          projecoesCalculadas = calcularProjecoes(vendasPorCategoria, metasObj, diasUteis);
+        }
 
         // 10. Análise de ritmo
         const analiseRitmo = analisarRitmoVendas(vendasPorCategoria, metasObj, diasUteis);
