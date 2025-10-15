@@ -26,7 +26,9 @@ export default function Premiacoes() {
 
   // Hook de cálculo de premiação
   const { 
-    loading: calculando, 
+    loading: calculando,
+    vendas,
+    metas,
     resultado, 
     projecoes,
     insights 
@@ -281,6 +283,40 @@ export default function Premiacoes() {
                         </div>
                       </AlertDescription>
                     </Alert>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Vendas por Categoria */}
+          {vendas && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <DollarSign className="w-5 h-5" />
+                  Vendas por Categoria
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {Object.entries(vendas).map(([categoria, dados]: [string, any]) => (
+                    dados.valor > 0 && (
+                      <div key={categoria} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                        <div>
+                          <p className="font-medium capitalize">{categoria.replace(/_/g, ' ')}</p>
+                          <p className="text-sm text-muted-foreground">{dados.quantidade} unidades</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-primary">{formatCurrency(dados.valor)}</p>
+                          {metas && metas[categoria] && (
+                            <p className="text-xs text-muted-foreground">
+                              Meta: {formatCurrency(metas[categoria])} ({formatPercentage((dados.valor / metas[categoria]) * 100)})
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )
                   ))}
                 </div>
               </CardContent>
