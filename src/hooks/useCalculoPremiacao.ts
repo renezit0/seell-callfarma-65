@@ -24,6 +24,7 @@ interface UseCalculoPremiacaoProps {
 export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculoPremiacaoProps) {
   const [loading, setLoading] = useState(true);
   const [vendas, setVendas] = useState<any>(null);
+  const [vendasLoja, setVendasLoja] = useState<any>(null);
   const [metas, setMetas] = useState<any>(null);
   const [resultado, setResultado] = useState<any>(null);
   const [projecoes, setProjecoes] = useState<any>(null);
@@ -382,6 +383,7 @@ export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculo
         }
 
         setVendas(vendasPorCategoria);
+        setVendasLoja(vendasLojaPorCategoria);
         setMetas(metasObj);
         setResultado(resultadoCalculo);
         setProjecoes(projecoesCalculadas);
@@ -405,6 +407,7 @@ export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculo
   return {
     loading,
     vendas,
+    vendasLoja,
     metas,
     resultado,
     projecoes,

@@ -28,6 +28,7 @@ export default function Premiacoes() {
   const { 
     loading: calculando,
     vendas,
+    vendasLoja,
     metas,
     resultado, 
     projecoes,
@@ -301,13 +302,17 @@ export default function Premiacoes() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {projecoes && Object.entries(projecoes)
                   .filter(([categoria]) => {
-                    if (funcionarioSelecionado?.tipo === 'gerente' || funcionarioSelecionado?.tipo === 'lider') {
+                    const isGerente = funcionarioSelecionado?.tipo === 'gerente' || funcionarioSelecionado?.tipo === 'lider';
+                    if (isGerente) {
                       return true;
                     } else {
                       return categoria !== 'geral';
                     }
                   })
                   .map(([categoria, proj]: [string, any]) => {
+                    const isGerente = funcionarioSelecionado?.tipo === 'gerente' || funcionarioSelecionado?.tipo === 'lider';
+                    // Para gerentes, usar vendas da loja; para outros, vendas do usuário
+                    const vendasParaExibir = isGerente ? vendasLoja : vendas;
                     const getCategoryIcon = (cat: string) => {
                       if (cat === 'geral') return '📊';
                       if (cat.includes('conveniencia')) return '🛒';
@@ -361,8 +366,8 @@ export default function Premiacoes() {
                             <p className="text-lg font-bold">{formatCurrency(metas?.[categoria] || proj.meta || 0)}</p>
                           </div>
                           <div>
-                            <p className="text-sm text-muted-foreground">Realizado:</p>
-                            <p className="text-lg font-semibold text-primary">{formatCurrency(proj.valor_atual || 0)}</p>
+                            <p className="text-sm text-muted-foreground">Realizado (Loja):</p>
+                            <p className="text-lg font-semibold text-primary">{formatCurrency(vendasParaExibir?.[categoria]?.valor || 0)}</p>
                           </div>
                           <div>
                             <p className="text-sm text-muted-foreground">Projeção:</p>
