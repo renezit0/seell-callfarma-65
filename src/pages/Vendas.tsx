@@ -568,16 +568,13 @@ export default function Vendas() {
         </div>
       </div>
 
-      {/* Filters - MOVIDO PARA O TOPO */}
+      {/* Filtros de Período - NO TOPO */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base sm:text-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <span>Filtros e Período</span>
-          </CardTitle>
+          <CardTitle className="text-base sm:text-lg">Período de Consulta</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Período */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
             <div>
               <Label htmlFor="dataInicio">Data Início</Label>
               <Input
@@ -599,6 +596,35 @@ export default function Vendas() {
             <div className="flex items-end">
               <Button 
                 onClick={() => {
+                  const hoje = new Date();
+                  setDataInicio(format(hoje, 'yyyy-MM-dd'));
+                  setDataFim(format(hoje, 'yyyy-MM-dd'));
+                }}
+                variant="outline"
+                className="w-full"
+              >
+                <Calendar className="w-4 h-4 mr-2" />
+                Hoje
+              </Button>
+            </div>
+            <div className="flex items-end">
+              <Button 
+                onClick={() => {
+                  const ontem = new Date();
+                  ontem.setDate(ontem.getDate() - 1);
+                  setDataInicio(format(ontem, 'yyyy-MM-dd'));
+                  setDataFim(format(ontem, 'yyyy-MM-dd'));
+                }}
+                variant="outline"
+                className="w-full"
+              >
+                <Calendar className="w-4 h-4 mr-2" />
+                Ontem
+              </Button>
+            </div>
+            <div className="flex items-end">
+              <Button 
+                onClick={() => {
                   setIsLoadingData(true);
                   fetchVendas().finally(() => setIsLoadingData(false));
                 }}
@@ -606,42 +632,9 @@ export default function Vendas() {
                 className="w-full"
               >
                 <Search className="w-4 h-4 mr-2" />
-                Buscar Vendas
+                Buscar
               </Button>
             </div>
-          </div>
-          
-          {/* Outros Filtros */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-              <Input placeholder="Buscar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
-            </div>
-
-            <Select value={vendedorFilter} onValueChange={setVendedorFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Vendedor" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos Vendedores</SelectItem>
-                {funcionarios.map(func => <SelectItem key={func.id} value={func.id.toString()}>
-                    {func.nome}
-                  </SelectItem>)}
-              </SelectContent>
-            </Select>
-
-            <Select value={categoriaFilter} onValueChange={setCategoriaFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Categoria" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas Categorias</SelectItem>
-                <SelectItem value="r_mais">R+ Pontos</SelectItem>
-                <SelectItem value="perfumaria_r_mais">R+ Perfumaria</SelectItem>
-                <SelectItem value="conveniencia_r_mais">R+ Conveniência</SelectItem>
-                <SelectItem value="goodlife">Good Life</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
         </CardContent>
       </Card>
@@ -771,6 +764,47 @@ export default function Vendas() {
                     </div>
                   </div>;
           })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Filtros de Busca */}
+      <Card className="mb-4 sm:mb-6">
+        <CardHeader>
+          <CardTitle className="text-base sm:text-lg">Filtros</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+              <Input placeholder="Buscar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
+            </div>
+
+            <Select value={vendedorFilter} onValueChange={setVendedorFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Funcionário" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Funcionários</SelectItem>
+                {funcionarios.map(func => <SelectItem key={func.id} value={func.id.toString()}>
+                    {func.nome}
+                  </SelectItem>)}
+              </SelectContent>
+            </Select>
+
+            <Select value={categoriaFilter} onValueChange={setCategoriaFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as Categorias</SelectItem>
+                <SelectItem value="geral">Geral</SelectItem>
+                <SelectItem value="r_mais">Rentáveis R+</SelectItem>
+                <SelectItem value="perfumaria_r_mais">Perfumaria R+</SelectItem>
+                <SelectItem value="conveniencia_r_mais">Conveniência R+</SelectItem>
+                <SelectItem value="goodlife">GoodLife</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
