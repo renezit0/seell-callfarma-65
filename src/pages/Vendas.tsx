@@ -238,40 +238,40 @@ export default function Vendas() {
     };
   }, [vendasPorCategoria, metasData]);
 
-  // ✅ useEffect principal - carrega dados automaticamente ao entrar
+  // ✅ useEffect ÚNICO e SIMPLES - carrega tudo em sequência
   useEffect(() => {
     if (!user) return;
     
-    const loadInitialData = async () => {
+    let isMounted = true;
+    
+    const loadData = async () => {
+      if (!isMounted) return;
       setIsLoadingData(true);
+      
       try {
-        // Primeiro, buscar info da loja e AGUARDAR terminar
-        if (!lojaInfo) {
-          await fetchLojaInfo();
-          // Aguardar um ciclo para lojaInfo ser atualizado no state
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-        // Depois buscar vendas (que depende de lojaInfo)
-        if (lojaInfo) {
-          await fetchVendas();
-        }
+        // Etapa 1: Buscar info da loja
+        await fetchLojaInfo();
+        
+        // Etapa 2: Buscar vendas (fetchVendas já verifica se lojaInfo existe)
+        // Aguardar um momento para o state atualizar
+        setTimeout(async () => {
+          if (isMounted) {
+            await fetchVendas();
+            setIsLoadingData(false);
+          }
+        }, 200);
       } catch (error) {
-        console.error('Erro ao carregar dados iniciais:', error);
-      } finally {
-        setIsLoadingData(false);
+        console.error('Erro:', error);
+        if (isMounted) setIsLoadingData(false);
       }
     };
     
-    loadInitialData();
+    loadData();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [user, currentLojaId, selectedLojaId]);
-
-  // Quando lojaInfo for atualizada pela primeira vez, buscar vendas
-  useEffect(() => {
-    if (lojaInfo && !vendasProcessadas.length && !isLoadingData) {
-      setIsLoadingData(true);
-      fetchVendas().finally(() => setIsLoadingData(false));
-    }
-  }, [lojaInfo]);
 
   // Quando selecionar um colaborador
   useEffect(() => {
@@ -288,7 +288,7 @@ export default function Vendas() {
     }
   }, [vendasProcessadas, lojaInfo, user, chartCategoriaFilter, vendedorFilter]);
   const fetchLojaInfo = async () => {
-    if (!currentLojaId || isLoadingData) return;
+    if (!currentLojaId) return;
     try {
       // Buscar apenas os campos que existem na tabela lojas
       const {
