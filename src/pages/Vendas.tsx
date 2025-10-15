@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -14,9 +15,8 @@ import { getNomeCategoria, getIconeCategoria, getClasseCorCategoria, getClasseBg
 import { Navigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { format, startOfMonth, subMonths, eachDayOfInterval, getDay } from 'date-fns';
-import { PeriodSelector } from '@/components/PeriodSelector';
 import { StoreSelector } from '@/components/StoreSelector';
-import { usePeriodContext } from '@/contexts/PeriodContext';
+import { usePeriodoAtual } from '@/hooks/usePeriodoAtual';
 import { LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 interface VendaProcessada {
   id: string;
@@ -55,9 +55,7 @@ export default function Vendas() {
     user,
     loading: authLoading
   } = useAuth();
-  const {
-    selectedPeriod
-  } = usePeriodContext();
+  const periodoAtual = usePeriodoAtual();
   const callfarmaAPI = useCallfarmaAPI();
 
   // Estados principais
@@ -77,6 +75,8 @@ export default function Vendas() {
   } | null>(null);
 
   // Estados de filtros
+  const [dataInicio, setDataInicio] = useState(periodoAtual.data_inicio);
+  const [dataFim, setDataFim] = useState(periodoAtual.data_fim);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoriaFilter, setCategoriaFilter] = useState<string>('all');
   const [vendedorFilter, setVendedorFilter] = useState<string>('all');
@@ -172,14 +172,25 @@ export default function Vendas() {
     realizado: number;
   }>>({});
 
-  // Buscar metas da loja
+  // Buscar metas da loja - desabilitado pois não usa mais período predefinido
   useEffect(() => {
-    if (!user || !selectedPeriod || !currentLojaId || isLoadingData) return;
+    if (!user || !currentLojaId || isLoadingData) return;
     const fetchMetas = async () => {
       try {
+        // Buscar o período ativo atual
+        const { data: periodoAtivo } = await supabase
+          .from('periodos_meta')
+          .select('id')
+          .eq('status', 'ativo')
+          .gte('data_fim', new Date().toISOString().split('T')[0])
+          .lte('data_inicio', new Date().toISOString().split('T')[0])
+          .single();
+        
+        if (!periodoAtivo) return;
+        
         const {
           data: metasLoja
-        } = await supabase.from('metas_loja').select('*, metas_loja_categorias(*)').eq('loja_id', currentLojaId).eq('periodo_meta_id', selectedPeriod.id);
+        } = await supabase.from('metas_loja').select('*, metas_loja_categorias(*)').eq('loja_id', currentLojaId).eq('periodo_meta_id', periodoAtivo.id);
         const metasMap: Record<string, {
           meta: number;
           realizado: number;
@@ -206,7 +217,7 @@ export default function Vendas() {
       }
     };
     fetchMetas();
-  }, [user, selectedPeriod, vendasPorCategoria, currentLojaId]);
+  }, [user, vendasPorCategoria, currentLojaId]);
 
   // Calcular melhor e pior indicador
   const indicadoresRanking = useMemo(() => {
@@ -227,7 +238,7 @@ export default function Vendas() {
     };
   }, [vendasPorCategoria, metasData]);
 
-  // ✅ useEffect principal consolidado
+  // ✅ useEffect principal consolidado - Não recarrega automaticamente ao mudar datas
   useEffect(() => {
     if (!user || isLoadingData) return;
     const initializeData = async () => {
@@ -243,7 +254,7 @@ export default function Vendas() {
       }
     };
     initializeData();
-  }, [user, selectedPeriod, currentLojaId, selectedLojaId]);
+  }, [user, currentLojaId, selectedLojaId]);
 
   // ✅ Fetch vendas quando loja info é atualizada
   useEffect(() => {
@@ -299,11 +310,13 @@ export default function Vendas() {
     }
   };
   const fetchVendas = async () => {
-    if (!lojaInfo || isLoadingData || !selectedPeriod) return;
+    if (!lojaInfo || isLoadingData) return;
     try {
-      // Usar período selecionado do context
-      const dataInicio = format(selectedPeriod.startDate, 'yyyy-MM-dd');
-      const dataFim = format(selectedPeriod.endDate, 'yyyy-MM-dd');
+      // Validar se as datas estão preenchidas
+      if (!dataInicio || !dataFim) {
+        toast.error('Selecione o período de início e fim');
+        return;
+      }
       console.log(`Buscando dados API: ${dataInicio} a ${dataFim} para loja CDFIL ${lojaInfo.cdfil}`);
       if (vendedorFilter !== 'all') {
         // Buscar dados específicos do funcionário
@@ -538,14 +551,10 @@ export default function Vendas() {
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
             Dados em tempo real da API Callfarma
-            {selectedPeriod && <span className="block text-xs text-muted-foreground/70 mt-1">
-                Período: {selectedPeriod.label}
-              </span>}
           </p>
         </div>
         <div className="flex gap-2">
           {canViewAllStores && <StoreSelector selectedLojaId={selectedLojaId} onLojaChange={setSelectedLojaId} userLojaId={user.loja_id} />}
-          <PeriodSelector />
         </div>
       </div>
 
@@ -682,11 +691,44 @@ export default function Vendas() {
       <Card className="mb-4 sm:mb-6">
         <CardHeader>
           <CardTitle className="text-base sm:text-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <span>Filtros</span>
+            <span>Filtros e Período</span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+        <CardContent className="space-y-4">
+          {/* Período */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+            <div>
+              <Label htmlFor="dataInicio">Data Início</Label>
+              <Input
+                id="dataInicio"
+                type="date"
+                value={dataInicio}
+                onChange={(e) => setDataInicio(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="dataFim">Data Fim</Label>
+              <Input
+                id="dataFim"
+                type="date"
+                value={dataFim}
+                onChange={(e) => setDataFim(e.target.value)}
+              />
+            </div>
+            <div className="flex items-end">
+              <Button 
+                onClick={fetchVendas} 
+                disabled={isLoadingData}
+                className="w-full"
+              >
+                <Search className="w-4 h-4 mr-2" />
+                Buscar Vendas
+              </Button>
+            </div>
+          </div>
+          
+          {/* Outros Filtros */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
               <Input placeholder="Buscar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
