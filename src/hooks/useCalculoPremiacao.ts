@@ -215,6 +215,7 @@ export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculo
         });
 
         console.log('Vendas do usuário por categoria:', vendasPorCategoria);
+        console.log('Metas do usuário:', metasObj);
         console.log('Vendas da loja por categoria:', vendasLojaPorCategoria);
 
         // 9. Calcular projeções

@@ -299,7 +299,9 @@ export default function Premiacoes() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {projecoes && Object.entries(projecoes).map(([categoria, proj]: [string, any]) => (
+                {projecoes && Object.entries(projecoes)
+                  .filter(([categoria]) => categoria !== 'geral') // Não exibir "geral" pois é só a soma total
+                  .map(([categoria, proj]: [string, any]) => (
                   <div key={categoria} className="border rounded-lg p-4">
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="font-semibold capitalize">{categoria.replace(/_/g, ' ')}</h4>
