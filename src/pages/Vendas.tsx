@@ -84,6 +84,7 @@ export default function Vendas() {
   const [chartCategoriaFilter, setChartCategoriaFilter] = useState<string>('geral');
   const [selectedLojaId, setSelectedLojaId] = useState<number | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(false);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   // Check if user can view all stores
   const canViewAllStores = user?.tipo && ['admin', 'supervisor', 'compras'].includes(user.tipo);
@@ -240,20 +241,30 @@ export default function Vendas() {
 
   // ✅ useEffect principal consolidado
   useEffect(() => {
-    if (!user) return;
+    if (!user || initialLoadDone) return;
     
-    // Só carregar lojaInfo na primeira vez
-    if (!lojaInfo && !isLoadingData) {
+    const initializeData = async () => {
       setIsLoadingData(true);
-      fetchLojaInfo().finally(() => setIsLoadingData(false));
-    }
+      try {
+        if (!lojaInfo) {
+          await fetchLojaInfo();
+        }
+        // fetchVendas será chamado automaticamente pelo próximo useEffect
+      } finally {
+        // Não desligar loading aqui, esperar o fetchVendas terminar
+      }
+    };
+    
+    initializeData();
   }, [user, currentLojaId, selectedLojaId]);
 
-  // Carregar vendas quando lojaInfo estiver disponível (apenas uma vez)
+  // Carregar vendas quando lojaInfo estiver disponível (apenas uma vez no load inicial)
   useEffect(() => {
-    if (user && lojaInfo && !isLoadingData && vendasProcessadas.length === 0) {
-      setIsLoadingData(true);
-      fetchVendas().finally(() => setIsLoadingData(false));
+    if (user && lojaInfo && !initialLoadDone) {
+      fetchVendas().finally(() => {
+        setIsLoadingData(false);
+        setInitialLoadDone(true);
+      });
     }
   }, [lojaInfo]);
 
