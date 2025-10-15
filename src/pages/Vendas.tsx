@@ -249,19 +249,16 @@ export default function Vendas() {
       setIsLoadingData(true);
       
       try {
-        // Etapa 1: Buscar info da loja
-        await fetchLojaInfo();
+        // Etapa 1: Buscar info da loja e receber os dados
+        const infoLoja = await fetchLojaInfo();
         
-        // Etapa 2: Buscar vendas (fetchVendas já verifica se lojaInfo existe)
-        // Aguardar um momento para o state atualizar
-        setTimeout(async () => {
-          if (isMounted) {
-            await fetchVendas();
-            setIsLoadingData(false);
-          }
-        }, 200);
+        // Etapa 2: Buscar vendas passando os dados da loja diretamente
+        if (infoLoja && isMounted) {
+          await fetchVendas(infoLoja);
+        }
       } catch (error) {
         console.error('Erro:', error);
+      } finally {
         if (isMounted) setIsLoadingData(false);
       }
     };
@@ -288,7 +285,7 @@ export default function Vendas() {
     }
   }, [vendasProcessadas, lojaInfo, user, chartCategoriaFilter, vendedorFilter]);
   const fetchLojaInfo = async () => {
-    if (!currentLojaId) return;
+    if (!currentLojaId) return null;
     try {
       // Buscar apenas os campos que existem na tabela lojas
       const {
@@ -315,22 +312,25 @@ export default function Vendas() {
       };
       setLojaInfo(infoLoja);
       console.log('Loja carregada:', infoLoja);
+      return infoLoja; // Retornar os dados para usar diretamente
     } catch (error) {
       console.error('Erro ao buscar informações da loja:', error);
+      return null;
     }
   };
-  const fetchVendas = async () => {
-    if (!lojaInfo) return;
+  const fetchVendas = async (lojaInfoParam?: typeof lojaInfo) => {
+    const lojaAtual = lojaInfoParam || lojaInfo;
+    if (!lojaAtual) return;
     try {
       // Validar se as datas estão preenchidas
       if (!dataInicio || !dataFim) {
         toast.error('Selecione o período de início e fim');
         return;
       }
-      console.log(`Buscando dados API: ${dataInicio} a ${dataFim} para loja CDFIL ${lojaInfo.cdfil}`);
+      console.log(`Buscando dados API: ${dataInicio} a ${dataFim} para loja CDFIL ${lojaAtual.cdfil}`);
       if (vendedorFilter !== 'all') {
         // Buscar dados específicos do funcionário
-        const dadosFuncionario = await callfarmaAPI.buscarVendasFuncionariosDetalhadas(dataInicio, dataFim, lojaInfo.cdfil, parseInt(vendedorFilter));
+        const dadosFuncionario = await callfarmaAPI.buscarVendasFuncionariosDetalhadas(dataInicio, dataFim, lojaAtual.cdfil, parseInt(vendedorFilter));
         const vendasProcessadasFunc = processarDadosFuncionarios(dadosFuncionario);
         setVendasProcessadas(vendasProcessadasFunc);
 
@@ -350,7 +350,7 @@ export default function Vendas() {
           cdfil = 'all';
         } else {
           // Usuário normal OU admin com loja selecionada - sempre usar CDFIL específico
-          cdfil = lojaInfo.cdfil;
+          cdfil = lojaAtual.cdfil;
         }
         console.log('CDFIL determinado para busca:', cdfil, {
           canViewAllStores,
