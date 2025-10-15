@@ -66,7 +66,16 @@ export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculo
         }
 
         const rawData = vendasData?.msg || [];
-        console.log('Dados brutos da API:', rawData);
+        
+        // FILTRAR APENAS DADOS DA LOJA ESPECÍFICA (número da loja convertido para inteiro)
+        const numeroLojaInt = parseInt(numeroLoja || '0');
+        const dadosFiltradosPorLoja = rawData.filter((v: any) => {
+          const cdFilial = parseInt(v.CDFIL || '0');
+          return cdFilial === numeroLojaInt;
+        });
+        
+        console.log('Total de registros recebidos da API:', rawData.length);
+        console.log('Registros após filtrar por loja', numeroLoja, ':', dadosFiltradosPorLoja.length);
         console.log('Matrícula do funcionário:', funcionario.matricula);
         console.log('Buscando vendas do CDFUN:', parseInt(funcionario.matricula || '0'));
 
@@ -135,7 +144,7 @@ export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculo
           brinquedo: { valor: 0, quantidade: 0 }
         };
 
-        // Filtrar vendas do funcionário específico (CDFUN)
+        // Filtrar vendas do funcionário específico (CDFUN) usando os dados já filtrados por loja
         // IMPORTANTE: Se não tiver matrícula, não conseguimos filtrar as vendas do funcionário
         if (!funcionario.matricula) {
           console.warn('Funcionário sem matrícula cadastrada! Não é possível calcular vendas individuais.');
@@ -146,7 +155,7 @@ export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculo
           });
         }
         
-        const vendasDoUsuario = rawData.filter((v: any) => {
+        const vendasDoUsuario = dadosFiltradosPorLoja.filter((v: any) => {
           const matriculaFuncionario = parseInt(funcionario.matricula || '0');
           return v.CDFUN === matriculaFuncionario;
         });
@@ -185,7 +194,7 @@ export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculo
           }
         });
 
-        // Vendas da loja (todos os funcionários)
+        // Vendas da loja (todos os funcionários) - usando dados filtrados por loja
         const vendasLojaPorCategoria: Record<string, VendasCategoria> = {
           geral: { valor: 0, quantidade: 0 },
           r_mais: { valor: 0, quantidade: 0 },
@@ -194,7 +203,7 @@ export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculo
           saude: { valor: 0, quantidade: 0 }
         };
 
-        rawData.forEach((v: any) => {
+        dadosFiltradosPorLoja.forEach((v: any) => {
           const valor = parseFloat(v.TOTAL_VLR_VE || 0);
           const qtd = parseInt(v.TOTAL_QTD_VE || 0);
           const grupo = parseInt(v.CDGRUPO || 0);
