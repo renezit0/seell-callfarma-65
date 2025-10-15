@@ -294,54 +294,271 @@ export default function Premiacoes() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Target className="w-5 h-5" />
-                Detalhamento por Categoria
+                Detalhes por Categoria
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {projecoes && Object.entries(projecoes)
                   .filter(([categoria]) => {
-                    // Para gerentes/líderes: mostrar categorias da loja (geral, r_mais, etc)
-                    // Para outros: não mostrar "geral" pois é só a soma
                     if (funcionarioSelecionado?.tipo === 'gerente' || funcionarioSelecionado?.tipo === 'lider') {
-                      return true; // Mostrar todas, incluindo geral
+                      return true;
                     } else {
-                      return categoria !== 'geral'; // Ocultar geral para funcionários
+                      return categoria !== 'geral';
                     }
                   })
-                  .map(([categoria, proj]: [string, any]) => (
-                  <div key={categoria} className="border rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-semibold capitalize">{categoria.replace(/_/g, ' ')}</h4>
-                      <Badge variant={proj.status === 'atingido' ? 'default' : proj.status === 'próximo' ? 'secondary' : 'destructive'}>
-                        {proj.status}
-                      </Badge>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <p className="text-muted-foreground">Atual</p>
-                        <p className="font-medium">{formatCurrency(proj.valor_atual)}</p>
-                        <p className="text-xs text-muted-foreground">{proj.percentual_atual.toFixed(1)}%</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Projetado</p>
-                        <p className="font-medium text-green-600">{formatCurrency(proj.valor_projetado)}</p>
-                        <p className="text-xs text-green-600">{proj.percentual_projetado.toFixed(1)}%</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Meta</p>
-                        <p className="font-medium">{formatCurrency(proj.meta)}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Ritmo Diário</p>
-                        <p className="font-medium">{formatCurrency(proj.ritmo_diario)}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  .map(([categoria, proj]: [string, any]) => {
+                    const getCategoryIcon = (cat: string) => {
+                      if (cat === 'geral') return '📊';
+                      if (cat.includes('conveniencia')) return '🛒';
+                      if (cat.includes('rentaveis') || cat.includes('r_mais')) return '💰';
+                      if (cat.includes('perfumaria')) return '💄';
+                      if (cat.includes('saude') || cat.includes('goodlife')) return '💚';
+                      if (cat.includes('balanco')) return '⚖️';
+                      return '📈';
+                    };
+
+                    const getCategoryName = (cat: string) => {
+                      const names: Record<string, string> = {
+                        'geral': 'Meta Geral',
+                        'conveniencia_r_mais': 'Conveniência R+',
+                        'r_mais': 'Rentáveis',
+                        'perfumaria_r_mais': 'Perfumaria R+',
+                        'saude': 'GoodLife',
+                        'balanco': 'Balanço',
+                        'generico_similar': 'Genérico+Similar',
+                        'goodlife': 'GoodLife',
+                        'perfumaria_alta': 'Perfumaria Alta',
+                        'dermocosmetico': 'Dermocosmético'
+                      };
+                      return names[cat] || cat.replace(/_/g, ' ');
+                    };
+
+                    const percentual = proj.percentual_atual || 0;
+                    const getBadgeColor = (perc: number) => {
+                      if (perc >= 100) return 'bg-green-500';
+                      if (perc >= 95) return 'bg-yellow-500';
+                      if (perc >= 90) return 'bg-orange-500';
+                      return 'bg-red-500';
+                    };
+
+                    return (
+                      <Card key={categoria} className="border">
+                        <CardHeader className="pb-3">
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-base flex items-center gap-2">
+                              <span className="text-xl">{getCategoryIcon(categoria)}</span>
+                              {getCategoryName(categoria)}
+                            </CardTitle>
+                            <Badge className={`${getBadgeColor(percentual)} text-white`}>
+                              {percentual.toFixed(1)}%
+                            </Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          <div>
+                            <p className="text-sm text-muted-foreground">Meta:</p>
+                            <p className="text-lg font-bold">{formatCurrency(metas?.[categoria] || proj.meta || 0)}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Realizado:</p>
+                            <p className="text-lg font-semibold text-primary">{formatCurrency(proj.valor_atual || 0)}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Projeção:</p>
+                            <p className="text-lg font-semibold text-green-600">{formatCurrency(proj.valor_projetado || 0)} ({proj.percentual_projetado?.toFixed(1) || 0}%)</p>
+                          </div>
+                          {resultado?.multiplicadores?.[categoria] !== undefined && (
+                            <div className="pt-2 border-t">
+                              <p className="text-sm text-muted-foreground">Multiplicador:</p>
+                              <p className="text-xl font-bold text-orange-600">{resultado.multiplicadores[categoria].toFixed(1)}</p>
+                            </div>
+                          )}
+                          {resultado?.premiacoes?.[categoria] !== undefined && (
+                            <div>
+                              <p className="text-sm text-muted-foreground">Premiação:</p>
+                              <p className="text-xl font-bold">{formatCurrency(resultado.premiacoes[categoria])}</p>
+                            </div>
+                          )}
+                          
+                          {/* Tabela de faixas para categorias */}
+                          {categoria !== 'balanco' && (
+                            <div className="pt-2 border-t text-xs space-y-1">
+                              {categoria === 'geral' ? (
+                                <>
+                                  <div className="flex justify-between"><span>90%</span><span>0.2</span><span>{formatCurrency((resultado?.base_calculo || 0) * 0.2)}</span></div>
+                                  <div className="flex justify-between"><span>95%</span><span>0.4</span><span>{formatCurrency((resultado?.base_calculo || 0) * 0.4)}</span></div>
+                                  <div className="flex justify-between"><span>100%</span><span>0.6</span><span>{formatCurrency((resultado?.base_calculo || 0) * 0.6)}</span></div>
+                                </>
+                              ) : categoria !== 'balanco' && (
+                                <>
+                                  <div className="flex justify-between"><span>95%</span><span>0.1</span><span>{formatCurrency((resultado?.base_calculo || 0) * 0.1)}</span></div>
+                                  <div className="flex justify-between"><span>100%</span><span>0.2</span><span>{formatCurrency((resultado?.base_calculo || 0) * 0.2)}</span></div>
+                                </>
+                              )}
+                            </div>
+                          )}
+                          {categoria === 'balanco' && (
+                            <div className="pt-2 border-t">
+                              <p className="text-sm">Status: <span className="font-semibold">{resultado?.multiplicadores?.balanco > 0 ? 'Sim' : 'Não'}</span></p>
+                              <div className="text-xs space-y-1 mt-2">
+                                <div className="flex justify-between"><span>Sim</span><span>0.1</span><span>{formatCurrency((resultado?.base_calculo || 0) * 0.1)}</span></div>
+                                <div className="flex justify-between"><span>Não</span><span>0.0</span><span>{formatCurrency(0)}</span></div>
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
               </div>
             </CardContent>
           </Card>
+
+          {/* Tabela de Faixas de Faturamento - APENAS PARA GERENTES */}
+          {(funcionarioSelecionado?.tipo === 'gerente' || funcionarioSelecionado?.tipo === 'lider') && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <DollarSign className="w-5 h-5" />
+                  Tabela de Faixas de Faturamento
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted">
+                      <tr>
+                        <th className="text-left p-3 font-semibold">Faixa de Faturamento</th>
+                        <th className="text-right p-3 font-semibold">Base de Cálculo</th>
+                        <th className="text-right p-3 font-semibold">Premiação Máxima</th>
+                        <th className="text-center p-3 font-semibold">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { min: 0, max: 299000, base: 1300 },
+                        { min: 299000, max: 399000, base: 1400 },
+                        { min: 399000, max: 499000, base: 1500 },
+                        { min: 499000, max: 599000, base: 1700 },
+                        { min: 599000, max: 699000, base: 1900 },
+                        { min: 699000, max: 799000, base: 2100 },
+                        { min: 799000, max: 899000, base: 2300 },
+                        { min: 899000, max: 999000, base: 2500 },
+                        { min: 999000, max: 1199000, base: 2700 },
+                        { min: 1199000, max: 1499000, base: 3000 },
+                        { min: 1499000, max: 1799000, base: 3500 },
+                        { min: 1799000, max: 1999000, base: 4000 },
+                        { min: 1999000, max: 999999999, base: 4500 }
+                      ].map((faixa, idx) => {
+                        const faturamentoAtual = projecoes?.geral?.valor_atual || 0;
+                        const isFaixaAtual = faturamentoAtual >= faixa.min && faturamentoAtual < faixa.max;
+                        return (
+                          <tr key={idx} className={isFaixaAtual ? 'bg-primary/10 font-semibold' : ''}>
+                            <td className="p-3">
+                              De {formatCurrency(faixa.min)} até {faixa.max < 999999999 ? formatCurrency(faixa.max) : 'Acima'}
+                            </td>
+                            <td className="text-right p-3">{formatCurrency(faixa.base)}</td>
+                            <td className="text-right p-3">{formatCurrency(faixa.base * 1.5)}</td>
+                            <td className="text-center p-3">
+                              {isFaixaAtual && (
+                                <Badge className="bg-black text-white">Faixa Atual</Badge>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Entendendo o Sistema de Premiação - APENAS PARA GERENTES */}
+          {(funcionarioSelecionado?.tipo === 'gerente' || funcionarioSelecionado?.tipo === 'lider') && (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Lightbulb className="w-5 h-5" />
+                  Entendendo o Sistema de Premiação
+                </CardTitle>
+                <Button variant="outline" size="sm">
+                  <i className="fas fa-share-alt mr-2"></i>
+                  Compartilhar Sistema
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <p className="mb-6 text-muted-foreground">
+                  O sistema de premiação gerencial é baseado no faturamento da loja e no atingimento de metas em diferentes indicadores. 
+                  A premiação é calculada multiplicando o valor base de referência pelos multiplicadores de cada categoria alcançada.
+                </p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <Card className="border-2">
+                    <CardHeader>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <i className="fas fa-calculator text-primary"></i>
+                        Base de Cálculo
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-sm">
+                      <p className="mb-3">
+                        A base de cálculo é determinada pelo faturamento total da loja no período. 
+                        Quanto maior o faturamento, maior o valor base utilizado para calcular as premiações.
+                      </p>
+                      <p className="font-semibold">
+                        O faturamento considerado é o da Meta Geral, independente dos outros indicadores.
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-2">
+                    <CardHeader>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <i className="fas fa-times text-green-600"></i>
+                        Multiplicadores
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-sm space-y-2">
+                      <p className="mb-3">
+                        Cada categoria possui percentuais de atingimento que determinam o multiplicador a ser aplicado sobre a base de cálculo:
+                      </p>
+                      <div>
+                        <p className="font-semibold">Meta Geral: 90% (0.2), 95% (0.4), 100% (0.6)</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold">Demais Indicadores: 95% (0.1), 100% (0.2)</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold">Balanço: Atingido (0.1), Não atingido (0)</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-2">
+                    <CardHeader>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <i className="fas fa-calculator text-orange-600"></i>
+                        Cálculo Final
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-sm">
+                      <p className="mb-3">
+                        A premiação total é a soma dos valores obtidos em cada categoria:
+                      </p>
+                      <p className="font-semibold bg-muted p-2 rounded text-center">
+                        Premiação Total = Base de Cálculo × Soma dos Multiplicadores
+                      </p>
+                      <p className="mt-3">
+                        O valor máximo possível é de 1.5x a base de cálculo, quando todos os indicadores atingem 100% e o balanço é positivo.
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Informações do Funcionário */}
           {funcionarioSelecionado && (
