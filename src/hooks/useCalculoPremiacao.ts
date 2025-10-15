@@ -53,6 +53,7 @@ export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculo
               dataIni: periodo.data_inicio,
               dataFim: periodo.data_fim,
               filtroFiliais: numeroLoja,
+              filtroGrupos: '20,25,46,36,13,22,47,5,6,2,21', // Todos os grupos necessários
               groupBy: 'scefun.CDFUN,scefilial.CDFIL,scekarde.DATA,sceprodu.CDGRUPO',
               orderBy: 'scefun.NOME asc'
             }
@@ -119,7 +120,7 @@ export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculo
         );
 
         // Organizar vendas por categoria baseado nos CDGRUPO da API
-        // Grupos: 20,25=Rentáveis | 36=Perfumaria Alta | 13=GoodLife | etc
+        // Grupos: 2,21=Similar | 5,6,47=Genérico | 20,25=Rentáveis | 36=Perfumaria Alta | 46=Dermocosméticos | 13,22=GoodLife
         const vendasPorCategoria: Record<string, VendasCategoria> = {
           geral: { valor: 0, quantidade: 0 },
           generico: { valor: 0, quantidade: 0 },
@@ -145,8 +146,16 @@ export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculo
           vendasPorCategoria.geral.valor += valor;
           vendasPorCategoria.geral.quantidade += qtd;
 
-          // Mapear por grupo
-          if (grupo === 20) {
+          // Mapear por grupo conforme documentação da API
+          if (grupo === 2 || grupo === 21) {
+            // Similar
+            vendasPorCategoria.similar.valor += valor;
+            vendasPorCategoria.similar.quantidade += qtd;
+          } else if (grupo === 5 || grupo === 6 || grupo === 47) {
+            // Genérico
+            vendasPorCategoria.generico.valor += valor;
+            vendasPorCategoria.generico.quantidade += qtd;
+          } else if (grupo === 20) {
             vendasPorCategoria.rentaveis20.valor += valor;
             vendasPorCategoria.rentaveis20.quantidade += qtd;
           } else if (grupo === 25) {
@@ -155,11 +164,13 @@ export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculo
           } else if (grupo === 36) {
             vendasPorCategoria.perfumaria_alta.valor += valor;
             vendasPorCategoria.perfumaria_alta.quantidade += qtd;
-          } else if (grupo === 13) {
+          } else if (grupo === 46) {
+            vendasPorCategoria.dermocosmetico.valor += valor;
+            vendasPorCategoria.dermocosmetico.quantidade += qtd;
+          } else if (grupo === 13 || grupo === 22) {
             vendasPorCategoria.goodlife.valor += valor;
             vendasPorCategoria.goodlife.quantidade += qtd;
           }
-          // TODO: Adicionar outros grupos conforme necessário
         });
 
         // Vendas da loja (todos os funcionários)
@@ -185,7 +196,7 @@ export function useCalculoPremiacao({ funcionario, periodo, lojaId }: UseCalculo
           } else if (grupo === 36) {
             vendasLojaPorCategoria.perfumaria_r_mais.valor += valor;
             vendasLojaPorCategoria.perfumaria_r_mais.quantidade += qtd;
-          } else if (grupo === 13) {
+          } else if (grupo === 13 || grupo === 22) {
             vendasLojaPorCategoria.saude.valor += valor;
             vendasLojaPorCategoria.saude.quantidade += qtd;
           }
