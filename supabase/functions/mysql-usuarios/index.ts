@@ -38,7 +38,7 @@ serve(async (req) => {
       port: 3306
     });
 
-    const { action, loja_id, user_type, login, senha } = await req.json().catch(() => ({}));
+    const { action, loja_id, user_type, login, senha, matricula } = await req.json().catch(() => ({}));
     const url = new URL(req.url);
     const actionParam = url.searchParams.get('action') || action;
 
@@ -116,6 +116,54 @@ serve(async (req) => {
           }
         );
       }
+    }
+
+    if (actionParam === 'buscar_por_matricula') {
+      if (!matricula) {
+        return new Response(
+          JSON.stringify({ success: false, message: 'Matrícula não fornecida' }),
+          { 
+            headers: { 
+              ...corsHeaders, 
+              'Content-Type': 'application/json' 
+            },
+            status: 400
+          }
+        );
+      }
+
+      const query = 'SELECT matfun, nomefun, cpffun FROM listafun WHERE matfun = ?';
+      const result = await client.execute(query, [matricula]);
+
+      if (result.rows && result.rows.length > 0) {
+        const funcionario = result.rows[0];
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            data: {
+              matricula: funcionario.matfun,
+              nome: funcionario.nomefun,
+              cpf: funcionario.cpffun
+            }
+          }),
+          { 
+            headers: { 
+              ...corsHeaders, 
+              'Content-Type': 'application/json' 
+            } 
+          }
+        );
+      }
+      
+      return new Response(
+        JSON.stringify({ success: false, message: 'Funcionário não encontrado' }),
+        { 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json' 
+          } 
+        }
+      );
     }
 
     return new Response(
