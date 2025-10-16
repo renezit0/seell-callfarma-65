@@ -132,7 +132,7 @@ serve(async (req) => {
         );
       }
 
-      const query = 'SELECT matfun, nomefun, cpffun FROM listafun WHERE matfun = ?';
+      const query = 'SELECT matfun, nomefun, cpffun FROM LISTAFUN WHERE matfun = ?';
       const result = await client.execute(query, [matricula]);
 
       if (result.rows && result.rows.length > 0) {
