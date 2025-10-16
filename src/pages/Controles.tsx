@@ -59,6 +59,13 @@ export default function Controles() {
     carregarEntregas();
   }, []);
 
+  // Pré-preencher loja destino quando user estiver disponível
+  useEffect(() => {
+    if (user?.loja_id && !lojaDestino) {
+      setLojaDestino(user.loja_id.toString());
+    }
+  }, [user]);
+
   const carregarLojas = async () => {
     try {
       const { data, error } = await supabase
@@ -76,18 +83,25 @@ export default function Controles() {
 
   const carregarEntregas = async () => {
     try {
+      console.log("Carregando entregas...");
       const { data, error } = await supabase
         .from("controles_entregas")
         .select("*")
         .order("data_criacao", { ascending: false });
       
-      if (error) throw error;
+      if (error) {
+        console.error("Erro na query:", error);
+        throw error;
+      }
+      
+      console.log("Entregas recebidas:", data);
       
       // Filtrar por loja se não for admin
       if (user?.tipo !== 'admin') {
         const entregasFiltradas = data?.filter(
           (e: Entrega) => e.loja_origem_id === user?.loja_id || e.loja_destino_id === user?.loja_id
         );
+        console.log("Entregas filtradas:", entregasFiltradas);
         setEntregas(entregasFiltradas || []);
       } else {
         setEntregas(data || []);
