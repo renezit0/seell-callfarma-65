@@ -56,13 +56,15 @@ export default function Controles() {
 
   useEffect(() => {
     carregarLojas();
-    carregarEntregas();
   }, []);
 
-  // Pré-preencher loja destino quando user estiver disponível
+  // Pré-preencher loja destino e carregar entregas quando user estiver disponível
   useEffect(() => {
-    if (user?.loja_id && !lojaDestino) {
-      setLojaDestino(user.loja_id.toString());
+    if (user?.loja_id) {
+      if (!lojaDestino) {
+        setLojaDestino(user.loja_id.toString());
+      }
+      carregarEntregas();
     }
   }, [user]);
 
@@ -82,8 +84,10 @@ export default function Controles() {
   };
 
   const carregarEntregas = async () => {
+    if (!user) return;
+    
     try {
-      console.log("Carregando entregas...");
+      console.log("Carregando entregas para user:", user);
       const { data, error } = await supabase
         .from("controles_entregas")
         .select("*")
@@ -95,16 +99,18 @@ export default function Controles() {
       }
       
       console.log("Entregas recebidas:", data);
+      console.log("User loja_id:", user.loja_id);
+      console.log("User tipo:", user.tipo);
       
-      // Filtrar por loja se não for admin
-      if (user?.tipo !== 'admin') {
+      // Admin vê todas, outros usuários veem só da sua loja destino
+      if (user.tipo === 'admin') {
+        setEntregas(data || []);
+      } else {
         const entregasFiltradas = data?.filter(
-          (e: Entrega) => e.loja_origem_id === user?.loja_id || e.loja_destino_id === user?.loja_id
+          (e: Entrega) => e.loja_destino_id === user.loja_id
         );
         console.log("Entregas filtradas:", entregasFiltradas);
         setEntregas(entregasFiltradas || []);
-      } else {
-        setEntregas(data || []);
       }
     } catch (error) {
       console.error("Erro ao carregar entregas:", error);
