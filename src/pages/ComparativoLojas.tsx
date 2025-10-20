@@ -155,16 +155,42 @@ export default function ComparativoLojas() {
         const cdfil = parseInt(loja.numero);
 
         try {
-          // 1. Buscar faturamento GERAL da loja
-          const vendasFilialResponse = await callfarmaAPI.buscarVendasPorFilial(cdfil, dataInicio, dataFim);
-          const faturamento = vendasFilialResponse.reduce((sum: number, v: any) => sum + (v.valor || 0), 0);
+          // 1. Buscar faturamento GERAL da loja (groupBy=scefilial.CDFIL sem filtro)
+          const vendasGeral = await callfarmaAPI.buscarVendasFuncionarios({ 
+            dataInicio, 
+            dataFim, 
+            groupBy: 'scefilial.CDFIL' 
+          });
+          const faturamento = vendasGeral
+            .filter(v => v.CDFIL === cdfil)
+            .reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
 
-          // 2. Buscar vendas por categoria (filtrar localmente por CDFIL)
+          // 2. Buscar vendas por categoria (groupBy=scefilial.CDFIL com filtroGrupos)
           const [vendasRentaveis, vendasGoodlife, vendasPerfumaria, vendasConveniencia] = await Promise.all([
-            callfarmaAPI.buscarVendasFuncionarios({ dataInicio, dataFim, filtroGrupos: '20,25' }),
-            callfarmaAPI.buscarVendasFuncionarios({ dataInicio, dataFim, filtroGrupos: '22' }),
-            callfarmaAPI.buscarVendasFuncionarios({ dataInicio, dataFim, filtroGrupos: '46' }),
-            callfarmaAPI.buscarVendasFuncionarios({ dataInicio, dataFim, filtroGrupos: '36,13' })
+            callfarmaAPI.buscarVendasFuncionarios({ 
+              dataInicio, 
+              dataFim, 
+              filtroGrupos: '20,25', 
+              groupBy: 'scefilial.CDFIL' 
+            }),
+            callfarmaAPI.buscarVendasFuncionarios({ 
+              dataInicio, 
+              dataFim, 
+              filtroGrupos: '22', 
+              groupBy: 'scefilial.CDFIL' 
+            }),
+            callfarmaAPI.buscarVendasFuncionarios({ 
+              dataInicio, 
+              dataFim, 
+              filtroGrupos: '46', 
+              groupBy: 'scefilial.CDFIL' 
+            }),
+            callfarmaAPI.buscarVendasFuncionarios({ 
+              dataInicio, 
+              dataFim, 
+              filtroGrupos: '36,13', 
+              groupBy: 'scefilial.CDFIL' 
+            })
           ]);
 
           const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => v.CDFIL === cdfil);
@@ -223,8 +249,18 @@ export default function ComparativoLojas() {
 
         try {
           const [vendasRentaveis, vendasGoodlife] = await Promise.all([
-            callfarmaAPI.buscarVendasFuncionarios({ dataInicio, dataFim, filtroGrupos: '20,25', groupBy: 'scefun.CDFUN,scefun.NOME' }),
-            callfarmaAPI.buscarVendasFuncionarios({ dataInicio, dataFim, filtroGrupos: '22', groupBy: 'scefun.CDFUN,scefun.NOME' })
+            callfarmaAPI.buscarVendasFuncionarios({ 
+              dataInicio, 
+              dataFim, 
+              filtroGrupos: '20,25', 
+              groupBy: 'scefilial.CDFIL,scefun.CDFUN' 
+            }),
+            callfarmaAPI.buscarVendasFuncionarios({ 
+              dataInicio, 
+              dataFim, 
+              filtroGrupos: '22', 
+              groupBy: 'scefilial.CDFIL,scefun.CDFUN' 
+            })
           ]);
 
           const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => v.CDFIL === cdfil);
@@ -232,7 +268,7 @@ export default function ComparativoLojas() {
           const funcionariosMap = new Map<string, VendedorDestaque>();
 
           filtrarPorLoja(vendasRentaveis || []).forEach(v => {
-            const key = `${v.CDFUN}-${v.NOME}`;
+            const key = `${v.CDFUN}-${v.CDFIL}`;
             if (!funcionariosMap.has(key)) {
               funcionariosMap.set(key, {
                 nome: v.NOME,
@@ -248,7 +284,7 @@ export default function ComparativoLojas() {
           });
 
           filtrarPorLoja(vendasGoodlife || []).forEach(v => {
-            const key = `${v.CDFUN}-${v.NOME}`;
+            const key = `${v.CDFUN}-${v.CDFIL}`;
             if (!funcionariosMap.has(key)) {
               funcionariosMap.set(key, {
                 nome: v.NOME,
@@ -294,7 +330,7 @@ export default function ComparativoLojas() {
             dataInicio,
             dataFim,
             filtroGrupos: '20,25',
-            groupBy: 'scefun.CDFUN,scefun.NOME',
+            groupBy: 'scefilial.CDFIL,scefun.CDFUN',
             orderBy: 'TOTAL_VLR_VE desc'
           });
 
