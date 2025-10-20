@@ -169,7 +169,7 @@ export default function ComparativoLojas() {
             groupBy: 'scefilial.CDFIL' 
           });
           const faturamento = vendasGeral
-            .filter(v => v.CDFIL === cdfil && v.NOME && !v.NOME.includes('OUTRAS-ANALISE'))
+            .filter(v => v.CDFIL === cdfil && v.NOMEFIL && !v.NOMEFIL.includes('OUTRA'))
             .reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
 
           // 2. Buscar vendas por categoria (groupBy=scefilial.CDFIL com filtroGrupos)
@@ -201,7 +201,7 @@ export default function ComparativoLojas() {
           ]);
 
           const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => 
-            v.CDFIL === cdfil && v.NOME && !v.NOME.includes('OUTRAS-ANALISE')
+            v.CDFIL === cdfil && v.NOMEFIL && !v.NOMEFIL.includes('OUTRA')
           );
           const rentaveis = filtrarPorLoja(vendasRentaveis).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
           const goodlife = filtrarPorLoja(vendasGoodlife).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
@@ -273,7 +273,7 @@ export default function ComparativoLojas() {
           ]);
 
           const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => 
-            v.CDFIL === cdfil && v.NOME && !v.NOME.includes('OUTRAS-ANALISE')
+            v.CDFIL === cdfil && v.NOME && !v.NOME.includes('OUTRA')
           );
 
           const funcionariosMap = new Map<string, VendedorDestaque>();
@@ -346,7 +346,7 @@ export default function ComparativoLojas() {
           });
 
           const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => 
-            v.CDFIL === cdfil && v.NOME && !v.NOME.includes('OUTRAS-ANALISE')
+            v.CDFIL === cdfil && v.NOME && !v.NOME.includes('OUTRA')
           );
 
           const vendasFiltradas = filtrarPorLoja(vendasRentaveis || []);
