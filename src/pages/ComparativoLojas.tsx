@@ -835,7 +835,7 @@ export default function ComparativoLojas() {
             </CardContent>
           </Card>
 
-          {/* Comparativo de % Participação entre Vendedores */}
+          {/* Comparativo dos Líderes de Cada Loja */}
           <Card className="col-span-full bg-gradient-to-br from-chart-3/5 via-chart-4/5 to-primary/5 border-2 border-chart-3/20">
             <CardHeader className="bg-gradient-to-r from-chart-3/10 to-primary/10 border-b border-chart-3/20">
               <CardTitle className="flex items-center gap-3 text-xl">
@@ -843,37 +843,48 @@ export default function ComparativoLojas() {
                   <Percent className="h-6 w-6 text-white" />
                 </div>
                 <span className="bg-gradient-to-r from-chart-3 to-primary bg-clip-text text-transparent">
-                  Comparativo de Participação em Rentáveis entre Vendedores
+                  Ranking dos Líderes de Vendas por Loja
                 </span>
               </CardTitle>
               <p className="text-sm text-muted-foreground mt-1 ml-11">
-                Distribuição percentual das vendas rentáveis entre todos os vendedores das lojas analisadas
+                Comparativo do vendedor #1 de cada loja por % de participação nos rentáveis
               </p>
             </CardHeader>
             <CardContent className="p-6">
               <div className="space-y-4">
                 {(() => {
-                  const totalRentaveisGeral = participacaoFuncionarios.reduce((sum, f) => sum + f.valor_rentaveis, 0);
-                  const dadosParticipacao = participacaoFuncionarios
-                    .map((func) => ({
-                      ...func,
-                      participacaoPercentual:
-                        totalRentaveisGeral > 0 ? (func.valor_rentaveis / totalRentaveisGeral) * 100 : 0,
-                    }))
-                    .sort((a, b) => b.participacaoPercentual - a.participacaoPercentual)
-                    .slice(0, 20); // Top 20 vendedores
+                  // Pegar o líder (#1) de cada loja
+                  const lideresLojas = comparativoData
+                    .map((loja) => {
+                      const funcionariosLoja = participacaoFuncionarios
+                        .filter((f) => f.loja === loja.loja)
+                        .sort((a, b) => b.percentual - a.percentual);
+
+                      return funcionariosLoja.length > 0
+                        ? {
+                            ...funcionariosLoja[0],
+                            nomeLoja: loja.loja,
+                          }
+                        : null;
+                    })
+                    .filter(Boolean);
+
+                  // Ordenar líderes por % de participação
+                  const rankingLideres = lideresLojas.sort((a, b) => b.percentual - a.percentual);
 
                   return (
                     <>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                         <Card className="bg-gradient-to-br from-primary/10 to-chart-2/10">
                           <CardContent className="p-4">
                             <div className="flex items-center justify-between">
                               <div>
-                                <p className="text-sm text-muted-foreground">Total Rentáveis</p>
-                                <p className="text-2xl font-bold text-primary">{formatCurrency(totalRentaveisGeral)}</p>
+                                <p className="text-sm text-muted-foreground">Maior Participação</p>
+                                <p className="text-2xl font-bold text-primary">
+                                  {rankingLideres.length > 0 ? formatPercent(rankingLideres[0].percentual) : "-"}
+                                </p>
                               </div>
-                              <DollarSign className="h-8 w-8 text-primary" />
+                              <Trophy className="h-8 w-8 text-yellow-500" />
                             </div>
                           </CardContent>
                         </Card>
@@ -881,17 +892,35 @@ export default function ComparativoLojas() {
                           <CardContent className="p-4">
                             <div className="flex items-center justify-between">
                               <div>
-                                <p className="text-sm text-muted-foreground">Total de Vendedores</p>
-                                <p className="text-2xl font-bold text-chart-2">{participacaoFuncionarios.length}</p>
+                                <p className="text-sm text-muted-foreground">Lojas Comparadas</p>
+                                <p className="text-2xl font-bold text-chart-2">{rankingLideres.length}</p>
                               </div>
-                              <Users className="h-8 w-8 text-chart-2" />
+                              <Store className="h-8 w-8 text-chart-2" />
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card className="bg-gradient-to-br from-chart-3/10 to-chart-4/10">
+                          <CardContent className="p-4">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm text-muted-foreground">Participação Média</p>
+                                <p className="text-2xl font-bold text-chart-3">
+                                  {rankingLideres.length > 0
+                                    ? formatPercent(
+                                        rankingLideres.reduce((sum, l) => sum + l.percentual, 0) /
+                                          rankingLideres.length,
+                                      )
+                                    : "-"}
+                                </p>
+                              </div>
+                              <Percent className="h-8 w-8 text-chart-3" />
                             </div>
                           </CardContent>
                         </Card>
                       </div>
 
                       <div className="space-y-3">
-                        {dadosParticipacao.map((vendedor, idx) => {
+                        {rankingLideres.map((lider, idx) => {
                           const isTop3 = idx < 3;
                           const colors = [
                             "from-yellow-400 to-yellow-600",
@@ -901,7 +930,7 @@ export default function ComparativoLojas() {
 
                           return (
                             <div
-                              key={`${vendedor.nome}-${vendedor.loja}`}
+                              key={`${lider.nome}-${lider.nomeLoja}`}
                               className={`p-4 rounded-lg transition-all hover:shadow-lg ${
                                 isTop3
                                   ? "bg-gradient-to-r " +
@@ -913,28 +942,27 @@ export default function ComparativoLojas() {
                             >
                               <div className="flex items-center gap-4 mb-3">
                                 <div
-                                  className={`flex items-center justify-center w-10 h-10 rounded-full font-bold text-white shadow-lg ${
+                                  className={`flex items-center justify-center w-12 h-12 rounded-full font-bold text-white shadow-lg ${
                                     isTop3
                                       ? "bg-gradient-to-br " + colors[idx]
                                       : "bg-secondary text-secondary-foreground"
                                   }`}
                                 >
-                                  {idx + 1}
+                                  {idx + 1}°
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p className="font-bold text-base truncate">{vendedor.nome}</p>
-                                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <p className="font-bold text-lg truncate">{lider.nome}</p>
+                                  <p className="text-sm text-muted-foreground flex items-center gap-1">
                                     <Store className="h-3 w-3" />
-                                    {vendedor.loja}
+                                    {lider.nomeLoja}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    {formatCurrency(lider.valor_rentaveis)} em rentáveis
                                   </p>
                                 </div>
                                 <div className="text-right">
-                                  <p className="text-2xl font-bold text-primary">
-                                    {vendedor.participacaoPercentual.toFixed(2)}%
-                                  </p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {formatCurrency(vendedor.valor_rentaveis)}
-                                  </p>
+                                  <p className="text-3xl font-bold text-primary">{lider.percentual.toFixed(2)}%</p>
+                                  <p className="text-xs text-muted-foreground">de participação na loja</p>
                                 </div>
                               </div>
                               <div className="relative">
@@ -945,7 +973,7 @@ export default function ComparativoLojas() {
                                         ? "bg-gradient-to-r " + colors[idx]
                                         : "bg-gradient-to-r from-primary to-chart-2"
                                     }`}
-                                    style={{ width: `${vendedor.participacaoPercentual}%` }}
+                                    style={{ width: `${lider.percentual}%` }}
                                   />
                                 </div>
                               </div>
