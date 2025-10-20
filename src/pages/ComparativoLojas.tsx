@@ -106,10 +106,17 @@ export default function ComparativoLojas() {
         .order('nome');
 
       if (error) throw error;
-      setLojas(data || []);
       
-      if (data && data.length > 0) {
-        setSelectedLojas(data.slice(0, Math.min(5, data.length)).map(l => l.id));
+      // Filtrar loja OUTRA (ANÁLISE)
+      const lojasFiltradas = (data || []).filter(loja => 
+        !loja.nome.toUpperCase().includes('OUTRA') && 
+        !loja.nome.toUpperCase().includes('ANÁLISE')
+      );
+      
+      setLojas(lojasFiltradas);
+      
+      if (lojasFiltradas.length > 0) {
+        setSelectedLojas(lojasFiltradas.slice(0, Math.min(5, lojasFiltradas.length)).map(l => l.id));
       }
     } catch (error) {
       console.error('Erro ao carregar lojas:', error);
@@ -696,9 +703,6 @@ export default function ComparativoLojas() {
                         <p className="font-bold text-primary">
                           {formatCurrency(vendedor.total_rentaveis)}
                         </p>
-                        <p className="text-xs text-muted-foreground">
-                          Total: {formatCurrency(vendedor.total_geral)}
-                        </p>
                       </div>
                     </div>
                   ))}
@@ -748,6 +752,89 @@ export default function ComparativoLojas() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Top Participações por Loja - DESTAQUE */}
+          <Card className="col-span-full bg-gradient-to-br from-primary/5 via-chart-2/5 to-chart-3/5 border-2 border-primary/20">
+            <CardHeader className="bg-gradient-to-r from-primary/10 to-chart-2/10 border-b border-primary/20">
+              <CardTitle className="flex items-center gap-3 text-xl">
+                <div className="p-2 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-lg shadow-lg">
+                  <Trophy className="h-6 w-6 text-white" />
+                </div>
+                <span className="bg-gradient-to-r from-primary to-chart-2 bg-clip-text text-transparent">
+                  Top Participações em Rentáveis por Loja
+                </span>
+              </CardTitle>
+              <p className="text-sm text-muted-foreground mt-1 ml-11">
+                Vendedores com maior impacto nas vendas rentáveis de cada loja
+              </p>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {comparativoData.map((loja, lojaIdx) => {
+                  const topFuncionarios = participacaoFuncionarios
+                    .filter(f => f.loja === loja.loja)
+                    .sort((a, b) => b.percentual - a.percentual)
+                    .slice(0, 3);
+
+                  const colors = [
+                    'from-yellow-400 to-yellow-600',
+                    'from-gray-300 to-gray-500', 
+                    'from-orange-400 to-orange-600'
+                  ];
+
+                  return (
+                    <Card key={loja.loja} className="overflow-hidden hover:shadow-xl transition-shadow duration-300 border-2 hover:border-primary/40">
+                      <CardHeader className="bg-gradient-to-r from-primary/10 to-chart-2/10 pb-3">
+                        <div className="flex items-center gap-2">
+                          <Store className="h-4 w-4 text-primary" />
+                          <CardTitle className="text-base font-bold">{loja.loja}</CardTitle>
+                        </div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="text-xs text-muted-foreground">Rentáveis:</span>
+                          <span className="text-sm font-bold text-primary">{formatCurrency(loja.rentaveis)}</span>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-4">
+                        <div className="space-y-3">
+                          {topFuncionarios.map((func, idx) => (
+                            <div 
+                              key={`${func.nome}-${idx}`} 
+                              className={`flex items-center gap-3 p-3 rounded-lg transition-all hover:scale-102 ${
+                                idx === 0 ? 'bg-gradient-to-r from-yellow-400/10 to-yellow-600/10 border border-yellow-500/30' :
+                                idx === 1 ? 'bg-gradient-to-r from-gray-300/10 to-gray-500/10 border border-gray-400/30' :
+                                'bg-gradient-to-r from-orange-400/10 to-orange-600/10 border border-orange-500/30'
+                              }`}
+                            >
+                              <div className={`flex items-center justify-center w-9 h-9 rounded-full font-bold text-white shadow-lg bg-gradient-to-br ${colors[idx]}`}>
+                                {idx + 1}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-sm truncate">{func.nome}</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <div className="flex-1 h-2 bg-secondary rounded-full overflow-hidden">
+                                    <div 
+                                      className={`h-full bg-gradient-to-r ${colors[idx]} transition-all`}
+                                      style={{ width: `${func.percentual}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-xs font-bold text-primary min-w-[45px] text-right">
+                                    {func.percentual.toFixed(1)}%
+                                  </span>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {formatCurrency(func.valor_rentaveis)}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
         </>
       ) : (
         <Card>
