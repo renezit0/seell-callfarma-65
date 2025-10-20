@@ -29,6 +29,7 @@ import Participacao from "./pages/Participacao";
 import AcompanhamentoVendas from "./pages/AcompanhamentoVendas";
 import Premiacoes from "./pages/Premiacoes";
 import Controles from "./pages/Controles";
+import ComparativoLojas from "./pages/ComparativoLojas";
 import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 function AppContent() {
@@ -160,6 +161,7 @@ function AppContent() {
             <Route path="/acompanhamento-vendas" element={<AcompanhamentoVendas />} />
             <Route path="/premiacoes" element={<Premiacoes />} />
             <Route path="/controles" element={<Controles />} />
+            <Route path="/comparativo-lojas" element={<ComparativoLojas />} />
             
             <Route path="/escala" element={<Escala />} />
             <Route path="/escala-consolidada" element={<EscalaConsolidada />} />

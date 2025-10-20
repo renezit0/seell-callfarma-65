@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Trophy, Medal, Award, TrendingUp, Search, CalendarIcon } from "lucide-react";
+import { Trophy, Medal, Award, TrendingUp, Search, CalendarIcon, BarChart } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useCallfarmaAPI } from "@/hooks/useCallfarmaAPI";
 import { useToast } from "@/hooks/use-toast";
 import { usePeriodoAtual } from "@/hooks/usePeriodoAtual";
@@ -38,6 +38,7 @@ interface Loja {
 
 export default function Rankings() {
   // Todos os hooks declarados primeiro  
+  const navigate = useNavigate();
   const periodoAtual = usePeriodoAtual();
   const { user, loading: userLoading } = useAuth();
   const [rankings, setRankings] = useState<RankingData[]>([]);
@@ -263,11 +264,22 @@ export default function Rankings() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-col gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Rankings de Funcionários</h1>
-          <p className="text-muted-foreground">
-            Ranking de vendas por funcionário via API Externa - Rentáveis e GoodLife (Período: 21 do mês atual até 20 do mês seguinte)
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Rankings de Funcionários</h1>
+            <p className="text-muted-foreground">
+              Ranking de vendas por funcionário via API Externa - Rentáveis e GoodLife (Período: 21 do mês atual até 20 do mês seguinte)
+            </p>
+          </div>
+          {canSelectLojas && (
+            <Button
+              onClick={() => navigate('/comparativo-lojas')}
+              className="gap-2 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700"
+            >
+              <BarChart className="h-4 w-4" />
+              Comparativo entre Lojas
+            </Button>
+          )}
         </div>
 
         {/* Filtros */}
