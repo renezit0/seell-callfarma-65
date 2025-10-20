@@ -162,7 +162,7 @@ export default function ComparativoLojas() {
             groupBy: 'scefilial.CDFIL' 
           });
           const faturamento = vendasGeral
-            .filter(v => v.CDFIL === cdfil)
+            .filter(v => v.CDFIL === cdfil && v.NOME && !v.NOME.includes('OUTRAS-ANALISE'))
             .reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
 
           // 2. Buscar vendas por categoria (groupBy=scefilial.CDFIL com filtroGrupos)
@@ -193,7 +193,9 @@ export default function ComparativoLojas() {
             })
           ]);
 
-          const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => v.CDFIL === cdfil);
+          const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => 
+            v.CDFIL === cdfil && v.NOME && !v.NOME.includes('OUTRAS-ANALISE')
+          );
           const rentaveis = filtrarPorLoja(vendasRentaveis).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
           const goodlife = filtrarPorLoja(vendasGoodlife).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
           const perfumaria = filtrarPorLoja(vendasPerfumaria).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
@@ -263,7 +265,9 @@ export default function ComparativoLojas() {
             })
           ]);
 
-          const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => v.CDFIL === cdfil);
+          const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => 
+            v.CDFIL === cdfil && v.NOME && !v.NOME.includes('OUTRAS-ANALISE')
+          );
 
           const funcionariosMap = new Map<string, VendedorDestaque>();
 
@@ -334,11 +338,14 @@ export default function ComparativoLojas() {
             orderBy: 'TOTAL_VLR_VE desc'
           });
 
-          const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => v.CDFIL === cdfil);
+          const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => 
+            v.CDFIL === cdfil && v.NOME && !v.NOME.includes('OUTRAS-ANALISE')
+          );
 
-          const totalRentaveisLoja = (vendasRentaveis || []).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
+          const vendasFiltradas = filtrarPorLoja(vendasRentaveis || []);
+          const totalRentaveisLoja = vendasFiltradas.reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
 
-          return filtrarPorLoja(vendasRentaveis || []).map(v => ({
+          return vendasFiltradas.map(v => ({
             nome: v.NOME,
             loja: loja.nome,
             valor_rentaveis: v.TOTAL_VALOR || 0,
@@ -567,9 +574,9 @@ export default function ComparativoLojas() {
                     contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
                   />
                   <Legend />
-                  <Bar yAxisId="left" dataKey="faturamento" fill="hsl(var(--primary))" name="Faturamento GERAL" />
-                  <Bar yAxisId="left" dataKey="rentaveis" fill="hsl(var(--chart-2))" name="Rentáveis" />
-                  <Line yAxisId="right" type="monotone" dataKey="percentualRentaveis" stroke="hsl(var(--chart-3))" name="% Rentáveis" strokeWidth={2} />
+                  <Bar yAxisId="left" dataKey="faturamento" fill="#8b5cf6" name="Faturamento GERAL" />
+                  <Bar yAxisId="left" dataKey="rentaveis" fill="#10b981" name="Rentáveis" />
+                  <Line yAxisId="right" type="monotone" dataKey="percentualRentaveis" stroke="#f59e0b" name="% Rentáveis" strokeWidth={2} />
                 </ComposedChart>
               </ResponsiveContainer>
             </CardContent>
@@ -595,9 +602,9 @@ export default function ComparativoLojas() {
                       name === "atingimentoMeta" ? formatPercent(value) : formatCurrency(value)
                     } />
                     <Legend />
-                    <Bar dataKey="meta" fill="hsl(var(--muted))" name="Meta" />
-                    <Bar dataKey="faturamento" fill="hsl(var(--primary))" name="Realizado" />
-                    <Line type="monotone" dataKey="atingimentoMeta" stroke="hsl(var(--chart-3))" name="% Atingimento" strokeWidth={2} />
+                    <Bar dataKey="meta" fill="#94a3b8" name="Meta" />
+                    <Bar dataKey="faturamento" fill="#8b5cf6" name="Realizado" />
+                    <Line type="monotone" dataKey="atingimentoMeta" stroke="#f59e0b" name="% Atingimento" strokeWidth={2} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -619,10 +626,10 @@ export default function ComparativoLojas() {
                     <YAxis className="text-xs" />
                     <Tooltip formatter={(value: number) => formatCurrency(value)} />
                     <Legend />
-                    <Bar dataKey="rentaveis" stackId="a" fill="hsl(var(--chart-2))" name="Rentáveis" />
-                    <Bar dataKey="goodlife" stackId="a" fill="hsl(var(--chart-3))" name="GoodLife" />
-                    <Bar dataKey="perfumaria" stackId="a" fill="hsl(var(--chart-4))" name="Perfumaria" />
-                    <Bar dataKey="conveniencia" stackId="a" fill="hsl(var(--chart-5))" name="Conveniência" />
+                    <Bar dataKey="rentaveis" stackId="a" fill="#10b981" name="Rentáveis" />
+                    <Bar dataKey="goodlife" stackId="a" fill="#f59e0b" name="GoodLife" />
+                    <Bar dataKey="perfumaria" stackId="a" fill="#ec4899" name="Perfumaria" />
+                    <Bar dataKey="conveniencia" stackId="a" fill="#06b6d4" name="Conveniência" />
                   </ComposedChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -650,9 +657,9 @@ export default function ComparativoLojas() {
                   <PolarGrid />
                   <PolarAngleAxis dataKey="loja" />
                   <PolarRadiusAxis angle={90} domain={[0, 100]} />
-                  <Radar name="Performance" dataKey="Faturamento" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.3} />
-                  <Radar name="Rentáveis %" dataKey="Rentáveis" stroke="hsl(var(--chart-2))" fill="hsl(var(--chart-2))" fillOpacity={0.3} />
-                  <Radar name="Meta %" dataKey="Ating. Meta" stroke="hsl(var(--chart-3))" fill="hsl(var(--chart-3))" fillOpacity={0.3} />
+                  <Radar name="Performance" dataKey="Faturamento" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.3} />
+                  <Radar name="Rentáveis %" dataKey="Rentáveis" stroke="#10b981" fill="#10b981" fillOpacity={0.3} />
+                  <Radar name="Meta %" dataKey="Ating. Meta" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.3} />
                   <Legend />
                 </RadarChart>
               </ResponsiveContainer>
