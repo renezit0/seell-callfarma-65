@@ -1,27 +1,27 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { useCallfarmaAPI } from '@/hooks/useCallfarmaAPI';
-import { usePeriodoAtual } from '@/hooks/usePeriodoAtual';
-import { Navigate, useNavigate } from 'react-router-dom';
-import { useToast } from '@/hooks/use-toast';
-import { 
-  BarChart, 
-  LineChart, 
-  TrendingUp, 
-  Store, 
-  Users, 
+import { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { useCallfarmaAPI } from "@/hooks/useCallfarmaAPI";
+import { usePeriodoAtual } from "@/hooks/usePeriodoAtual";
+import { Navigate, useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
+import {
+  BarChart,
+  LineChart,
+  TrendingUp,
+  Store,
+  Users,
   ArrowLeft,
   Trophy,
   Target,
   DollarSign,
-  Percent
-} from 'lucide-react';
+  Percent,
+} from "lucide-react";
 import {
   ComposedChart,
   Bar,
@@ -36,8 +36,8 @@ import {
   PolarGrid,
   PolarAngleAxis,
   PolarRadiusAxis,
-  Radar
-} from 'recharts';
+  Radar,
+} from "recharts";
 
 interface LojaData {
   id: number;
@@ -80,7 +80,7 @@ export default function ComparativoLojas() {
   const { user, loading: authLoading } = useAuth();
   const callfarmaAPI = useCallfarmaAPI();
   const { toast } = useToast();
-  
+
   const [lojas, setLojas] = useState<LojaData[]>([]);
   const [selectedLojas, setSelectedLojas] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
@@ -100,51 +100,47 @@ export default function ComparativoLojas() {
 
   const carregarLojas = async () => {
     try {
-      const { data, error } = await supabase
-        .from('lojas')
-        .select('id, nome, numero, regiao')
-        .order('nome');
+      const { data, error } = await supabase.from("lojas").select("id, nome, numero, regiao").order("nome");
 
       if (error) throw error;
-      
+
       // Filtrar loja OUTRA (ANÁLISE)
-      const lojasFiltradas = (data || []).filter(loja => 
-        !loja.nome.toUpperCase().includes('OUTRA') && 
-        !loja.nome.toUpperCase().includes('ANÁLISE')
+      const lojasFiltradas = (data || []).filter(
+        (loja) => !loja.nome.toUpperCase().includes("OUTRA") && !loja.nome.toUpperCase().includes("ANÁLISE"),
       );
-      
+
       setLojas(lojasFiltradas);
-      
+
       if (lojasFiltradas.length > 0) {
-        setSelectedLojas(lojasFiltradas.slice(0, Math.min(5, lojasFiltradas.length)).map(l => l.id));
+        setSelectedLojas(lojasFiltradas.slice(0, Math.min(5, lojasFiltradas.length)).map((l) => l.id));
       }
     } catch (error) {
-      console.error('Erro ao carregar lojas:', error);
+      console.error("Erro ao carregar lojas:", error);
     }
   };
 
   const carregarMetas = async () => {
     try {
       const { data: periodosData } = await supabase
-        .from('periodos_meta')
-        .select('id')
-        .gte('data_fim', dataInicio)
-        .lte('data_inicio', dataFim)
+        .from("periodos_meta")
+        .select("id")
+        .gte("data_fim", dataInicio)
+        .lte("data_inicio", dataFim)
         .single();
 
       if (periodosData) {
         const { data: metasData } = await supabase
-          .from('metas_loja')
-          .select('loja_id, meta_valor_total')
-          .eq('periodo_meta_id', periodosData.id);
+          .from("metas_loja")
+          .select("loja_id, meta_valor_total")
+          .eq("periodo_meta_id", periodosData.id);
 
         if (metasData) {
-          const metasMap = new Map(metasData.map(m => [m.loja_id, m.meta_valor_total]));
+          const metasMap = new Map(metasData.map((m) => [m.loja_id, m.meta_valor_total]));
           setMetasLojas(metasMap);
         }
       }
     } catch (error) {
-      console.error('Erro ao carregar metas:', error);
+      console.error("Erro ao carregar metas:", error);
     }
   };
 
@@ -153,91 +149,88 @@ export default function ComparativoLojas() {
 
     try {
       setLoading(true);
-      console.log('🔍 Buscando comparativos para', selectedLojas.length, 'lojas...');
+      console.log("🔍 Buscando comparativos para", selectedLojas.length, "lojas...");
 
       // OTIMIZAÇÃO: Buscar dados de TODAS as lojas de uma vez e filtrar no frontend
       // Isso reduz de ~40 chamadas para apenas 7 chamadas!
-      
-      console.log('⚡ Buscando vendas gerais...');
+
+      console.log("⚡ Buscando vendas gerais...");
       const [vendasGeral, vendasRentaveis, vendasGoodlife, vendasPerfumaria, vendasConveniencia] = await Promise.all([
-        callfarmaAPI.buscarVendasFuncionarios({ 
-          dataInicio, 
-          dataFim, 
-          groupBy: 'scefilial.CDFIL' 
+        callfarmaAPI.buscarVendasFuncionarios({
+          dataInicio,
+          dataFim,
+          groupBy: "scefilial.CDFIL",
         }),
-        callfarmaAPI.buscarVendasFuncionarios({ 
-          dataInicio, 
-          dataFim, 
-          filtroGrupos: '20,25', 
-          groupBy: 'scefilial.CDFIL' 
+        callfarmaAPI.buscarVendasFuncionarios({
+          dataInicio,
+          dataFim,
+          filtroGrupos: "20,25",
+          groupBy: "scefilial.CDFIL",
         }),
-        callfarmaAPI.buscarVendasFuncionarios({ 
-          dataInicio, 
-          dataFim, 
-          filtroGrupos: '22', 
-          groupBy: 'scefilial.CDFIL' 
+        callfarmaAPI.buscarVendasFuncionarios({
+          dataInicio,
+          dataFim,
+          filtroGrupos: "22",
+          groupBy: "scefilial.CDFIL",
         }),
-        callfarmaAPI.buscarVendasFuncionarios({ 
-          dataInicio, 
-          dataFim, 
-          filtroGrupos: '46', 
-          groupBy: 'scefilial.CDFIL' 
+        callfarmaAPI.buscarVendasFuncionarios({
+          dataInicio,
+          dataFim,
+          filtroGrupos: "46",
+          groupBy: "scefilial.CDFIL",
         }),
-        callfarmaAPI.buscarVendasFuncionarios({ 
-          dataInicio, 
-          dataFim, 
-          filtroGrupos: '36,13', 
-          groupBy: 'scefilial.CDFIL' 
-        })
+        callfarmaAPI.buscarVendasFuncionarios({
+          dataInicio,
+          dataFim,
+          filtroGrupos: "36,13",
+          groupBy: "scefilial.CDFIL",
+        }),
       ]);
 
-      console.log('⚡ Processando dados das lojas...');
-      const resultados = selectedLojas.map((lojaId) => {
-        const loja = lojas.find(l => l.id === lojaId);
-        if (!loja) return null;
+      console.log("⚡ Processando dados das lojas...");
+      const resultados = selectedLojas
+        .map((lojaId) => {
+          const loja = lojas.find((l) => l.id === lojaId);
+          if (!loja) return null;
 
-        const cdfil = parseInt(loja.numero);
-        
-        const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => 
-          v.CDFIL === cdfil && v.NOMEFIL && !v.NOMEFIL.includes('OUTRA')
-        );
+          const cdfil = parseInt(loja.numero);
 
-        const faturamento = filtrarPorLoja(vendasGeral).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
-        const rentaveis = filtrarPorLoja(vendasRentaveis).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
-        const goodlife = filtrarPorLoja(vendasGoodlife).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
-        const perfumaria = filtrarPorLoja(vendasPerfumaria).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
-        const conveniencia = filtrarPorLoja(vendasConveniencia).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
+          const filtrarPorLoja = (vendas: any[]) =>
+            vendas.filter((v) => v.CDFIL === cdfil && v.NOMEFIL && !v.NOMEFIL.includes("OUTRA"));
 
-        const meta = metasLojas.get(lojaId) || 0;
-        const atingimentoMeta = meta > 0 ? (faturamento / meta) * 100 : 0;
-        const percentualRentaveis = faturamento > 0 ? (rentaveis / faturamento) * 100 : 0;
+          const faturamento = filtrarPorLoja(vendasGeral).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
+          const rentaveis = filtrarPorLoja(vendasRentaveis).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
+          const goodlife = filtrarPorLoja(vendasGoodlife).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
+          const perfumaria = filtrarPorLoja(vendasPerfumaria).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
+          const conveniencia = filtrarPorLoja(vendasConveniencia).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
 
-        return {
-          loja: loja.nome,
-          lojaNumero: loja.numero,
-          faturamento,
-          rentaveis,
-          goodlife,
-          perfumaria,
-          conveniencia,
-          percentualRentaveis,
-          meta,
-          atingimentoMeta
-        };
-      }).filter(Boolean) as ComparativoData[];
+          const meta = metasLojas.get(lojaId) || 0;
+          const atingimentoMeta = meta > 0 ? (faturamento / meta) * 100 : 0;
+          const percentualRentaveis = faturamento > 0 ? (rentaveis / faturamento) * 100 : 0;
+
+          return {
+            loja: loja.nome,
+            lojaNumero: loja.numero,
+            faturamento,
+            rentaveis,
+            goodlife,
+            perfumaria,
+            conveniencia,
+            percentualRentaveis,
+            meta,
+            atingimentoMeta,
+          };
+        })
+        .filter(Boolean) as ComparativoData[];
 
       setComparativoData(resultados);
 
-      console.log('⚡ Buscando vendedores e participação...');
-      await Promise.all([
-        buscarVendedoresDestaque(),
-        buscarParticipacaoFuncionarios()
-      ]);
+      console.log("⚡ Buscando vendedores e participação...");
+      await Promise.all([buscarVendedoresDestaque(), buscarParticipacaoFuncionarios()]);
 
-      console.log('✅ Dados carregados com sucesso!');
-
+      console.log("✅ Dados carregados com sucesso!");
     } catch (error) {
-      console.error('Erro ao buscar comparativos:', error);
+      console.error("Erro ao buscar comparativos:", error);
       toast({
         title: "Erro ao buscar dados",
         description: "Alguns dados podem não ter sido carregados. Tente novamente.",
@@ -252,32 +245,33 @@ export default function ComparativoLojas() {
     try {
       // OTIMIZAÇÃO: Buscar vendas de funcionários de TODAS as lojas de uma vez
       const [vendasRentaveis, vendasGoodlife] = await Promise.all([
-        callfarmaAPI.buscarVendasFuncionarios({ 
-          dataInicio, 
-          dataFim, 
-          filtroGrupos: '20,25', 
-          groupBy: 'scefilial.CDFIL,scefun.CDFUN' 
+        callfarmaAPI.buscarVendasFuncionarios({
+          dataInicio,
+          dataFim,
+          filtroGrupos: "20,25",
+          groupBy: "scefilial.CDFIL,scefun.CDFUN",
         }),
-        callfarmaAPI.buscarVendasFuncionarios({ 
-          dataInicio, 
-          dataFim, 
-          filtroGrupos: '22', 
-          groupBy: 'scefilial.CDFIL,scefun.CDFUN' 
-        })
+        callfarmaAPI.buscarVendasFuncionarios({
+          dataInicio,
+          dataFim,
+          filtroGrupos: "22",
+          groupBy: "scefilial.CDFIL,scefun.CDFUN",
+        }),
       ]);
 
       const funcionariosMap = new Map<string, VendedorDestaque>();
 
-      selectedLojas.forEach(lojaId => {
-        const loja = lojas.find(l => l.id === lojaId);
+      selectedLojas.forEach((lojaId) => {
+        const loja = lojas.find((l) => l.id === lojaId);
         if (!loja) return;
 
         const cdfil = parseInt(loja.numero);
-        const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => 
-          v.CDFIL === cdfil && v.NOME && !v.NOME.includes('OUTRA') && !v.NOME.includes('ESPONTANEA')
-        );
+        const filtrarPorLoja = (vendas: any[]) =>
+          vendas.filter(
+            (v) => v.CDFIL === cdfil && v.NOME && !v.NOME.includes("OUTRA") && !v.NOME.includes("ESPONTANEA"),
+          );
 
-        filtrarPorLoja(vendasRentaveis || []).forEach(v => {
+        filtrarPorLoja(vendasRentaveis || []).forEach((v) => {
           const key = `${v.CDFUN}-${v.CDFIL}`;
           if (!funcionariosMap.has(key)) {
             funcionariosMap.set(key, {
@@ -285,7 +279,7 @@ export default function ComparativoLojas() {
               loja: loja.nome,
               total_rentaveis: 0,
               total_goodlife: 0,
-              total_geral: 0
+              total_geral: 0,
             });
           }
           const func = funcionariosMap.get(key)!;
@@ -293,7 +287,7 @@ export default function ComparativoLojas() {
           func.total_geral += v.TOTAL_VALOR || 0;
         });
 
-        filtrarPorLoja(vendasGoodlife || []).forEach(v => {
+        filtrarPorLoja(vendasGoodlife || []).forEach((v) => {
           const key = `${v.CDFUN}-${v.CDFIL}`;
           if (!funcionariosMap.has(key)) {
             funcionariosMap.set(key, {
@@ -301,7 +295,7 @@ export default function ComparativoLojas() {
               loja: loja.nome,
               total_rentaveis: 0,
               total_goodlife: 0,
-              total_geral: 0
+              total_geral: 0,
             });
           }
           const func = funcionariosMap.get(key)!;
@@ -311,13 +305,11 @@ export default function ComparativoLojas() {
       });
 
       const todosVendedores = Array.from(funcionariosMap.values());
-      const top10 = todosVendedores
-        .sort((a, b) => b.total_rentaveis - a.total_rentaveis)
-        .slice(0, 10);
-      
+      const top10 = todosVendedores.sort((a, b) => b.total_rentaveis - a.total_rentaveis).slice(0, 10);
+
       setVendedoresDestaque(top10);
     } catch (error) {
-      console.error('Erro ao buscar vendedores destaque:', error);
+      console.error("Erro ao buscar vendedores destaque:", error);
     }
   };
 
@@ -327,38 +319,39 @@ export default function ComparativoLojas() {
       const vendasRentaveis = await callfarmaAPI.buscarVendasFuncionarios({
         dataInicio,
         dataFim,
-        filtroGrupos: '20,25',
-        groupBy: 'scefilial.CDFIL,scefun.CDFUN',
-        orderBy: 'TOTAL_VLR_VE desc'
+        filtroGrupos: "20,25",
+        groupBy: "scefilial.CDFIL,scefun.CDFUN",
+        orderBy: "TOTAL_VLR_VE desc",
       });
 
       const todasParticipacoes: ParticipacaoFuncionario[] = [];
 
-      selectedLojas.forEach(lojaId => {
-        const loja = lojas.find(l => l.id === lojaId);
+      selectedLojas.forEach((lojaId) => {
+        const loja = lojas.find((l) => l.id === lojaId);
         if (!loja) return;
 
         const cdfil = parseInt(loja.numero);
-        const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => 
-          v.CDFIL === cdfil && v.NOME && !v.NOME.includes('OUTRA') && !v.NOME.includes('ESPONTANEA')
-        );
+        const filtrarPorLoja = (vendas: any[]) =>
+          vendas.filter(
+            (v) => v.CDFIL === cdfil && v.NOME && !v.NOME.includes("OUTRA") && !v.NOME.includes("ESPONTANEA"),
+          );
 
         const vendasFiltradas = filtrarPorLoja(vendasRentaveis || []);
         const totalRentaveisLoja = vendasFiltradas.reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
 
-        vendasFiltradas.forEach(v => {
+        vendasFiltradas.forEach((v) => {
           todasParticipacoes.push({
             nome: v.NOME,
             loja: loja.nome,
             valor_rentaveis: v.TOTAL_VALOR || 0,
-            percentual: totalRentaveisLoja > 0 ? ((v.TOTAL_VALOR || 0) / totalRentaveisLoja) * 100 : 0
+            percentual: totalRentaveisLoja > 0 ? ((v.TOTAL_VALOR || 0) / totalRentaveisLoja) * 100 : 0,
           });
         });
       });
 
       setParticipacaoFuncionarios(todasParticipacoes);
     } catch (error) {
-      console.error('Erro ao buscar participação de funcionários:', error);
+      console.error("Erro ao buscar participação de funcionários:", error);
     }
   };
 
@@ -370,14 +363,14 @@ export default function ComparativoLojas() {
     );
   }
 
-  if (!user || !['admin', 'supervisor'].includes(user.tipo || '')) {
+  if (!user || !["admin", "supervisor"].includes(user.tipo || "")) {
     return <Navigate to="/rankings" replace />;
   }
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
     }).format(value);
   };
 
@@ -386,20 +379,17 @@ export default function ComparativoLojas() {
   };
 
   const totalFaturamento = comparativoData.reduce((sum, d) => sum + d.faturamento, 0);
-  const mediaAtingimento = comparativoData.length > 0 
-    ? comparativoData.reduce((sum, d) => sum + d.atingimentoMeta, 0) / comparativoData.length 
-    : 0;
+  const mediaAtingimento =
+    comparativoData.length > 0
+      ? comparativoData.reduce((sum, d) => sum + d.atingimentoMeta, 0) / comparativoData.length
+      : 0;
 
   return (
     <div className="page-container space-y-6 bg-background min-h-screen p-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => navigate('/rankings')}
-          >
+          <Button variant="outline" size="icon" onClick={() => navigate("/rankings")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
@@ -407,9 +397,7 @@ export default function ComparativoLojas() {
               <BarChart className="w-7 h-7" />
               Comparativo entre Lojas
             </h1>
-            <p className="text-sm text-muted-foreground">
-              Análise visual de performance e participação de vendedores
-            </p>
+            <p className="text-sm text-muted-foreground">Análise visual de performance e participação de vendedores</p>
           </div>
         </div>
       </div>
@@ -426,19 +414,11 @@ export default function ComparativoLojas() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <Label>Data Início</Label>
-              <Input
-                type="date"
-                value={dataInicio}
-                onChange={(e) => setDataInicio(e.target.value)}
-              />
+              <Input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
             </div>
             <div>
               <Label>Data Fim</Label>
-              <Input
-                type="date"
-                value={dataFim}
-                onChange={(e) => setDataFim(e.target.value)}
-              />
+              <Input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} />
             </div>
             <div>
               <Label>Lojas ({selectedLojas.length} selecionadas)</Label>
@@ -446,7 +426,7 @@ export default function ComparativoLojas() {
                 value={selectedLojas.length > 0 ? "multiple" : ""}
                 onValueChange={(value) => {
                   if (value === "all") {
-                    setSelectedLojas(lojas.map(l => l.id));
+                    setSelectedLojas(lojas.map((l) => l.id));
                   } else if (value === "none") {
                     setSelectedLojas([]);
                   }
@@ -463,10 +443,8 @@ export default function ComparativoLojas() {
                       key={loja.id}
                       className="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent"
                       onClick={() => {
-                        setSelectedLojas(prev =>
-                          prev.includes(loja.id)
-                            ? prev.filter(id => id !== loja.id)
-                            : [...prev, loja.id]
+                        setSelectedLojas((prev) =>
+                          prev.includes(loja.id) ? prev.filter((id) => id !== loja.id) : [...prev, loja.id],
                         );
                       }}
                     >
@@ -484,13 +462,13 @@ export default function ComparativoLojas() {
             </div>
           </div>
 
-          <Button 
-            onClick={buscarComparativos} 
+          <Button
+            onClick={buscarComparativos}
             disabled={loading || selectedLojas.length === 0}
             className="w-full sm:w-auto"
           >
             <TrendingUp className="h-4 w-4 mr-2" />
-            {loading ? 'Carregando...' : 'Gerar Comparativos'}
+            {loading ? "Carregando..." : "Gerar Comparativos"}
           </Button>
         </CardContent>
       </Card>
@@ -567,14 +545,21 @@ export default function ComparativoLojas() {
                   <XAxis dataKey="loja" angle={-45} textAnchor="end" height={100} className="text-xs" />
                   <YAxis yAxisId="left" className="text-xs" />
                   <YAxis yAxisId="right" orientation="right" className="text-xs" />
-                  <Tooltip 
-                    formatter={(value: any) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                    contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                  <Tooltip
+                    formatter={(value: any) => `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
+                    contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
                   />
                   <Legend />
                   <Bar yAxisId="left" dataKey="faturamento" fill="#8b5cf6" name="Faturamento GERAL" />
                   <Bar yAxisId="left" dataKey="rentaveis" fill="#10b981" name="Rentáveis" />
-                  <Line yAxisId="right" type="monotone" dataKey="percentualRentaveis" stroke="#f59e0b" name="% Rentáveis" strokeWidth={2} />
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="percentualRentaveis"
+                    stroke="#f59e0b"
+                    name="% Rentáveis"
+                    strokeWidth={2}
+                  />
                 </ComposedChart>
               </ResponsiveContainer>
             </CardContent>
@@ -596,13 +581,21 @@ export default function ComparativoLojas() {
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis dataKey="loja" angle={-45} textAnchor="end" height={80} className="text-xs" />
                     <YAxis className="text-xs" />
-                    <Tooltip formatter={(value: number, name: string) => 
-                      name === "atingimentoMeta" ? formatPercent(value) : formatCurrency(value)
-                    } />
+                    <Tooltip
+                      formatter={(value: number, name: string) =>
+                        name === "atingimentoMeta" ? formatPercent(value) : formatCurrency(value)
+                      }
+                    />
                     <Legend />
                     <Bar dataKey="meta" fill="#94a3b8" name="Meta" />
                     <Bar dataKey="faturamento" fill="#8b5cf6" name="Realizado" />
-                    <Line type="monotone" dataKey="atingimentoMeta" stroke="#f59e0b" name="% Atingimento" strokeWidth={2} />
+                    <Line
+                      type="monotone"
+                      dataKey="atingimentoMeta"
+                      stroke="#f59e0b"
+                      name="% Atingimento"
+                      strokeWidth={2}
+                    />
                   </ComposedChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -644,14 +637,16 @@ export default function ComparativoLojas() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={400}>
-                <RadarChart data={comparativoData.map(d => ({
-                  loja: d.loja,
-                  Faturamento: (d.faturamento / Math.max(...comparativoData.map(x => x.faturamento))) * 100,
-                  Rentáveis: d.percentualRentaveis,
-                  'Ating. Meta': d.atingimentoMeta > 100 ? 100 : d.atingimentoMeta,
-                  GoodLife: (d.goodlife / Math.max(...comparativoData.map(x => x.goodlife))) * 100,
-                  Perfumaria: (d.perfumaria / Math.max(...comparativoData.map(x => x.perfumaria))) * 100
-                }))}>
+                <RadarChart
+                  data={comparativoData.map((d) => ({
+                    loja: d.loja,
+                    Faturamento: (d.faturamento / Math.max(...comparativoData.map((x) => x.faturamento))) * 100,
+                    Rentáveis: d.percentualRentaveis,
+                    "Ating. Meta": d.atingimentoMeta > 100 ? 100 : d.atingimentoMeta,
+                    GoodLife: (d.goodlife / Math.max(...comparativoData.map((x) => x.goodlife))) * 100,
+                    Perfumaria: (d.perfumaria / Math.max(...comparativoData.map((x) => x.perfumaria))) * 100,
+                  }))}
+                >
                   <PolarGrid />
                   <PolarAngleAxis dataKey="loja" />
                   <PolarRadiusAxis angle={90} domain={[0, 100]} />
@@ -677,13 +672,21 @@ export default function ComparativoLojas() {
               <CardContent>
                 <div className="space-y-3">
                   {vendedoresDestaque.slice(0, 10).map((vendedor, index) => (
-                    <div key={`${vendedor.nome}-${vendedor.loja}`} className="flex items-center gap-4 p-3 rounded-lg hover:bg-accent/50 transition-colors">
-                      <div className={`flex items-center justify-center w-10 h-10 rounded-full font-bold ${
-                        index === 0 ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-white shadow-lg' : 
-                        index === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-500 text-white shadow-md' : 
-                        index === 2 ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-md' : 
-                        'bg-secondary text-secondary-foreground'
-                      }`}>
+                    <div
+                      key={`${vendedor.nome}-${vendedor.loja}`}
+                      className="flex items-center gap-4 p-3 rounded-lg hover:bg-accent/50 transition-colors"
+                    >
+                      <div
+                        className={`flex items-center justify-center w-10 h-10 rounded-full font-bold ${
+                          index === 0
+                            ? "bg-gradient-to-br from-yellow-400 to-yellow-600 text-white shadow-lg"
+                            : index === 1
+                              ? "bg-gradient-to-br from-gray-300 to-gray-500 text-white shadow-md"
+                              : index === 2
+                                ? "bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-md"
+                                : "bg-secondary text-secondary-foreground"
+                        }`}
+                      >
                         <span>{index + 1}</span>
                       </div>
                       <div className="flex-1 min-w-0">
@@ -691,9 +694,7 @@ export default function ComparativoLojas() {
                         <p className="text-xs text-muted-foreground">{vendedor.loja}</p>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-primary">
-                          {formatCurrency(vendedor.total_rentaveis)}
-                        </p>
+                        <p className="font-bold text-primary">{formatCurrency(vendedor.total_rentaveis)}</p>
                       </div>
                     </div>
                   ))}
@@ -713,7 +714,7 @@ export default function ComparativoLojas() {
                 <div className="space-y-6">
                   {comparativoData.map((loja) => {
                     const funcionariosLoja = participacaoFuncionarios
-                      .filter(f => f.loja === loja.loja)
+                      .filter((f) => f.loja === loja.loja)
                       .sort((a, b) => b.percentual - a.percentual)
                       .slice(0, 5);
 
@@ -728,7 +729,7 @@ export default function ComparativoLojas() {
                                 <span className="font-medium">{func.percentual.toFixed(1)}%</span>
                               </div>
                               <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                                <div 
+                                <div
                                   className="h-full bg-gradient-to-r from-chart-2 to-chart-3 transition-all"
                                   style={{ width: `${func.percentual}%` }}
                                 />
@@ -763,18 +764,21 @@ export default function ComparativoLojas() {
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {comparativoData.map((loja, lojaIdx) => {
                   const topFuncionarios = participacaoFuncionarios
-                    .filter(f => f.loja === loja.loja)
+                    .filter((f) => f.loja === loja.loja)
                     .sort((a, b) => b.percentual - a.percentual)
                     .slice(0, 3);
 
                   const colors = [
-                    'from-yellow-400 to-yellow-600',
-                    'from-gray-300 to-gray-500', 
-                    'from-orange-400 to-orange-600'
+                    "from-yellow-400 to-yellow-600",
+                    "from-gray-300 to-gray-500",
+                    "from-orange-400 to-orange-600",
                   ];
 
                   return (
-                    <Card key={loja.loja} className="overflow-hidden hover:shadow-xl transition-shadow duration-300 border-2 hover:border-primary/40">
+                    <Card
+                      key={loja.loja}
+                      className="overflow-hidden hover:shadow-xl transition-shadow duration-300 border-2 hover:border-primary/40"
+                    >
                       <CardHeader className="bg-gradient-to-r from-primary/10 to-chart-2/10 pb-3">
                         <div className="flex items-center gap-2">
                           <Store className="h-4 w-4 text-primary" />
@@ -788,22 +792,26 @@ export default function ComparativoLojas() {
                       <CardContent className="p-4">
                         <div className="space-y-3">
                           {topFuncionarios.map((func, idx) => (
-                            <div 
-                              key={`${func.nome}-${idx}`} 
+                            <div
+                              key={`${func.nome}-${idx}`}
                               className={`flex items-center gap-3 p-3 rounded-lg transition-all hover:scale-102 ${
-                                idx === 0 ? 'bg-gradient-to-r from-yellow-400/10 to-yellow-600/10 border border-yellow-500/30' :
-                                idx === 1 ? 'bg-gradient-to-r from-gray-300/10 to-gray-500/10 border border-gray-400/30' :
-                                'bg-gradient-to-r from-orange-400/10 to-orange-600/10 border border-orange-500/30'
+                                idx === 0
+                                  ? "bg-gradient-to-r from-yellow-400/10 to-yellow-600/10 border border-yellow-500/30"
+                                  : idx === 1
+                                    ? "bg-gradient-to-r from-gray-300/10 to-gray-500/10 border border-gray-400/30"
+                                    : "bg-gradient-to-r from-orange-400/10 to-orange-600/10 border border-orange-500/30"
                               }`}
                             >
-                              <div className={`flex items-center justify-center w-9 h-9 rounded-full font-bold text-white shadow-lg bg-gradient-to-br ${colors[idx]}`}>
+                              <div
+                                className={`flex items-center justify-center w-9 h-9 rounded-full font-bold text-white shadow-lg bg-gradient-to-br ${colors[idx]}`}
+                              >
                                 {idx + 1}
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="font-semibold text-sm truncate">{func.nome}</p>
                                 <div className="flex items-center gap-2 mt-1">
                                   <div className="flex-1 h-2 bg-secondary rounded-full overflow-hidden">
-                                    <div 
+                                    <div
                                       className={`h-full bg-gradient-to-r ${colors[idx]} transition-all`}
                                       style={{ width: `${func.percentual}%` }}
                                     />
@@ -827,7 +835,7 @@ export default function ComparativoLojas() {
             </CardContent>
           </Card>
 
-          {/* Comparativo de % Participação entre Lojas */}
+          {/* Comparativo de % Participação entre Vendedores */}
           <Card className="col-span-full bg-gradient-to-br from-chart-3/5 via-chart-4/5 to-primary/5 border-2 border-chart-3/20">
             <CardHeader className="bg-gradient-to-r from-chart-3/10 to-primary/10 border-b border-chart-3/20">
               <CardTitle className="flex items-center gap-3 text-xl">
@@ -835,23 +843,25 @@ export default function ComparativoLojas() {
                   <Percent className="h-6 w-6 text-white" />
                 </div>
                 <span className="bg-gradient-to-r from-chart-3 to-primary bg-clip-text text-transparent">
-                  Comparativo de Participação em Rentáveis entre Lojas
+                  Comparativo de Participação em Rentáveis entre Vendedores
                 </span>
               </CardTitle>
               <p className="text-sm text-muted-foreground mt-1 ml-11">
-                Distribuição percentual das vendas rentáveis entre todas as lojas analisadas
+                Distribuição percentual das vendas rentáveis entre todos os vendedores das lojas analisadas
               </p>
             </CardHeader>
             <CardContent className="p-6">
               <div className="space-y-4">
                 {(() => {
-                  const totalRentaveisGeral = comparativoData.reduce((sum, d) => sum + d.rentaveis, 0);
-                  const dadosParticipacao = comparativoData
-                    .map(loja => ({
-                      ...loja,
-                      participacaoPercentual: totalRentaveisGeral > 0 ? (loja.rentaveis / totalRentaveisGeral) * 100 : 0
+                  const totalRentaveisGeral = participacaoFuncionarios.reduce((sum, f) => sum + f.valor_rentaveis, 0);
+                  const dadosParticipacao = participacaoFuncionarios
+                    .map((func) => ({
+                      ...func,
+                      participacaoPercentual:
+                        totalRentaveisGeral > 0 ? (func.valor_rentaveis / totalRentaveisGeral) * 100 : 0,
                     }))
-                    .sort((a, b) => b.participacaoPercentual - a.participacaoPercentual);
+                    .sort((a, b) => b.participacaoPercentual - a.participacaoPercentual)
+                    .slice(0, 20); // Top 20 vendedores
 
                   return (
                     <>
@@ -871,51 +881,71 @@ export default function ComparativoLojas() {
                           <CardContent className="p-4">
                             <div className="flex items-center justify-between">
                               <div>
-                                <p className="text-sm text-muted-foreground">Média por Loja</p>
-                                <p className="text-2xl font-bold text-chart-2">
-                                  {formatCurrency(totalRentaveisGeral / comparativoData.length)}
-                                </p>
+                                <p className="text-sm text-muted-foreground">Total de Vendedores</p>
+                                <p className="text-2xl font-bold text-chart-2">{participacaoFuncionarios.length}</p>
                               </div>
-                              <Store className="h-8 w-8 text-chart-2" />
+                              <Users className="h-8 w-8 text-chart-2" />
                             </div>
                           </CardContent>
                         </Card>
                       </div>
 
                       <div className="space-y-3">
-                        {dadosParticipacao.map((loja, idx) => {
+                        {dadosParticipacao.map((vendedor, idx) => {
                           const isTop3 = idx < 3;
-                          const colors = ['from-yellow-400 to-yellow-600', 'from-gray-300 to-gray-500', 'from-orange-400 to-orange-600'];
-                          
+                          const colors = [
+                            "from-yellow-400 to-yellow-600",
+                            "from-gray-300 to-gray-500",
+                            "from-orange-400 to-orange-600",
+                          ];
+
                           return (
-                            <div 
-                              key={loja.loja}
+                            <div
+                              key={`${vendedor.nome}-${vendedor.loja}`}
                               className={`p-4 rounded-lg transition-all hover:shadow-lg ${
-                                isTop3 ? 'bg-gradient-to-r ' + colors[idx] + '/10 border-2 border-' + (idx === 0 ? 'yellow-500/40' : idx === 1 ? 'gray-400/40' : 'orange-500/40') : 'bg-card border border-border'
+                                isTop3
+                                  ? "bg-gradient-to-r " +
+                                    colors[idx] +
+                                    "/10 border-2 border-" +
+                                    (idx === 0 ? "yellow-500/40" : idx === 1 ? "gray-400/40" : "orange-500/40")
+                                  : "bg-card border border-border"
                               }`}
                             >
                               <div className="flex items-center gap-4 mb-3">
-                                <div className={`flex items-center justify-center w-10 h-10 rounded-full font-bold text-white shadow-lg ${
-                                  isTop3 ? 'bg-gradient-to-br ' + colors[idx] : 'bg-secondary text-secondary-foreground'
-                                }`}>
+                                <div
+                                  className={`flex items-center justify-center w-10 h-10 rounded-full font-bold text-white shadow-lg ${
+                                    isTop3
+                                      ? "bg-gradient-to-br " + colors[idx]
+                                      : "bg-secondary text-secondary-foreground"
+                                  }`}
+                                >
                                   {idx + 1}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p className="font-bold text-base truncate">{loja.loja}</p>
-                                  <p className="text-xs text-muted-foreground">Rentáveis: {formatCurrency(loja.rentaveis)}</p>
+                                  <p className="font-bold text-base truncate">{vendedor.nome}</p>
+                                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                    <Store className="h-3 w-3" />
+                                    {vendedor.loja}
+                                  </p>
                                 </div>
                                 <div className="text-right">
-                                  <p className="text-2xl font-bold text-primary">{loja.participacaoPercentual.toFixed(1)}%</p>
-                                  <p className="text-xs text-muted-foreground">do total</p>
+                                  <p className="text-2xl font-bold text-primary">
+                                    {vendedor.participacaoPercentual.toFixed(2)}%
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {formatCurrency(vendedor.valor_rentaveis)}
+                                  </p>
                                 </div>
                               </div>
                               <div className="relative">
                                 <div className="h-4 bg-secondary rounded-full overflow-hidden">
-                                  <div 
+                                  <div
                                     className={`h-full transition-all duration-500 ${
-                                      isTop3 ? 'bg-gradient-to-r ' + colors[idx] : 'bg-gradient-to-r from-primary to-chart-2'
+                                      isTop3
+                                        ? "bg-gradient-to-r " + colors[idx]
+                                        : "bg-gradient-to-r from-primary to-chart-2"
                                     }`}
-                                    style={{ width: `${loja.participacaoPercentual}%` }}
+                                    style={{ width: `${vendedor.participacaoPercentual}%` }}
                                   />
                                 </div>
                               </div>
@@ -934,9 +964,7 @@ export default function ComparativoLojas() {
         <Card>
           <CardContent className="text-center py-12">
             <BarChart className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-foreground mb-2">
-              Nenhum dado disponível
-            </h3>
+            <h3 className="text-lg font-medium text-foreground mb-2">Nenhum dado disponível</h3>
             <p className="text-muted-foreground">
               Selecione as lojas e clique em "Gerar Comparativos" para visualizar os dados.
             </p>
