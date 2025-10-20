@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { useCallfarmaAPI } from '@/hooks/useCallfarmaAPI';
 import { usePeriodoAtual } from '@/hooks/usePeriodoAtual';
 import { Navigate, useNavigate } from 'react-router-dom';
+import { useToast } from '@/hooks/use-toast';
 import { 
   BarChart, 
   LineChart, 
@@ -75,6 +76,7 @@ export default function ComparativoLojas() {
   const periodoAtual = usePeriodoAtual();
   const { user, loading: authLoading } = useAuth();
   const { buscarVendasFuncionarios } = useCallfarmaAPI();
+  const { toast } = useToast();
   
   const [lojas, setLojas] = useState<LojaData[]>([]);
   const [selectedLojas, setSelectedLojas] = useState<number[]>([]);
@@ -147,44 +149,61 @@ export default function ComparativoLojas() {
         const loja = lojas.find(l => l.id === lojaId);
         if (!loja) return null;
 
-        // Buscar vendas da loja via API
+        // Buscar vendas da loja via API - com tratamento de erro
         // Como a API busca todas as lojas, vamos filtrar localmente
-        const [vendasGeral, vendasRentaveis, vendasGoodlife, vendasPerfumaria, vendasConveniencia] = await Promise.all([
-          buscarVendasFuncionarios({
-            dataInicio,
-            dataFim
-          }),
-          buscarVendasFuncionarios({
+        const cdfil = parseInt(loja.numero);
+        const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => v.CDFIL === cdfil);
+
+        // Função auxiliar para buscar com retry em caso de timeout
+        const buscarComRetry = async (filtros: any, tentativas = 2) => {
+          for (let i = 0; i < tentativas; i++) {
+            try {
+              const resultado = await buscarVendasFuncionarios(filtros);
+              return resultado || [];
+            } catch (error) {
+              console.warn(`Tentativa ${i + 1} falhou para`, filtros, error);
+              if (i === tentativas - 1) {
+                return []; // Retorna array vazio na última tentativa
+              }
+              // Aguardar 1 segundo antes de tentar novamente
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          }
+          return [];
+        };
+
+        // Buscar cada categoria separadamente com retry
+        const [vendasRentaveis, vendasGoodlife, vendasPerfumaria, vendasConveniencia] = await Promise.all([
+          buscarComRetry({
             dataInicio,
             dataFim,
             filtroGrupos: '20,25'
           }),
-          buscarVendasFuncionarios({
+          buscarComRetry({
             dataInicio,
             dataFim,
             filtroGrupos: '22'
           }),
-          buscarVendasFuncionarios({
+          buscarComRetry({
             dataInicio,
             dataFim,
             filtroGrupos: '46'
           }),
-          buscarVendasFuncionarios({
+          buscarComRetry({
             dataInicio,
             dataFim,
             filtroGrupos: '36,13'
           })
         ]);
 
-        // Filtrar por loja usando o CDFIL
-        const cdfil = parseInt(loja.numero);
-        const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => v.CDFIL === cdfil);
-
-        const faturamento = filtrarPorLoja(vendasGeral).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
+        // Calcular totais por categoria
         const rentaveis = filtrarPorLoja(vendasRentaveis).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
         const goodlife = filtrarPorLoja(vendasGoodlife).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
         const perfumaria = filtrarPorLoja(vendasPerfumaria).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
         const conveniencia = filtrarPorLoja(vendasConveniencia).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
+        
+        // Faturamento = soma de todas as categorias
+        const faturamento = rentaveis + goodlife + perfumaria + conveniencia;
 
         const meta = metasLojas.get(lojaId) || 0;
         const atingimentoMeta = meta > 0 ? (faturamento / meta) * 100 : 0;
@@ -211,6 +230,11 @@ export default function ComparativoLojas() {
 
     } catch (error) {
       console.error('Erro ao buscar comparativos:', error);
+      toast({
+        title: "Erro ao buscar dados",
+        description: "Alguns dados podem não ter sido carregados devido a timeout na API externa. Tente novamente ou reduza o número de lojas.",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -222,24 +246,41 @@ export default function ComparativoLojas() {
         const loja = lojas.find(l => l.id === lojaId);
         if (!loja) return [];
 
+        // Filtrar por loja usando o CDFIL
+        const cdfil = parseInt(loja.numero);
+        const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => v.CDFIL === cdfil);
+
+        // Função auxiliar para buscar com retry
+        const buscarComRetry = async (filtros: any, tentativas = 2) => {
+          for (let i = 0; i < tentativas; i++) {
+            try {
+              const resultado = await buscarVendasFuncionarios(filtros);
+              return resultado || [];
+            } catch (error) {
+              console.warn(`Tentativa ${i + 1} falhou para vendedores`, filtros, error);
+              if (i === tentativas - 1) {
+                return []; // Retorna array vazio na última tentativa
+              }
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          }
+          return [];
+        };
+
         const [vendasRentaveis, vendasGoodlife] = await Promise.all([
-          buscarVendasFuncionarios({
+          buscarComRetry({
             dataInicio,
             dataFim,
             filtroGrupos: '20,25',
             groupBy: 'scefun.CDFUN,scefun.NOME'
           }),
-          buscarVendasFuncionarios({
+          buscarComRetry({
             dataInicio,
             dataFim,
             filtroGrupos: '22',
             groupBy: 'scefun.CDFUN,scefun.NOME'
           })
         ]);
-
-        // Filtrar por loja usando o CDFIL
-        const cdfil = parseInt(loja.numero);
-        const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => v.CDFIL === cdfil);
 
         const funcionariosMap = new Map<string, VendedorDestaque>();
 
