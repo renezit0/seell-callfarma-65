@@ -69,17 +69,17 @@ export default function Graficos() {
   const hoje = new Date();
   const diaAtual = hoje.getDate();
   
-  // Se hoje é antes do dia 20, usar dia 21 do mês anterior
-  // Se hoje é dia 20 ou depois, usar dia 21 do mês atual
+  // Se hoje é dia 21 ou depois, usar dia 21 do mês atual
+  // Se hoje é antes do dia 21, usar dia 21 do mês anterior
   const getDataInicioDefault = () => {
-    if (diaAtual < 20) {
-      // Dia 21 do mês anterior
-      const mesAnterior = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 21);
-      return format(mesAnterior, 'yyyy-MM-dd');
-    } else {
+    if (diaAtual >= 21) {
       // Dia 21 do mês atual
       const mesAtual = new Date(hoje.getFullYear(), hoje.getMonth(), 21);
       return format(mesAtual, 'yyyy-MM-dd');
+    } else {
+      // Dia 21 do mês anterior
+      const mesAnterior = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 21);
+      return format(mesAnterior, 'yyyy-MM-dd');
     }
   };
   
