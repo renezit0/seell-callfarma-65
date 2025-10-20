@@ -155,86 +155,86 @@ export default function ComparativoLojas() {
       setLoading(true);
       console.log('🔍 Buscando comparativos para', selectedLojas.length, 'lojas...');
 
-      const promises = selectedLojas.map(async (lojaId) => {
+      // OTIMIZAÇÃO: Buscar dados de TODAS as lojas de uma vez e filtrar no frontend
+      // Isso reduz de ~40 chamadas para apenas 7 chamadas!
+      
+      console.log('⚡ Buscando vendas gerais...');
+      const [vendasGeral, vendasRentaveis, vendasGoodlife, vendasPerfumaria, vendasConveniencia] = await Promise.all([
+        callfarmaAPI.buscarVendasFuncionarios({ 
+          dataInicio, 
+          dataFim, 
+          groupBy: 'scefilial.CDFIL' 
+        }),
+        callfarmaAPI.buscarVendasFuncionarios({ 
+          dataInicio, 
+          dataFim, 
+          filtroGrupos: '20,25', 
+          groupBy: 'scefilial.CDFIL' 
+        }),
+        callfarmaAPI.buscarVendasFuncionarios({ 
+          dataInicio, 
+          dataFim, 
+          filtroGrupos: '22', 
+          groupBy: 'scefilial.CDFIL' 
+        }),
+        callfarmaAPI.buscarVendasFuncionarios({ 
+          dataInicio, 
+          dataFim, 
+          filtroGrupos: '46', 
+          groupBy: 'scefilial.CDFIL' 
+        }),
+        callfarmaAPI.buscarVendasFuncionarios({ 
+          dataInicio, 
+          dataFim, 
+          filtroGrupos: '36,13', 
+          groupBy: 'scefilial.CDFIL' 
+        })
+      ]);
+
+      console.log('⚡ Processando dados das lojas...');
+      const resultados = selectedLojas.map((lojaId) => {
         const loja = lojas.find(l => l.id === lojaId);
         if (!loja) return null;
 
         const cdfil = parseInt(loja.numero);
+        
+        const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => 
+          v.CDFIL === cdfil && v.NOMEFIL && !v.NOMEFIL.includes('OUTRA')
+        );
 
-        try {
-          // 1. Buscar faturamento GERAL da loja (groupBy=scefilial.CDFIL sem filtro)
-          const vendasGeral = await callfarmaAPI.buscarVendasFuncionarios({ 
-            dataInicio, 
-            dataFim, 
-            groupBy: 'scefilial.CDFIL' 
-          });
-          const faturamento = vendasGeral
-            .filter(v => v.CDFIL === cdfil && v.NOMEFIL && !v.NOMEFIL.includes('OUTRA'))
-            .reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
+        const faturamento = filtrarPorLoja(vendasGeral).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
+        const rentaveis = filtrarPorLoja(vendasRentaveis).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
+        const goodlife = filtrarPorLoja(vendasGoodlife).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
+        const perfumaria = filtrarPorLoja(vendasPerfumaria).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
+        const conveniencia = filtrarPorLoja(vendasConveniencia).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
 
-          // 2. Buscar vendas por categoria (groupBy=scefilial.CDFIL com filtroGrupos)
-          const [vendasRentaveis, vendasGoodlife, vendasPerfumaria, vendasConveniencia] = await Promise.all([
-            callfarmaAPI.buscarVendasFuncionarios({ 
-              dataInicio, 
-              dataFim, 
-              filtroGrupos: '20,25', 
-              groupBy: 'scefilial.CDFIL' 
-            }),
-            callfarmaAPI.buscarVendasFuncionarios({ 
-              dataInicio, 
-              dataFim, 
-              filtroGrupos: '22', 
-              groupBy: 'scefilial.CDFIL' 
-            }),
-            callfarmaAPI.buscarVendasFuncionarios({ 
-              dataInicio, 
-              dataFim, 
-              filtroGrupos: '46', 
-              groupBy: 'scefilial.CDFIL' 
-            }),
-            callfarmaAPI.buscarVendasFuncionarios({ 
-              dataInicio, 
-              dataFim, 
-              filtroGrupos: '36,13', 
-              groupBy: 'scefilial.CDFIL' 
-            })
-          ]);
+        const meta = metasLojas.get(lojaId) || 0;
+        const atingimentoMeta = meta > 0 ? (faturamento / meta) * 100 : 0;
+        const percentualRentaveis = faturamento > 0 ? (rentaveis / faturamento) * 100 : 0;
 
-          const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => 
-            v.CDFIL === cdfil && v.NOMEFIL && !v.NOMEFIL.includes('OUTRA')
-          );
-          const rentaveis = filtrarPorLoja(vendasRentaveis).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
-          const goodlife = filtrarPorLoja(vendasGoodlife).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
-          const perfumaria = filtrarPorLoja(vendasPerfumaria).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
-          const conveniencia = filtrarPorLoja(vendasConveniencia).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
+        return {
+          loja: loja.nome,
+          lojaNumero: loja.numero,
+          faturamento,
+          rentaveis,
+          goodlife,
+          perfumaria,
+          conveniencia,
+          percentualRentaveis,
+          meta,
+          atingimentoMeta
+        };
+      }).filter(Boolean) as ComparativoData[];
 
-          const meta = metasLojas.get(lojaId) || 0;
-          const atingimentoMeta = meta > 0 ? (faturamento / meta) * 100 : 0;
-          const percentualRentaveis = faturamento > 0 ? (rentaveis / faturamento) * 100 : 0;
-
-          return {
-            loja: loja.nome,
-            lojaNumero: loja.numero,
-            faturamento,
-            rentaveis,
-            goodlife,
-            perfumaria,
-            conveniencia,
-            percentualRentaveis,
-            meta,
-            atingimentoMeta
-          };
-        } catch (error) {
-          console.error(`Erro ao buscar dados da loja ${loja.nome}:`, error);
-          return null;
-        }
-      });
-
-      const resultados = (await Promise.all(promises)).filter(Boolean) as ComparativoData[];
       setComparativoData(resultados);
 
-      await buscarVendedoresDestaque();
-      await buscarParticipacaoFuncionarios();
+      console.log('⚡ Buscando vendedores e participação...');
+      await Promise.all([
+        buscarVendedoresDestaque(),
+        buscarParticipacaoFuncionarios()
+      ]);
+
+      console.log('✅ Dados carregados com sucesso!');
 
     } catch (error) {
       console.error('Erro ao buscar comparativos:', error);
@@ -250,74 +250,67 @@ export default function ComparativoLojas() {
 
   const buscarVendedoresDestaque = async () => {
     try {
-      const promises = selectedLojas.map(async (lojaId) => {
+      // OTIMIZAÇÃO: Buscar vendas de funcionários de TODAS as lojas de uma vez
+      const [vendasRentaveis, vendasGoodlife] = await Promise.all([
+        callfarmaAPI.buscarVendasFuncionarios({ 
+          dataInicio, 
+          dataFim, 
+          filtroGrupos: '20,25', 
+          groupBy: 'scefilial.CDFIL,scefun.CDFUN' 
+        }),
+        callfarmaAPI.buscarVendasFuncionarios({ 
+          dataInicio, 
+          dataFim, 
+          filtroGrupos: '22', 
+          groupBy: 'scefilial.CDFIL,scefun.CDFUN' 
+        })
+      ]);
+
+      const funcionariosMap = new Map<string, VendedorDestaque>();
+
+      selectedLojas.forEach(lojaId => {
         const loja = lojas.find(l => l.id === lojaId);
-        if (!loja) return [];
+        if (!loja) return;
 
         const cdfil = parseInt(loja.numero);
+        const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => 
+          v.CDFIL === cdfil && v.NOME && !v.NOME.includes('OUTRA') && !v.NOME.includes('ESPONTANEA')
+        );
 
-        try {
-          const [vendasRentaveis, vendasGoodlife] = await Promise.all([
-            callfarmaAPI.buscarVendasFuncionarios({ 
-              dataInicio, 
-              dataFim, 
-              filtroGrupos: '20,25', 
-              groupBy: 'scefilial.CDFIL,scefun.CDFUN' 
-            }),
-            callfarmaAPI.buscarVendasFuncionarios({ 
-              dataInicio, 
-              dataFim, 
-              filtroGrupos: '22', 
-              groupBy: 'scefilial.CDFIL,scefun.CDFUN' 
-            })
-          ]);
+        filtrarPorLoja(vendasRentaveis || []).forEach(v => {
+          const key = `${v.CDFUN}-${v.CDFIL}`;
+          if (!funcionariosMap.has(key)) {
+            funcionariosMap.set(key, {
+              nome: v.NOME,
+              loja: loja.nome,
+              total_rentaveis: 0,
+              total_goodlife: 0,
+              total_geral: 0
+            });
+          }
+          const func = funcionariosMap.get(key)!;
+          func.total_rentaveis += v.TOTAL_VALOR || 0;
+          func.total_geral += v.TOTAL_VALOR || 0;
+        });
 
-          const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => 
-            v.CDFIL === cdfil && v.NOME && !v.NOME.includes('OUTRA')
-          );
-
-          const funcionariosMap = new Map<string, VendedorDestaque>();
-
-          filtrarPorLoja(vendasRentaveis || []).forEach(v => {
-            const key = `${v.CDFUN}-${v.CDFIL}`;
-            if (!funcionariosMap.has(key)) {
-              funcionariosMap.set(key, {
-                nome: v.NOME,
-                loja: loja.nome,
-                total_rentaveis: 0,
-                total_goodlife: 0,
-                total_geral: 0
-              });
-            }
-            const func = funcionariosMap.get(key)!;
-            func.total_rentaveis += v.TOTAL_VALOR || 0;
-            func.total_geral += v.TOTAL_VALOR || 0;
-          });
-
-          filtrarPorLoja(vendasGoodlife || []).forEach(v => {
-            const key = `${v.CDFUN}-${v.CDFIL}`;
-            if (!funcionariosMap.has(key)) {
-              funcionariosMap.set(key, {
-                nome: v.NOME,
-                loja: loja.nome,
-                total_rentaveis: 0,
-                total_goodlife: 0,
-                total_geral: 0
-              });
-            }
-            const func = funcionariosMap.get(key)!;
-            func.total_goodlife += v.TOTAL_VALOR || 0;
-            func.total_geral += v.TOTAL_VALOR || 0;
-          });
-
-          return Array.from(funcionariosMap.values());
-        } catch (error) {
-          console.error(`Erro ao buscar vendedores da loja ${loja.nome}:`, error);
-          return [];
-        }
+        filtrarPorLoja(vendasGoodlife || []).forEach(v => {
+          const key = `${v.CDFUN}-${v.CDFIL}`;
+          if (!funcionariosMap.has(key)) {
+            funcionariosMap.set(key, {
+              nome: v.NOME,
+              loja: loja.nome,
+              total_rentaveis: 0,
+              total_goodlife: 0,
+              total_geral: 0
+            });
+          }
+          const func = funcionariosMap.get(key)!;
+          func.total_goodlife += v.TOTAL_VALOR || 0;
+          func.total_geral += v.TOTAL_VALOR || 0;
+        });
       });
 
-      const todosVendedores = (await Promise.all(promises)).flat();
+      const todosVendedores = Array.from(funcionariosMap.values());
       const top10 = todosVendedores
         .sort((a, b) => b.total_rentaveis - a.total_rentaveis)
         .slice(0, 10);
@@ -330,41 +323,39 @@ export default function ComparativoLojas() {
 
   const buscarParticipacaoFuncionarios = async () => {
     try {
-      const promises = selectedLojas.map(async (lojaId) => {
+      // OTIMIZAÇÃO: Buscar vendas de funcionários de TODAS as lojas de uma vez
+      const vendasRentaveis = await callfarmaAPI.buscarVendasFuncionarios({
+        dataInicio,
+        dataFim,
+        filtroGrupos: '20,25',
+        groupBy: 'scefilial.CDFIL,scefun.CDFUN',
+        orderBy: 'TOTAL_VLR_VE desc'
+      });
+
+      const todasParticipacoes: ParticipacaoFuncionario[] = [];
+
+      selectedLojas.forEach(lojaId => {
         const loja = lojas.find(l => l.id === lojaId);
-        if (!loja) return [];
+        if (!loja) return;
 
         const cdfil = parseInt(loja.numero);
+        const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => 
+          v.CDFIL === cdfil && v.NOME && !v.NOME.includes('OUTRA') && !v.NOME.includes('ESPONTANEA')
+        );
 
-        try {
-          const vendasRentaveis = await callfarmaAPI.buscarVendasFuncionarios({
-            dataInicio,
-            dataFim,
-            filtroGrupos: '20,25',
-            groupBy: 'scefilial.CDFIL,scefun.CDFUN',
-            orderBy: 'TOTAL_VLR_VE desc'
-          });
+        const vendasFiltradas = filtrarPorLoja(vendasRentaveis || []);
+        const totalRentaveisLoja = vendasFiltradas.reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
 
-          const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => 
-            v.CDFIL === cdfil && v.NOME && !v.NOME.includes('OUTRA')
-          );
-
-          const vendasFiltradas = filtrarPorLoja(vendasRentaveis || []);
-          const totalRentaveisLoja = vendasFiltradas.reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
-
-          return vendasFiltradas.map(v => ({
+        vendasFiltradas.forEach(v => {
+          todasParticipacoes.push({
             nome: v.NOME,
             loja: loja.nome,
             valor_rentaveis: v.TOTAL_VALOR || 0,
             percentual: totalRentaveisLoja > 0 ? ((v.TOTAL_VALOR || 0) / totalRentaveisLoja) * 100 : 0
-          }));
-        } catch (error) {
-          console.error(`Erro ao buscar participação da loja ${loja.nome}:`, error);
-          return [];
-        }
+          });
+        });
       });
 
-      const todasParticipacoes = (await Promise.all(promises)).flat();
       setParticipacaoFuncionarios(todasParticipacoes);
     } catch (error) {
       console.error('Erro ao buscar participação de funcionários:', error);
@@ -832,6 +823,109 @@ export default function ComparativoLojas() {
                     </Card>
                   );
                 })}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Comparativo de % Participação entre Lojas */}
+          <Card className="col-span-full bg-gradient-to-br from-chart-3/5 via-chart-4/5 to-primary/5 border-2 border-chart-3/20">
+            <CardHeader className="bg-gradient-to-r from-chart-3/10 to-primary/10 border-b border-chart-3/20">
+              <CardTitle className="flex items-center gap-3 text-xl">
+                <div className="p-2 bg-gradient-to-br from-chart-3 to-chart-4 rounded-lg shadow-lg">
+                  <Percent className="h-6 w-6 text-white" />
+                </div>
+                <span className="bg-gradient-to-r from-chart-3 to-primary bg-clip-text text-transparent">
+                  Comparativo de Participação em Rentáveis entre Lojas
+                </span>
+              </CardTitle>
+              <p className="text-sm text-muted-foreground mt-1 ml-11">
+                Distribuição percentual das vendas rentáveis entre todas as lojas analisadas
+              </p>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="space-y-4">
+                {(() => {
+                  const totalRentaveisGeral = comparativoData.reduce((sum, d) => sum + d.rentaveis, 0);
+                  const dadosParticipacao = comparativoData
+                    .map(loja => ({
+                      ...loja,
+                      participacaoPercentual: totalRentaveisGeral > 0 ? (loja.rentaveis / totalRentaveisGeral) * 100 : 0
+                    }))
+                    .sort((a, b) => b.participacaoPercentual - a.participacaoPercentual);
+
+                  return (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <Card className="bg-gradient-to-br from-primary/10 to-chart-2/10">
+                          <CardContent className="p-4">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm text-muted-foreground">Total Rentáveis</p>
+                                <p className="text-2xl font-bold text-primary">{formatCurrency(totalRentaveisGeral)}</p>
+                              </div>
+                              <DollarSign className="h-8 w-8 text-primary" />
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card className="bg-gradient-to-br from-chart-2/10 to-chart-3/10">
+                          <CardContent className="p-4">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm text-muted-foreground">Média por Loja</p>
+                                <p className="text-2xl font-bold text-chart-2">
+                                  {formatCurrency(totalRentaveisGeral / comparativoData.length)}
+                                </p>
+                              </div>
+                              <Store className="h-8 w-8 text-chart-2" />
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+
+                      <div className="space-y-3">
+                        {dadosParticipacao.map((loja, idx) => {
+                          const isTop3 = idx < 3;
+                          const colors = ['from-yellow-400 to-yellow-600', 'from-gray-300 to-gray-500', 'from-orange-400 to-orange-600'];
+                          
+                          return (
+                            <div 
+                              key={loja.loja}
+                              className={`p-4 rounded-lg transition-all hover:shadow-lg ${
+                                isTop3 ? 'bg-gradient-to-r ' + colors[idx] + '/10 border-2 border-' + (idx === 0 ? 'yellow-500/40' : idx === 1 ? 'gray-400/40' : 'orange-500/40') : 'bg-card border border-border'
+                              }`}
+                            >
+                              <div className="flex items-center gap-4 mb-3">
+                                <div className={`flex items-center justify-center w-10 h-10 rounded-full font-bold text-white shadow-lg ${
+                                  isTop3 ? 'bg-gradient-to-br ' + colors[idx] : 'bg-secondary text-secondary-foreground'
+                                }`}>
+                                  {idx + 1}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-bold text-base truncate">{loja.loja}</p>
+                                  <p className="text-xs text-muted-foreground">Rentáveis: {formatCurrency(loja.rentaveis)}</p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-2xl font-bold text-primary">{loja.participacaoPercentual.toFixed(1)}%</p>
+                                  <p className="text-xs text-muted-foreground">do total</p>
+                                </div>
+                              </div>
+                              <div className="relative">
+                                <div className="h-4 bg-secondary rounded-full overflow-hidden">
+                                  <div 
+                                    className={`h-full transition-all duration-500 ${
+                                      isTop3 ? 'bg-gradient-to-r ' + colors[idx] : 'bg-gradient-to-r from-primary to-chart-2'
+                                    }`}
+                                    style={{ width: `${loja.participacaoPercentual}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </CardContent>
           </Card>
