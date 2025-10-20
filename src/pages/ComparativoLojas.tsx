@@ -836,17 +836,13 @@ export default function ComparativoLojas() {
           </Card>
 
           {/* Comparativo dos Líderes de Cada Loja */}
-          <Card className="col-span-full bg-gradient-to-br from-chart-3/5 via-chart-4/5 to-primary/5 border-2 border-chart-3/20">
-            <CardHeader className="bg-gradient-to-r from-chart-3/10 to-primary/10 border-b border-chart-3/20">
-              <CardTitle className="flex items-center gap-3 text-xl">
-                <div className="p-2 bg-gradient-to-br from-chart-3 to-chart-4 rounded-lg shadow-lg">
-                  <Percent className="h-6 w-6 text-white" />
-                </div>
-                <span className="bg-gradient-to-r from-chart-3 to-primary bg-clip-text text-transparent">
-                  Ranking dos Líderes de Vendas por Loja
-                </span>
+          <Card className="col-span-full">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Percent className="h-5 w-5 text-chart-3" />
+                Ranking dos Líderes de Vendas por Loja
               </CardTitle>
-              <p className="text-sm text-muted-foreground mt-1 ml-11">
+              <p className="text-sm text-muted-foreground">
                 Comparativo do vendedor #1 de cada loja por % de participação nos rentáveis
               </p>
             </CardHeader>
@@ -871,6 +867,12 @@ export default function ComparativoLojas() {
 
                   // Ordenar líderes por % de participação
                   const rankingLideres = lideresLojas.sort((a, b) => b.percentual - a.percentual);
+
+                  const colors = [
+                    "from-yellow-400 to-yellow-600",
+                    "from-gray-300 to-gray-500",
+                    "from-orange-400 to-orange-600",
+                  ];
 
                   return (
                     <>
@@ -922,60 +924,36 @@ export default function ComparativoLojas() {
                       <div className="space-y-3">
                         {rankingLideres.map((lider, idx) => {
                           const isTop3 = idx < 3;
-                          const colors = [
-                            "from-yellow-400 to-yellow-600",
-                            "from-gray-300 to-gray-500",
-                            "from-orange-400 to-orange-600",
-                          ];
 
                           return (
                             <div
                               key={`${lider.nome}-${lider.nomeLoja}`}
-                              className={`p-4 rounded-lg transition-all hover:shadow-lg ${
-                                isTop3
-                                  ? "bg-gradient-to-r " +
-                                    colors[idx] +
-                                    "/10 border-2 border-" +
-                                    (idx === 0 ? "yellow-500/40" : idx === 1 ? "gray-400/40" : "orange-500/40")
-                                  : "bg-card border border-border"
+                              className={`flex items-center gap-4 p-3 rounded-lg transition-colors ${
+                                idx === 0
+                                  ? "bg-gradient-to-r from-yellow-400/10 to-yellow-600/10 border border-yellow-500/30"
+                                  : idx === 1
+                                    ? "bg-gradient-to-r from-gray-300/10 to-gray-500/10 border border-gray-400/30"
+                                    : idx === 2
+                                      ? "bg-gradient-to-r from-orange-400/10 to-orange-600/10 border border-orange-500/30"
+                                      : "hover:bg-accent/50"
                               }`}
                             >
-                              <div className="flex items-center gap-4 mb-3">
-                                <div
-                                  className={`flex items-center justify-center w-12 h-12 rounded-full font-bold text-white shadow-lg ${
-                                    isTop3
-                                      ? "bg-gradient-to-br " + colors[idx]
-                                      : "bg-secondary text-secondary-foreground"
-                                  }`}
-                                >
-                                  {idx + 1}°
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-bold text-lg truncate">{lider.nome}</p>
-                                  <p className="text-sm text-muted-foreground flex items-center gap-1">
-                                    <Store className="h-3 w-3" />
-                                    {lider.nomeLoja}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    {formatCurrency(lider.valor_rentaveis)} em rentáveis
-                                  </p>
-                                </div>
-                                <div className="text-right">
-                                  <p className="text-3xl font-bold text-primary">{lider.percentual.toFixed(2)}%</p>
-                                  <p className="text-xs text-muted-foreground">de participação na loja</p>
-                                </div>
+                              <div
+                                className={`flex items-center justify-center w-10 h-10 rounded-full font-bold text-white shadow-lg ${
+                                  isTop3 ? "bg-gradient-to-br " + colors[idx] : "bg-secondary text-secondary-foreground"
+                                }`}
+                              >
+                                {idx + 1}
                               </div>
-                              <div className="relative">
-                                <div className="h-4 bg-secondary rounded-full overflow-hidden">
-                                  <div
-                                    className={`h-full transition-all duration-500 ${
-                                      isTop3
-                                        ? "bg-gradient-to-r " + colors[idx]
-                                        : "bg-gradient-to-r from-primary to-chart-2"
-                                    }`}
-                                    style={{ width: `${lider.percentual}%` }}
-                                  />
-                                </div>
+
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-base truncate">{lider.nome}</p>
+                                <p className="text-xs text-muted-foreground">{lider.nomeLoja}</p>
+                              </div>
+
+                              <div className="text-right min-w-[140px]">
+                                <p className="font-bold text-primary text-lg">{lider.percentual.toFixed(2)}%</p>
+                                <p className="text-xs text-muted-foreground">{formatCurrency(lider.valor_rentaveis)}</p>
                               </div>
                             </div>
                           );
