@@ -36,10 +36,7 @@ import {
   PolarGrid,
   PolarAngleAxis,
   PolarRadiusAxis,
-  Radar,
-  Cell,
-  PieChart,
-  Pie
+  Radar
 } from 'recharts';
 
 interface LojaData {
@@ -59,6 +56,7 @@ interface VendedorDestaque {
 
 interface ComparativoData {
   loja: string;
+  lojaNumero: string;
   faturamento: number;
   rentaveis: number;
   goodlife: number;
@@ -69,13 +67,18 @@ interface ComparativoData {
   atingimentoMeta: number;
 }
 
-const COLORS = ['#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899'];
+interface ParticipacaoFuncionario {
+  nome: string;
+  loja: string;
+  valor_rentaveis: number;
+  percentual: number;
+}
 
 export default function ComparativoLojas() {
   const navigate = useNavigate();
   const periodoAtual = usePeriodoAtual();
   const { user, loading: authLoading } = useAuth();
-  const { buscarVendasFuncionarios } = useCallfarmaAPI();
+  const callfarmaAPI = useCallfarmaAPI();
   const { toast } = useToast();
   
   const [lojas, setLojas] = useState<LojaData[]>([]);
@@ -85,6 +88,7 @@ export default function ComparativoLojas() {
   const [dataFim, setDataFim] = useState(periodoAtual.data_fim);
   const [comparativoData, setComparativoData] = useState<ComparativoData[]>([]);
   const [vendedoresDestaque, setVendedoresDestaque] = useState<VendedorDestaque[]>([]);
+  const [participacaoFuncionarios, setParticipacaoFuncionarios] = useState<ParticipacaoFuncionario[]>([]);
   const [metasLojas, setMetasLojas] = useState<Map<number, number>>(new Map());
 
   useEffect(() => {
@@ -104,7 +108,6 @@ export default function ComparativoLojas() {
       if (error) throw error;
       setLojas(data || []);
       
-      // Selecionar primeiras 5 lojas por padrão
       if (data && data.length > 0) {
         setSelectedLojas(data.slice(0, Math.min(5, data.length)).map(l => l.id));
       }
@@ -149,90 +152,60 @@ export default function ComparativoLojas() {
         const loja = lojas.find(l => l.id === lojaId);
         if (!loja) return null;
 
-        // Buscar vendas da loja via API - com tratamento de erro
-        // Como a API busca todas as lojas, vamos filtrar localmente
         const cdfil = parseInt(loja.numero);
-        const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => v.CDFIL === cdfil);
 
-        // Função auxiliar para buscar com retry em caso de timeout
-        const buscarComRetry = async (filtros: any, tentativas = 2) => {
-          for (let i = 0; i < tentativas; i++) {
-            try {
-              const resultado = await buscarVendasFuncionarios(filtros);
-              return resultado || [];
-            } catch (error) {
-              console.warn(`Tentativa ${i + 1} falhou para`, filtros, error);
-              if (i === tentativas - 1) {
-                return []; // Retorna array vazio na última tentativa
-              }
-              // Aguardar 1 segundo antes de tentar novamente
-              await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-          }
-          return [];
-        };
+        try {
+          // 1. Buscar faturamento GERAL da loja
+          const vendasFilialResponse = await callfarmaAPI.buscarVendasPorFilial(cdfil, dataInicio, dataFim);
+          const faturamento = vendasFilialResponse.reduce((sum: number, v: any) => sum + (v.valor || 0), 0);
 
-        // Buscar cada categoria separadamente com retry
-        const [vendasRentaveis, vendasGoodlife, vendasPerfumaria, vendasConveniencia] = await Promise.all([
-          buscarComRetry({
-            dataInicio,
-            dataFim,
-            filtroGrupos: '20,25'
-          }),
-          buscarComRetry({
-            dataInicio,
-            dataFim,
-            filtroGrupos: '22'
-          }),
-          buscarComRetry({
-            dataInicio,
-            dataFim,
-            filtroGrupos: '46'
-          }),
-          buscarComRetry({
-            dataInicio,
-            dataFim,
-            filtroGrupos: '36,13'
-          })
-        ]);
+          // 2. Buscar vendas por categoria (filtrar localmente por CDFIL)
+          const [vendasRentaveis, vendasGoodlife, vendasPerfumaria, vendasConveniencia] = await Promise.all([
+            callfarmaAPI.buscarVendasFuncionarios({ dataInicio, dataFim, filtroGrupos: '20,25' }),
+            callfarmaAPI.buscarVendasFuncionarios({ dataInicio, dataFim, filtroGrupos: '22' }),
+            callfarmaAPI.buscarVendasFuncionarios({ dataInicio, dataFim, filtroGrupos: '46' }),
+            callfarmaAPI.buscarVendasFuncionarios({ dataInicio, dataFim, filtroGrupos: '36,13' })
+          ]);
 
-        // Calcular totais por categoria
-        const rentaveis = filtrarPorLoja(vendasRentaveis).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
-        const goodlife = filtrarPorLoja(vendasGoodlife).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
-        const perfumaria = filtrarPorLoja(vendasPerfumaria).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
-        const conveniencia = filtrarPorLoja(vendasConveniencia).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
-        
-        // Faturamento = soma de todas as categorias
-        const faturamento = rentaveis + goodlife + perfumaria + conveniencia;
+          const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => v.CDFIL === cdfil);
+          const rentaveis = filtrarPorLoja(vendasRentaveis).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
+          const goodlife = filtrarPorLoja(vendasGoodlife).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
+          const perfumaria = filtrarPorLoja(vendasPerfumaria).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
+          const conveniencia = filtrarPorLoja(vendasConveniencia).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
 
-        const meta = metasLojas.get(lojaId) || 0;
-        const atingimentoMeta = meta > 0 ? (faturamento / meta) * 100 : 0;
-        const percentualRentaveis = faturamento > 0 ? (rentaveis / faturamento) * 100 : 0;
+          const meta = metasLojas.get(lojaId) || 0;
+          const atingimentoMeta = meta > 0 ? (faturamento / meta) * 100 : 0;
+          const percentualRentaveis = faturamento > 0 ? (rentaveis / faturamento) * 100 : 0;
 
-        return {
-          loja: loja.nome,
-          faturamento,
-          rentaveis,
-          goodlife,
-          perfumaria,
-          conveniencia,
-          percentualRentaveis,
-          meta,
-          atingimentoMeta
-        };
+          return {
+            loja: loja.nome,
+            lojaNumero: loja.numero,
+            faturamento,
+            rentaveis,
+            goodlife,
+            perfumaria,
+            conveniencia,
+            percentualRentaveis,
+            meta,
+            atingimentoMeta
+          };
+        } catch (error) {
+          console.error(`Erro ao buscar dados da loja ${loja.nome}:`, error);
+          return null;
+        }
       });
 
       const resultados = (await Promise.all(promises)).filter(Boolean) as ComparativoData[];
       setComparativoData(resultados);
 
-      // Buscar vendedores destaque
       await buscarVendedoresDestaque();
+      await buscarParticipacaoFuncionarios();
 
     } catch (error) {
       console.error('Erro ao buscar comparativos:', error);
       toast({
         title: "Erro ao buscar dados",
-        description: "Alguns dados podem não ter sido carregados devido a timeout na API externa. Tente novamente ou reduza o número de lojas.",
+        description: "Alguns dados podem não ter sido carregados. Tente novamente.",
         variant: "destructive",
       });
     } finally {
@@ -246,86 +219,105 @@ export default function ComparativoLojas() {
         const loja = lojas.find(l => l.id === lojaId);
         if (!loja) return [];
 
-        // Filtrar por loja usando o CDFIL
         const cdfil = parseInt(loja.numero);
-        const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => v.CDFIL === cdfil);
 
-        // Função auxiliar para buscar com retry
-        const buscarComRetry = async (filtros: any, tentativas = 2) => {
-          for (let i = 0; i < tentativas; i++) {
-            try {
-              const resultado = await buscarVendasFuncionarios(filtros);
-              return resultado || [];
-            } catch (error) {
-              console.warn(`Tentativa ${i + 1} falhou para vendedores`, filtros, error);
-              if (i === tentativas - 1) {
-                return []; // Retorna array vazio na última tentativa
-              }
-              await new Promise(resolve => setTimeout(resolve, 1000));
+        try {
+          const [vendasRentaveis, vendasGoodlife] = await Promise.all([
+            callfarmaAPI.buscarVendasFuncionarios({ dataInicio, dataFim, filtroGrupos: '20,25', groupBy: 'scefun.CDFUN,scefun.NOME' }),
+            callfarmaAPI.buscarVendasFuncionarios({ dataInicio, dataFim, filtroGrupos: '22', groupBy: 'scefun.CDFUN,scefun.NOME' })
+          ]);
+
+          const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => v.CDFIL === cdfil);
+
+          const funcionariosMap = new Map<string, VendedorDestaque>();
+
+          filtrarPorLoja(vendasRentaveis || []).forEach(v => {
+            const key = `${v.CDFUN}-${v.NOME}`;
+            if (!funcionariosMap.has(key)) {
+              funcionariosMap.set(key, {
+                nome: v.NOME,
+                loja: loja.nome,
+                total_rentaveis: 0,
+                total_goodlife: 0,
+                total_geral: 0
+              });
             }
-          }
-          return [];
-        };
+            const func = funcionariosMap.get(key)!;
+            func.total_rentaveis += v.TOTAL_VALOR || 0;
+            func.total_geral += v.TOTAL_VALOR || 0;
+          });
 
-        const [vendasRentaveis, vendasGoodlife] = await Promise.all([
-          buscarComRetry({
+          filtrarPorLoja(vendasGoodlife || []).forEach(v => {
+            const key = `${v.CDFUN}-${v.NOME}`;
+            if (!funcionariosMap.has(key)) {
+              funcionariosMap.set(key, {
+                nome: v.NOME,
+                loja: loja.nome,
+                total_rentaveis: 0,
+                total_goodlife: 0,
+                total_geral: 0
+              });
+            }
+            const func = funcionariosMap.get(key)!;
+            func.total_goodlife += v.TOTAL_VALOR || 0;
+            func.total_geral += v.TOTAL_VALOR || 0;
+          });
+
+          return Array.from(funcionariosMap.values());
+        } catch (error) {
+          console.error(`Erro ao buscar vendedores da loja ${loja.nome}:`, error);
+          return [];
+        }
+      });
+
+      const todosVendedores = (await Promise.all(promises)).flat();
+      const top10 = todosVendedores
+        .sort((a, b) => b.total_rentaveis - a.total_rentaveis)
+        .slice(0, 10);
+      
+      setVendedoresDestaque(top10);
+    } catch (error) {
+      console.error('Erro ao buscar vendedores destaque:', error);
+    }
+  };
+
+  const buscarParticipacaoFuncionarios = async () => {
+    try {
+      const promises = selectedLojas.map(async (lojaId) => {
+        const loja = lojas.find(l => l.id === lojaId);
+        if (!loja) return [];
+
+        const cdfil = parseInt(loja.numero);
+
+        try {
+          const vendasRentaveis = await callfarmaAPI.buscarVendasFuncionarios({
             dataInicio,
             dataFim,
             filtroGrupos: '20,25',
-            groupBy: 'scefun.CDFUN,scefun.NOME'
-          }),
-          buscarComRetry({
-            dataInicio,
-            dataFim,
-            filtroGrupos: '22',
-            groupBy: 'scefun.CDFUN,scefun.NOME'
-          })
-        ]);
+            groupBy: 'scefun.CDFUN,scefun.NOME',
+            orderBy: 'TOTAL_VLR_VE desc'
+          });
 
-        const funcionariosMap = new Map<string, VendedorDestaque>();
+          const filtrarPorLoja = (vendas: any[]) => vendas.filter(v => v.CDFIL === cdfil);
 
-        filtrarPorLoja(vendasRentaveis).forEach(v => {
-          const key = `${v.CDFUN}-${v.NOME}`;
-          if (!funcionariosMap.has(key)) {
-            funcionariosMap.set(key, {
-              nome: v.NOME,
-              loja: loja.nome,
-              total_rentaveis: 0,
-              total_goodlife: 0,
-              total_geral: 0
-            });
-          }
-          const func = funcionariosMap.get(key)!;
-          func.total_rentaveis += v.TOTAL_VALOR || 0;
-          func.total_geral += v.TOTAL_VALOR || 0;
-        });
+          const totalRentaveisLoja = (vendasRentaveis || []).reduce((sum, v) => sum + (v.TOTAL_VALOR || 0), 0);
 
-        filtrarPorLoja(vendasGoodlife).forEach(v => {
-          const key = `${v.CDFUN}-${v.NOME}`;
-          if (!funcionariosMap.has(key)) {
-            funcionariosMap.set(key, {
-              nome: v.NOME,
-              loja: loja.nome,
-              total_rentaveis: 0,
-              total_goodlife: 0,
-              total_geral: 0
-            });
-          }
-          const func = funcionariosMap.get(key)!;
-          func.total_goodlife += v.TOTAL_VALOR || 0;
-          func.total_geral += v.TOTAL_VALOR || 0;
-        });
-
-        return Array.from(funcionariosMap.values())
-          .sort((a, b) => b.total_geral - a.total_geral)
-          .slice(0, 3);
+          return filtrarPorLoja(vendasRentaveis || []).map(v => ({
+            nome: v.NOME,
+            loja: loja.nome,
+            valor_rentaveis: v.TOTAL_VALOR || 0,
+            percentual: totalRentaveisLoja > 0 ? ((v.TOTAL_VALOR || 0) / totalRentaveisLoja) * 100 : 0
+          }));
+        } catch (error) {
+          console.error(`Erro ao buscar participação da loja ${loja.nome}:`, error);
+          return [];
+        }
       });
 
-      const resultados = (await Promise.all(promises)).flat();
-      setVendedoresDestaque(resultados.sort((a, b) => b.total_geral - a.total_geral).slice(0, 10));
-
+      const todasParticipacoes = (await Promise.all(promises)).flat();
+      setParticipacaoFuncionarios(todasParticipacoes);
     } catch (error) {
-      console.error('Erro ao buscar vendedores destaque:', error);
+      console.error('Erro ao buscar participação de funcionários:', error);
     }
   };
 
@@ -358,7 +350,7 @@ export default function ComparativoLojas() {
     : 0;
 
   return (
-    <div className="page-container space-y-6 bg-background min-h-screen">
+    <div className="page-container space-y-6 bg-background min-h-screen p-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -375,7 +367,7 @@ export default function ComparativoLojas() {
               Comparativo entre Lojas
             </h1>
             <p className="text-sm text-muted-foreground">
-              Análise visual de performance e rankings de vendedores
+              Análise visual de performance e participação de vendedores
             </p>
           </div>
         </div>
@@ -470,75 +462,78 @@ export default function ComparativoLojas() {
         <>
           {/* Cards de Resumo */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="bg-gradient-to-br from-violet-500/10 to-violet-500/5 border-violet-200">
+            <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Faturamento Total</p>
                     <p className="text-2xl font-bold text-foreground">{formatCurrency(totalFaturamento)}</p>
                   </div>
-                  <DollarSign className="h-8 w-8 text-violet-500" />
+                  <DollarSign className="h-8 w-8 text-primary" />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-cyan-500/10 to-cyan-500/5 border-cyan-200">
+            <Card className="bg-gradient-to-br from-chart-2/10 to-chart-2/5 border-chart-2/20">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Lojas Analisadas</p>
                     <p className="text-2xl font-bold text-foreground">{comparativoData.length}</p>
                   </div>
-                  <Store className="h-8 w-8 text-cyan-500" />
+                  <Store className="h-8 w-8 text-chart-2" />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border-emerald-200">
+            <Card className="bg-gradient-to-br from-chart-3/10 to-chart-3/5 border-chart-3/20">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Média Atingimento</p>
                     <p className="text-2xl font-bold text-foreground">{formatPercent(mediaAtingimento)}</p>
                   </div>
-                  <Target className="h-8 w-8 text-emerald-500" />
+                  <Target className="h-8 w-8 text-chart-3" />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-amber-500/10 to-amber-500/5 border-amber-200">
+            <Card className="bg-gradient-to-br from-chart-4/10 to-chart-4/5 border-chart-4/20">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Vendedores Destaque</p>
                     <p className="text-2xl font-bold text-foreground">{vendedoresDestaque.length}</p>
                   </div>
-                  <Users className="h-8 w-8 text-amber-500" />
+                  <Users className="h-8 w-8 text-chart-4" />
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Gráfico: Faturamento vs Rentáveis */}
-          <Card>
+          {/* Faturamento vs Rentáveis */}
+          <Card className="col-span-full">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <BarChart className="h-5 w-5" />
-                Faturamento vs Rentáveis por Loja
+                Faturamento GERAL vs Rentáveis por Loja
               </CardTitle>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={400}>
                 <ComposedChart data={comparativoData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="loja" angle={-45} textAnchor="end" height={100} />
-                  <YAxis yAxisId="left" />
-                  <YAxis yAxisId="right" orientation="right" />
-                  <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis dataKey="loja" angle={-45} textAnchor="end" height={100} className="text-xs" />
+                  <YAxis yAxisId="left" className="text-xs" />
+                  <YAxis yAxisId="right" orientation="right" className="text-xs" />
+                  <Tooltip 
+                    formatter={(value: any) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                    contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                  />
                   <Legend />
-                  <Bar yAxisId="left" dataKey="faturamento" fill="#8b5cf6" name="Faturamento" />
-                  <Bar yAxisId="left" dataKey="rentaveis" fill="#06b6d4" name="Rentáveis" />
-                  <Line yAxisId="right" type="monotone" dataKey="percentualRentaveis" stroke="#10b981" name="% Rentáveis" />
+                  <Bar yAxisId="left" dataKey="faturamento" fill="hsl(var(--primary))" name="Faturamento GERAL" />
+                  <Bar yAxisId="left" dataKey="rentaveis" fill="hsl(var(--chart-2))" name="Rentáveis" />
+                  <Line yAxisId="right" type="monotone" dataKey="percentualRentaveis" stroke="hsl(var(--chart-3))" name="% Rentáveis" strokeWidth={2} />
                 </ComposedChart>
               </ResponsiveContainer>
             </CardContent>
@@ -557,16 +552,16 @@ export default function ComparativoLojas() {
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <ComposedChart data={comparativoData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="loja" angle={-45} textAnchor="end" height={80} />
-                    <YAxis />
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis dataKey="loja" angle={-45} textAnchor="end" height={80} className="text-xs" />
+                    <YAxis className="text-xs" />
                     <Tooltip formatter={(value: number, name: string) => 
                       name === "atingimentoMeta" ? formatPercent(value) : formatCurrency(value)
                     } />
                     <Legend />
-                    <Bar dataKey="meta" fill="#94a3b8" name="Meta" />
-                    <Bar dataKey="faturamento" fill="#8b5cf6" name="Realizado" />
-                    <Line type="monotone" dataKey="atingimentoMeta" stroke="#10b981" name="% Atingimento" strokeWidth={2} />
+                    <Bar dataKey="meta" fill="hsl(var(--muted))" name="Meta" />
+                    <Bar dataKey="faturamento" fill="hsl(var(--primary))" name="Realizado" />
+                    <Line type="monotone" dataKey="atingimentoMeta" stroke="hsl(var(--chart-3))" name="% Atingimento" strokeWidth={2} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -583,15 +578,15 @@ export default function ComparativoLojas() {
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <ComposedChart data={comparativoData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="loja" angle={-45} textAnchor="end" height={80} />
-                    <YAxis />
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis dataKey="loja" angle={-45} textAnchor="end" height={80} className="text-xs" />
+                    <YAxis className="text-xs" />
                     <Tooltip formatter={(value: number) => formatCurrency(value)} />
                     <Legend />
-                    <Bar dataKey="rentaveis" stackId="a" fill="#06b6d4" name="Rentáveis" />
-                    <Bar dataKey="goodlife" stackId="a" fill="#10b981" name="GoodLife" />
-                    <Bar dataKey="perfumaria" stackId="a" fill="#f59e0b" name="Perfumaria" />
-                    <Bar dataKey="conveniencia" stackId="a" fill="#ef4444" name="Conveniência" />
+                    <Bar dataKey="rentaveis" stackId="a" fill="hsl(var(--chart-2))" name="Rentáveis" />
+                    <Bar dataKey="goodlife" stackId="a" fill="hsl(var(--chart-3))" name="GoodLife" />
+                    <Bar dataKey="perfumaria" stackId="a" fill="hsl(var(--chart-4))" name="Perfumaria" />
+                    <Bar dataKey="conveniencia" stackId="a" fill="hsl(var(--chart-5))" name="Conveniência" />
                   </ComposedChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -619,57 +614,97 @@ export default function ComparativoLojas() {
                   <PolarGrid />
                   <PolarAngleAxis dataKey="loja" />
                   <PolarRadiusAxis angle={90} domain={[0, 100]} />
-                  <Radar name="Performance" dataKey="Faturamento" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.3} />
-                  <Radar name="Rentáveis %" dataKey="Rentáveis" stroke="#06b6d4" fill="#06b6d4" fillOpacity={0.3} />
-                  <Radar name="Meta %" dataKey="Ating. Meta" stroke="#10b981" fill="#10b981" fillOpacity={0.3} />
+                  <Radar name="Performance" dataKey="Faturamento" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.3} />
+                  <Radar name="Rentáveis %" dataKey="Rentáveis" stroke="hsl(var(--chart-2))" fill="hsl(var(--chart-2))" fillOpacity={0.3} />
+                  <Radar name="Meta %" dataKey="Ating. Meta" stroke="hsl(var(--chart-3))" fill="hsl(var(--chart-3))" fillOpacity={0.3} />
                   <Legend />
                 </RadarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
 
-          {/* Top Vendedores */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Trophy className="h-5 w-5 text-yellow-500" />
-                Top 10 Vendedores do Período
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {vendedoresDestaque.map((vendedor, index) => (
-                  <div
-                    key={`${vendedor.nome}-${vendedor.loja}`}
-                    className="flex items-center gap-4 p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
-                  >
-                    <div className="flex items-center justify-center min-w-[40px]">
-                      {index < 3 ? (
-                        <Trophy className={`h-6 w-6 ${
-                          index === 0 ? 'text-yellow-500' : 
-                          index === 1 ? 'text-gray-400' : 
-                          'text-amber-600'
-                        }`} />
-                      ) : (
-                        <span className="text-lg font-bold text-muted-foreground">#{index + 1}</span>
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-semibold text-foreground">{vendedor.nome}</div>
-                      <div className="text-sm text-muted-foreground">{vendedor.loja}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold text-foreground">{formatCurrency(vendedor.total_geral)}</div>
-                      <div className="text-xs text-muted-foreground">
-                        R: {formatCurrency(vendedor.total_rentaveis)} | 
-                        G: {formatCurrency(vendedor.total_goodlife)}
+          {/* Top 10 Vendedores e Participação */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Top 10 Vendedores */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Trophy className="h-5 w-5 text-yellow-500" />
+                  Top 10 Vendedores em Rentáveis
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {vendedoresDestaque.slice(0, 10).map((vendedor, index) => (
+                    <div key={`${vendedor.nome}-${vendedor.loja}`} className="flex items-center gap-4 p-3 rounded-lg hover:bg-accent/50 transition-colors">
+                      <div className={`flex items-center justify-center w-10 h-10 rounded-full font-bold ${
+                        index === 0 ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-white shadow-lg' : 
+                        index === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-500 text-white shadow-md' : 
+                        index === 2 ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-md' : 
+                        'bg-secondary text-secondary-foreground'
+                      }`}>
+                        <span>{index + 1}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold truncate">{vendedor.nome}</p>
+                        <p className="text-xs text-muted-foreground">{vendedor.loja}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-primary">
+                          {formatCurrency(vendedor.total_rentaveis)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Total: {formatCurrency(vendedor.total_geral)}
+                        </p>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Participação Individual nos Rentáveis */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-chart-2" />
+                  Participação nos Rentáveis por Loja
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  {comparativoData.map((loja) => {
+                    const funcionariosLoja = participacaoFuncionarios
+                      .filter(f => f.loja === loja.loja)
+                      .sort((a, b) => b.percentual - a.percentual)
+                      .slice(0, 5);
+
+                    return (
+                      <div key={loja.loja} className="space-y-2">
+                        <h4 className="font-semibold text-sm">{loja.loja}</h4>
+                        <div className="space-y-1">
+                          {funcionariosLoja.map((func, idx) => (
+                            <div key={`${func.nome}-${idx}`} className="space-y-1">
+                              <div className="flex justify-between text-xs">
+                                <span className="text-muted-foreground truncate max-w-[150px]">{func.nome}</span>
+                                <span className="font-medium">{func.percentual.toFixed(1)}%</span>
+                              </div>
+                              <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-gradient-to-r from-chart-2 to-chart-3 transition-all"
+                                  style={{ width: `${func.percentual}%` }}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </>
       ) : (
         <Card>
