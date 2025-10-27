@@ -1008,16 +1008,18 @@ export const useCallfarmaAPI = () => {
           return [];
         }
 
-        // Buscar vendas de todas as lojas em paralelo
+        // Buscar vendas de todas as lojas em paralelo usando vendas-por-funcionario
         const promessas = lojas.map(loja => {
           const cdfilNum = parseInt(loja.numero);
           return supabase.functions.invoke('callfarma-vendas', {
             body: {
-              endpoint: '/financeiro/vendas-por-periodo',
+              endpoint: '/financeiro/vendas-por-funcionario',
               params: {
-                cdfil: cdfilNum.toString(),
-                dataini: dataInicio,
-                datafim: dataFim
+                dataFim: dataFim,
+                dataIni: dataInicio,
+                groupBy: 'scefilial.CDFIL,scekarde.DATA',
+                orderBy: 'scekarde.DATA asc',
+                filtroFiliais: cdfilNum.toString()
               }
             }
           });
@@ -1029,15 +1031,31 @@ export const useCallfarmaAPI = () => {
         const dadosConsolidados: VendaFilial[] = [];
         
         resultados.forEach((resultado, index) => {
-          if (!resultado.error && Array.isArray(resultado.data)) {
+          if (!resultado.error && resultado.data?.msg) {
             const cdfilNum = parseInt(lojas[index].numero);
-            resultado.data.forEach((dia: any) => {
-              dadosConsolidados.push({
-                ...dia,
-                CDFIL: cdfilNum,
-                ABREV: lojas[index].numero // Adicionar abreviação se necessário
-              });
-            });
+            const rawData = resultado.data.msg;
+            
+            // Agrupar por data
+            const vendasPorData = rawData.reduce((acc: any, item: any) => {
+              const dataKey = item.DATA;
+              if (!acc[dataKey]) {
+                acc[dataKey] = {
+                  DATA: dataKey,
+                  valor: 0,
+                  vldesc: 0,
+                  pretab: 0,
+                  cusliq: 0,
+                  CDFIL: cdfilNum,
+                  ABREV: lojas[index].numero
+                };
+              }
+              
+              acc[dataKey].valor += (item.TOTAL_VLR_VE || 0) - (item.TOTAL_VLR_DV || 0);
+              
+              return acc;
+            }, {});
+            
+            dadosConsolidados.push(...(Object.values(vendasPorData) as VendaFilial[]));
           }
         });
 
@@ -1045,32 +1063,51 @@ export const useCallfarmaAPI = () => {
         return dadosConsolidados;
         
       } else {
-        // Buscar vendas de uma loja específica
+        // Buscar vendas de uma loja específica usando vendas-por-funcionario agrupado por data
         const { data, error } = await supabase.functions.invoke('callfarma-vendas', {
           body: {
-            endpoint: '/financeiro/vendas-por-periodo',
+            endpoint: '/financeiro/vendas-por-funcionario',
             params: {
-              cdfil: cdfil.toString(),
-              dataini: dataInicio,
-              datafim: dataFim
+              dataFim: dataFim,
+              dataIni: dataInicio,
+              groupBy: 'scefilial.CDFIL,scekarde.DATA',
+              orderBy: 'scekarde.DATA asc',
+              filtroFiliais: cdfil.toString()
             }
           }
         });
 
         if (error) throw error;
 
-        // O endpoint retorna diretamente um array
-        const vendas = Array.isArray(data) ? data : [];
-        console.log(`Vendas da loja ${cdfil}: ${vendas.length} dias`);
+        // Processar dados do formato vendas-por-funcionario
+        const rawData = data?.msg || [];
+        console.log(`Vendas brutas da loja ${cdfil}: ${rawData.length} registros`);
 
-        // Adicionar CDFIL aos dados pois o endpoint não retorna
-        const vendasComCdfil = vendas.map(dia => ({
-          ...dia,
-          CDFIL: cdfil,
-          ABREV: cdfil.toString().padStart(2, '0')
-        }));
+        // Agrupar por data
+        const vendasPorData = rawData.reduce((acc: any, item: any) => {
+          const dataKey = item.DATA;
+          if (!acc[dataKey]) {
+            acc[dataKey] = {
+              DATA: dataKey,
+              valor: 0,
+              vldesc: 0,
+              pretab: 0,
+              cusliq: 0,
+              CDFIL: cdfil,
+              ABREV: cdfil.toString().padStart(2, '0')
+            };
+          }
+          
+          // Somar valores do dia
+          acc[dataKey].valor += (item.TOTAL_VLR_VE || 0) - (item.TOTAL_VLR_DV || 0);
+          
+          return acc;
+        }, {});
 
-        return vendasComCdfil;
+        const vendas = Object.values(vendasPorData) as VendaFilial[];
+        console.log(`Vendas agrupadas da loja ${cdfil}: ${vendas.length} dias`);
+
+        return vendas;
       }
     } catch (error) {
       console.error('Erro ao buscar vendas por filial:', error);
