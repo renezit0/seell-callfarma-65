@@ -984,61 +984,106 @@ export const useCallfarmaAPI = () => {
 
   // ========== NOVAS FUNÇÕES PARA PÁGINA VENDAS ==========
 
-  // FUNÇÃO PARA BUSCAR VENDAS GERAIS POR FILIAL
+  // FUNÇÃO PARA BUSCAR VENDAS GERAIS POR FILIAL (usando novo endpoint otimizado)
   const buscarVendasPorFilial = async (
-  cdfil: number | 'all',
-  dataInicio: string,
-  dataFim: string
-): Promise<VendaFilial[]> => {
-  setLoading(true);
-  try {
-    const params: any = {
-      dataFim,
-      dataIni: dataInicio,
-      dataFimAnt: dataFim, // Para não quebrar a API
-      dataIniAnt: dataInicio, // Para não quebrar a API
-    };
+    cdfil: number | 'all',
+    dataInicio: string,
+    dataFim: string
+  ): Promise<VendaFilial[]> => {
+    setLoading(true);
+    try {
+      console.log(`Buscando vendas por filial usando endpoint /vendas-por-periodo - CDFIL: ${cdfil}`);
 
-    // REMOVIDO: Não filtrar por filial na API, vamos filtrar localmente
-    // if (cdfil !== 'all') {
-    //   params.cdfil = cdfil;
-    // }
+      // Se for 'all', precisamos buscar todas as lojas
+      // Caso contrário, busca apenas a loja específica
+      if (cdfil === 'all') {
+        // Buscar lista de todas as lojas
+        const { data: lojas } = await supabase
+          .from('lojas')
+          .select('numero')
+          .order('numero');
 
-    console.log('Buscando vendas por filial (SEM filtro na API):', params);
+        if (!lojas || lojas.length === 0) {
+          console.log('Nenhuma loja encontrada no banco de dados');
+          return [];
+        }
 
-    const { data, error } = await supabase.functions.invoke('callfarma-vendas', {
-      body: {
-        endpoint: '/financeiro/vendas-por-filial',
-        params
+        // Buscar vendas de todas as lojas em paralelo
+        const promessas = lojas.map(loja => {
+          const cdfilNum = parseInt(loja.numero);
+          return supabase.functions.invoke('callfarma-vendas', {
+            body: {
+              endpoint: '/financeiro/vendas-por-periodo',
+              params: {
+                cdfil: cdfilNum.toString(),
+                dataini: dataInicio,
+                datafim: dataFim
+              }
+            }
+          });
+        });
+
+        const resultados = await Promise.all(promessas);
+        
+        // Processar e consolidar os dados de todas as lojas
+        const dadosConsolidados: VendaFilial[] = [];
+        
+        resultados.forEach((resultado, index) => {
+          if (!resultado.error && Array.isArray(resultado.data)) {
+            const cdfilNum = parseInt(lojas[index].numero);
+            resultado.data.forEach((dia: any) => {
+              dadosConsolidados.push({
+                ...dia,
+                CDFIL: cdfilNum,
+                ABREV: lojas[index].numero // Adicionar abreviação se necessário
+              });
+            });
+          }
+        });
+
+        console.log(`Vendas consolidadas de ${lojas.length} lojas: ${dadosConsolidados.length} registros`);
+        return dadosConsolidados;
+        
+      } else {
+        // Buscar vendas de uma loja específica
+        const { data, error } = await supabase.functions.invoke('callfarma-vendas', {
+          body: {
+            endpoint: '/financeiro/vendas-por-periodo',
+            params: {
+              cdfil: cdfil.toString(),
+              dataini: dataInicio,
+              datafim: dataFim
+            }
+          }
+        });
+
+        if (error) throw error;
+
+        // O endpoint retorna diretamente um array
+        const vendas = Array.isArray(data) ? data : [];
+        console.log(`Vendas da loja ${cdfil}: ${vendas.length} dias`);
+
+        // Adicionar CDFIL aos dados pois o endpoint não retorna
+        const vendasComCdfil = vendas.map(dia => ({
+          ...dia,
+          CDFIL: cdfil,
+          ABREV: cdfil.toString().padStart(2, '0')
+        }));
+
+        return vendasComCdfil;
       }
-    });
-
-    if (error) throw error;
-    
-    const rawData = data?.msg || [];
-    console.log('Dados vendas por filial recebidos (ANTES do filtro local):', rawData.length, 'registros');
-    
-    // FILTRO LOCAL: Aplicar filtro por filial APÓS receber os dados
-    let dadosFiltrados = rawData;
-    
-    if (cdfil !== 'all') {
-      dadosFiltrados = rawData.filter((item: any) => item.CDFIL === cdfil);
-      console.log(`FILTRO LOCAL vendas filial para CDFIL ${cdfil}:`, dadosFiltrados.length, 'registros restantes');
+    } catch (error) {
+      console.error('Erro ao buscar vendas por filial:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao buscar vendas por filial da API externa",
+        variant: "destructive",
+      });
+      return [];
+    } finally {
+      setLoading(false);
     }
-    
-    return dadosFiltrados;
-  } catch (error) {
-    console.error('Erro ao buscar vendas por filial:', error);
-    toast({
-      title: "Erro",
-      description: "Erro ao buscar vendas por filial da API externa",
-      variant: "destructive",
-    });
-    return [];
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   // FUNÇÃO PARA BUSCAR DADOS DETALHADOS DE FUNCIONÁRIOS
   const buscarVendasFuncionariosDetalhadas = async (
