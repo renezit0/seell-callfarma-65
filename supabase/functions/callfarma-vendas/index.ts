@@ -54,6 +54,7 @@ serve(async (req) => {
       'x-auth-code': '1',
       'x-client-id': '6582',
       'x-request-time': requestTime,
+      'HTTP_X_AUTH_TOKEN': authTokenX,
     };
     
     console.log('Headers sendo enviados:', JSON.stringify(headers));
