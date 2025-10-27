@@ -48,20 +48,25 @@ serve(async (req) => {
     // Gerar timestamp para x-request-time
     const requestTime = Math.floor(Date.now() / 1000).toString();
     
+    const headers = {
+      'accept': 'application/json',
+      'authorization': `Bearer ${authToken}`,
+      'x-auth-code': '1',
+      'x-client-id': '6582',
+      'x-request-time': requestTime,
+    };
+    
+    console.log('Headers sendo enviados:', JSON.stringify(headers));
+    
     const response = await fetch(url, {
       method: 'GET',
-      headers: {
-        'accept': 'application/json',
-        'authorization': `Bearer ${authToken}`,
-        'x-auth-code': '1',
-        'x-client-id': '6582',
-        'x-request-time': requestTime,
-        'HTTP_X_AUTH_TOKEN': authTokenX,
-      },
+      headers,
     });
 
     if (!response.ok) {
+      const errorBody = await response.text();
       console.error(`Erro na API: ${response.status} - ${response.statusText}`);
+      console.error(`Corpo da resposta:`, errorBody);
       throw new Error(`Erro na API externa: ${response.status}`);
     }
 
