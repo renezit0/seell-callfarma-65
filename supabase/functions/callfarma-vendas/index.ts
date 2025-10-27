@@ -13,8 +13,14 @@ serve(async (req) => {
 
   try {
     const authToken = Deno.env.get('CALLFARMA_API_TOKEN');
+    const requestSign = Deno.env.get('CALLFARMA_REQUEST_SIGN');
+    
     if (!authToken) {
       throw new Error('Token de autenticação da API Callfarma não configurado');
+    }
+    
+    if (!requestSign) {
+      throw new Error('Request sign da API Callfarma não configurado');
     }
 
     const { endpoint, params } = await req.json();
@@ -50,6 +56,7 @@ serve(async (req) => {
         'x-auth-code': '1',
         'x-client-id': '6582',
         'x-request-time': requestTime,
+        'x-request-sign': requestSign,
       },
     });
 
