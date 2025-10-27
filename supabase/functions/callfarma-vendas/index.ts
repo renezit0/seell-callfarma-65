@@ -48,7 +48,7 @@ serve(async (req) => {
     // Gerar timestamp para x-request-time
     const requestTime = Math.floor(Date.now() / 1000).toString();
     
-    const headers = {
+    const headers: Record<string, string> = {
       'accept': 'application/json',
       'authorization': `Bearer ${authToken}`,
       'x-auth-code': '1',
@@ -56,6 +56,12 @@ serve(async (req) => {
       'x-request-time': requestTime,
       'HTTP_X_AUTH_TOKEN': authTokenX,
     };
+    
+    // Adicionar headers extras apenas para vendas-por-periodo
+    if (endpoint === '/financeiro/vendas-por-periodo') {
+      headers['origin'] = 'https://coc.callfarma.com.br';
+      headers['referer'] = 'https://coc.callfarma.com.br/';
+    }
     
     console.log('Headers sendo enviados:', JSON.stringify(headers));
     
