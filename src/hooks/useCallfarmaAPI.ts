@@ -1173,6 +1173,53 @@ export const useCallfarmaAPI = () => {
     }
   };
 
+  // NOVA FUNÇÃO PARA VENDAS GERAIS POR PERÍODO (endpoint otimizado)
+  const buscarVendasGeraisPorPeriodo = async (
+    cdfil: number,
+    dataInicio: string,
+    dataFim: string
+  ): Promise<Array<{
+    DATA: string;
+    valor: number;
+    vldesc: number;
+    pretab: number;
+    cusliq: number | null;
+  }>> => {
+    setLoading(true);
+    try {
+      console.log(`Buscando vendas gerais por período - CDFIL: ${cdfil}, Período: ${dataInicio} a ${dataFim}`);
+
+      const { data, error } = await supabase.functions.invoke('callfarma-vendas', {
+        body: {
+          endpoint: '/financeiro/vendas-por-periodo',
+          params: {
+            cdfil: cdfil.toString(),
+            dataini: dataInicio,
+            datafim: dataFim
+          }
+        }
+      });
+
+      if (error) throw error;
+
+      // O endpoint retorna diretamente um array, não tem .msg
+      const vendas = Array.isArray(data) ? data : [];
+      console.log(`Vendas gerais recebidas: ${vendas.length} dias`);
+
+      return vendas;
+    } catch (error) {
+      console.error('Erro ao buscar vendas gerais por período:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao buscar vendas gerais da API externa",
+        variant: "destructive",
+      });
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     loading,
     // Funções originais
@@ -1193,6 +1240,8 @@ export const useCallfarmaAPI = () => {
     // Novas funções para página Vendas
     buscarVendasPorFilial,
     buscarVendasFuncionariosDetalhadas,
-    buscarDadosVendasCompletos
+    buscarDadosVendasCompletos,
+    // Nova função para vendas gerais otimizada
+    buscarVendasGeraisPorPeriodo
   };
 };

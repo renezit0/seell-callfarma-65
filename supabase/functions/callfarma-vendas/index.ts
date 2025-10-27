@@ -39,12 +39,17 @@ serve(async (req) => {
 
     console.log(`URL final: ${url}`);
 
+    // Gerar timestamp para x-request-time
+    const requestTime = Math.floor(Date.now() / 1000).toString();
+    
     const response = await fetch(url, {
       method: 'GET',
       headers: {
         'accept': 'application/json',
         'authorization': `Bearer ${authToken}`,
         'x-auth-code': '1',
+        'x-client-id': '6582',
+        'x-request-time': requestTime,
       },
     });
 
