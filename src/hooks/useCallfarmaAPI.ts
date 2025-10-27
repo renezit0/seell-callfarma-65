@@ -1041,12 +1041,22 @@ export const useCallfarmaAPI = () => {
               if (!acc[dataKey]) {
                 acc[dataKey] = {
                   DATA: dataKey,
+                  CDGRUPO: 0,
                   valor: 0,
                   vldesc: 0,
                   pretab: 0,
                   cusliq: 0,
                   CDFIL: cdfilNum,
-                  ABREV: lojas[index].numero
+                  ABREV: lojas[index].numero,
+                  cusliqAnt: 0,
+                  valorAnt: 0,
+                  crescimento: '0',
+                  totCliAnt: 0,
+                  ticketMedioAnt: 0,
+                  margemAnt: '0',
+                  margem: '0',
+                  totCli: 0,
+                  ticketMedio: 0
                 };
               }
               
@@ -1089,12 +1099,22 @@ export const useCallfarmaAPI = () => {
           if (!acc[dataKey]) {
             acc[dataKey] = {
               DATA: dataKey,
+              CDGRUPO: 0,
               valor: 0,
               vldesc: 0,
               pretab: 0,
               cusliq: 0,
               CDFIL: cdfil,
-              ABREV: cdfil.toString().padStart(2, '0')
+              ABREV: cdfil.toString().padStart(2, '0'),
+              cusliqAnt: 0,
+              valorAnt: 0,
+              crescimento: '0',
+              totCliAnt: 0,
+              ticketMedioAnt: 0,
+              margemAnt: '0',
+              margem: '0',
+              totCli: 0,
+              ticketMedio: 0
             };
           }
           
