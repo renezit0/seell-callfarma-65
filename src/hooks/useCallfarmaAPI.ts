@@ -1008,18 +1008,16 @@ export const useCallfarmaAPI = () => {
           return [];
         }
 
-        // Buscar vendas de todas as lojas em paralelo usando vendas-por-funcionario
+        // Buscar vendas de todas as lojas em paralelo usando vendas-por-periodo
         const promessas = lojas.map(loja => {
           const cdfilNum = parseInt(loja.numero);
           return supabase.functions.invoke('callfarma-vendas', {
             body: {
-              endpoint: '/financeiro/vendas-por-funcionario',
+              endpoint: '/financeiro/vendas-por-periodo',
               params: {
-                dataFim: dataFim,
-                dataIni: dataInicio,
-                groupBy: 'scefilial.CDFIL,scekarde.DATA',
-                orderBy: 'scekarde.DATA asc',
-                filtroFiliais: cdfilNum.toString()
+                cdfil: cdfilNum.toString(),
+                dataini: dataInicio,
+                datafim: dataFim
               }
             }
           });
@@ -1034,44 +1032,25 @@ export const useCallfarmaAPI = () => {
           if (!resultado.error) {
             const cdfilNum = parseInt(lojas[index].numero);
             const vendas = resultado.data?.msg || [];
-            
-            // Agrupar por data
-            const vendasPorData: Record<string, any> = {};
-            
-            vendas.forEach((item: any) => {
-              const data = item.DATA;
-              if (!vendasPorData[data]) {
-                vendasPorData[data] = {
-                  DATA: data,
-                  CDGRUPO: 0,
-                  valor: 0,
-                  vldesc: 0,
-                  pretab: 0,
-                  cusliq: 0,
-                  CDFIL: cdfilNum,
-                  ABREV: lojas[index].numero,
-                  cusliqAnt: 0,
-                  valorAnt: 0,
-                  crescimento: '0',
-                  totCliAnt: 0,
-                  ticketMedioAnt: 0,
-                  margemAnt: '0',
-                  margem: '0',
-                  totCli: 0,
-                  ticketMedio: 0
-                };
-              }
-              
-              vendasPorData[data].valor += item.TOTAL_VLR_VE || 0;
-              vendasPorData[data].vldesc += item.TOTAL_VLR_DV || 0;
-              vendasPorData[data].totCli += item.TOTAL_QTD_VE || 0;
-            });
-            
-            // Calcular ticket médio e adicionar aos dados consolidados
-            Object.values(vendasPorData).forEach((dia: any) => {
+            vendas.forEach((dia: any) => {
               dadosConsolidados.push({
-                ...dia,
-                ticketMedio: dia.totCli > 0 ? dia.valor / dia.totCli : 0
+                DATA: dia.DATA,
+                CDGRUPO: 0,
+                valor: dia.valor || 0,
+                vldesc: dia.vldesc || 0,
+                pretab: dia.pretab || 0,
+                cusliq: dia.cusliq || 0,
+                CDFIL: cdfilNum,
+                ABREV: lojas[index].numero,
+                cusliqAnt: 0,
+                valorAnt: 0,
+                crescimento: '0',
+                totCliAnt: 0,
+                ticketMedioAnt: 0,
+                margemAnt: '0',
+                margem: '0',
+                totCli: 0,
+                ticketMedio: 0
               });
             });
           }
@@ -1081,16 +1060,14 @@ export const useCallfarmaAPI = () => {
         return dadosConsolidados;
         
       } else {
-        // Buscar vendas de uma loja específica usando vendas-por-funcionario agrupado por filial e data
+        // Buscar vendas de uma loja específica usando vendas-por-periodo
         const { data, error } = await supabase.functions.invoke('callfarma-vendas', {
           body: {
-            endpoint: '/financeiro/vendas-por-funcionario',
+            endpoint: '/financeiro/vendas-por-periodo',
             params: {
-              dataFim: dataFim,
-              dataIni: dataInicio,
-              groupBy: 'scefilial.CDFIL,scekarde.DATA',
-              orderBy: 'scekarde.DATA asc',
-              filtroFiliais: cdfil.toString()
+              cdfil: cdfil.toString(),
+              dataini: dataInicio,
+              datafim: dataFim
             }
           }
         });
@@ -1101,41 +1078,25 @@ export const useCallfarmaAPI = () => {
         const vendas = data?.msg || [];
         console.log(`Vendas da loja ${cdfil}:`, vendas.length, 'dias', { primeiroRegistro: vendas[0] });
 
-        // Processar os dados agrupando por data
-        const vendasPorData = vendas.reduce((acc: any, item: any) => {
-          const data = item.DATA;
-          if (!acc[data]) {
-            acc[data] = {
-              DATA: data,
-              CDGRUPO: 0,
-              valor: 0,
-              vldesc: 0,
-              pretab: 0,
-              cusliq: 0,
-              CDFIL: cdfil,
-              ABREV: cdfil.toString().padStart(2, '0'),
-              cusliqAnt: 0,
-              valorAnt: 0,
-              crescimento: '0',
-              totCliAnt: 0,
-              ticketMedioAnt: 0,
-              margemAnt: '0',
-              margem: '0',
-              totCli: item.TOTAL_QTD_VE || 0,
-              ticketMedio: 0
-            };
-          }
-          
-          acc[data].valor += item.TOTAL_VLR_VE || 0;
-          acc[data].vldesc += item.TOTAL_VLR_DV || 0;
-          acc[data].totCli += item.TOTAL_QTD_VE || 0;
-          
-          return acc;
-        }, {});
-
-        const vendasComCdfil = Object.values(vendasPorData).map((dia: any) => ({
-          ...dia,
-          ticketMedio: dia.totCli > 0 ? dia.valor / dia.totCli : 0
+        // Adicionar CDFIL e campos obrigatórios aos dados
+        const vendasComCdfil = vendas.map((dia: any) => ({
+          DATA: dia.DATA,
+          CDGRUPO: 0,
+          valor: dia.valor || 0,
+          vldesc: dia.vldesc || 0,
+          pretab: dia.pretab || 0,
+          cusliq: dia.cusliq || 0,
+          CDFIL: cdfil,
+          ABREV: cdfil.toString().padStart(2, '0'),
+          cusliqAnt: 0,
+          valorAnt: 0,
+          crescimento: '0',
+          totCliAnt: 0,
+          ticketMedioAnt: 0,
+          margemAnt: '0',
+          margem: '0',
+          totCli: 0,
+          ticketMedio: 0
         }));
 
         return vendasComCdfil;
