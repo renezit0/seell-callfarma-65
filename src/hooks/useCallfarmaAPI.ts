@@ -1008,16 +1008,18 @@ export const useCallfarmaAPI = () => {
           return [];
         }
 
-        // Buscar vendas de todas as lojas em paralelo usando vendas-por-periodo
+        // Buscar vendas de todas as lojas em paralelo usando vendas-por-filial
         const promessas = lojas.map(loja => {
           const cdfilNum = parseInt(loja.numero);
           return supabase.functions.invoke('callfarma-vendas', {
             body: {
-              endpoint: '/financeiro/vendas-por-periodo',
+              endpoint: '/financeiro/vendas-por-filial',
               params: {
                 cdfil: cdfilNum.toString(),
-                dataini: dataInicio,
-                datafim: dataFim
+                dataFim: dataFim,
+                dataFimAnt: dataFim,
+                dataIni: dataInicio,
+                dataIniAnt: dataInicio
               }
             }
           });
@@ -1028,31 +1030,11 @@ export const useCallfarmaAPI = () => {
         // Processar e consolidar os dados de todas as lojas
         const dadosConsolidados: VendaFilial[] = [];
         
-        resultados.forEach((resultado, index) => {
+        resultados.forEach((resultado) => {
           if (!resultado.error) {
-            const cdfilNum = parseInt(lojas[index].numero);
             const vendas = resultado.data?.msg || [];
-            vendas.forEach((dia: any) => {
-              dadosConsolidados.push({
-                DATA: dia.DATA,
-                CDGRUPO: 0,
-                valor: dia.valor || 0,
-                vldesc: dia.vldesc || 0,
-                pretab: dia.pretab || 0,
-                cusliq: dia.cusliq || 0,
-                CDFIL: cdfilNum,
-                ABREV: lojas[index].numero,
-                cusliqAnt: 0,
-                valorAnt: 0,
-                crescimento: '0',
-                totCliAnt: 0,
-                ticketMedioAnt: 0,
-                margemAnt: '0',
-                margem: '0',
-                totCli: 0,
-                ticketMedio: 0
-              });
-            });
+            // Os dados já vêm formatados corretamente do endpoint
+            dadosConsolidados.push(...vendas);
           }
         });
 
@@ -1060,44 +1042,28 @@ export const useCallfarmaAPI = () => {
         return dadosConsolidados;
         
       } else {
-        // Buscar vendas de uma loja específica usando vendas-por-periodo
+        // Buscar vendas de uma loja específica usando vendas-por-filial
         const { data, error } = await supabase.functions.invoke('callfarma-vendas', {
           body: {
-            endpoint: '/financeiro/vendas-por-periodo',
+            endpoint: '/financeiro/vendas-por-filial',
             params: {
               cdfil: cdfil.toString(),
-              dataini: dataInicio,
-              datafim: dataFim
+              dataFim: dataFim,
+              dataFimAnt: dataFim,
+              dataIni: dataInicio,
+              dataIniAnt: dataInicio
             }
           }
         });
 
         if (error) throw error;
 
-        // A resposta vem em data.msg
+        // A resposta vem em data.msg e já tem todos os campos necessários
         const vendas = data?.msg || [];
-        console.log(`Vendas da loja ${cdfil}:`, vendas.length, 'dias', { primeiroRegistro: vendas[0] });
+        console.log(`Vendas da loja ${cdfil}:`, vendas.length, 'registros', { primeiroRegistro: vendas[0] });
 
-        // Adicionar CDFIL e campos obrigatórios aos dados
-        const vendasComCdfil = vendas.map((dia: any) => ({
-          DATA: dia.DATA,
-          CDGRUPO: 0,
-          valor: dia.valor || 0,
-          vldesc: dia.vldesc || 0,
-          pretab: dia.pretab || 0,
-          cusliq: dia.cusliq || 0,
-          CDFIL: cdfil,
-          ABREV: cdfil.toString().padStart(2, '0'),
-          cusliqAnt: 0,
-          valorAnt: 0,
-          crescimento: '0',
-          totCliAnt: 0,
-          ticketMedioAnt: 0,
-          margemAnt: '0',
-          margem: '0',
-          totCli: 0,
-          ticketMedio: 0
-        }));
+        // Os dados já vêm formatados corretamente do endpoint
+        const vendasComCdfil = vendas;
 
         return vendasComCdfil;
       }
