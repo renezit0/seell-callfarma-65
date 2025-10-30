@@ -1079,6 +1079,8 @@ export const useCallfarmaAPI = () => {
         console.log(`Vendas da loja ${cdfil}:`, vendas.length, 'dias', { primeiroRegistro: vendas[0] });
 
         // Adicionar CDFIL e campos obrigatórios aos dados
+        // Nota: vendas-por-periodo não retorna totCli e ticketMedio, 
+        // esses campos ficam zerados por enquanto
         const vendasComCdfil = vendas.map(dia => ({
           DATA: dia.DATA,
           CDGRUPO: 0,
