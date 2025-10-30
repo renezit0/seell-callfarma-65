@@ -1029,9 +1029,10 @@ export const useCallfarmaAPI = () => {
         const dadosConsolidados: VendaFilial[] = [];
         
         resultados.forEach((resultado, index) => {
-          if (!resultado.error && Array.isArray(resultado.data)) {
+          if (!resultado.error) {
             const cdfilNum = parseInt(lojas[index].numero);
-            resultado.data.forEach((dia: any) => {
+            const vendas = resultado.data?.msg || resultado.data || [];
+            vendas.forEach((dia: any) => {
               dadosConsolidados.push({
                 DATA: dia.DATA,
                 CDGRUPO: 0,
@@ -1073,9 +1074,9 @@ export const useCallfarmaAPI = () => {
 
         if (error) throw error;
 
-        // O endpoint retorna diretamente um array
-        const vendas = Array.isArray(data) ? data : [];
-        console.log(`Vendas da loja ${cdfil}: ${vendas.length} dias`);
+        // A resposta pode vir em data.msg ou diretamente em data
+        const vendas = data?.msg || data || [];
+        console.log(`Vendas da loja ${cdfil}:`, vendas.length, 'dias', { primeiroRegistro: vendas[0] });
 
         // Adicionar CDFIL e campos obrigatórios aos dados
         const vendasComCdfil = vendas.map(dia => ({
